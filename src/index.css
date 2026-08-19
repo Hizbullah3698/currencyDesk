@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --color-app: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #fafbfc;
+  --color-surface-hover: #f7f8fa;
+  --color-surface-tint: #f0f1f4;
+  --color-border: #e3e6ea;
+  --color-border-strong: #d5d9e0;
+  --color-border-input: #d5d9e0;
+  --color-border-hairline: #eef0f3;
+  --color-divider: #eef0f3;
+  --color-ink: #14161a;
+  --color-muted-70: rgba(20, 22, 26, 0.70);
+  --color-muted-60: rgba(20, 22, 26, 0.60);
+  --color-muted-42: rgba(20, 22, 26, 0.42);
+  --color-muted-38: rgba(20, 22, 26, 0.38);
+
+  --color-accent: #3d46d0;
+  --color-accent-hover: #2f37ad;
+  --color-accent-bg: rgba(61, 70, 208, 0.08);
+  --color-accent-border: rgba(61, 70, 208, 0.28);
+
+  --color-positive: #10794f;
+  --color-positive-text: #0f6b46;
+  --color-positive-bg: #e6f4ec;
+  --color-positive-border: #bfe6d1;
+
+  --color-negative: #c4443a;
+  --color-negative-text: #b03a30;
+  --color-negative-deep: #8a2b23;
+  --color-negative-bg: #fdecea;
+  --color-negative-border: #e3c6c2;
+
+  --color-pending: #97650c;
+  --color-pending-text: #6b4306;
+  --color-pending-bg: #fdf3e2;
+  --color-pending-border: #ecd7ae;
+
+  --color-locked-text: #6b4a06;
+  --color-locked-bg: #f6e6c9;
+  --color-locked-border: #e8d5a8;
+
+  --color-neutral-chip: #eceff3;
+
+  --radius-app: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-app);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, select, button, textarea {
+  font-family: inherit;
+}
+
+::selection {
+  background: rgba(61, 70, 208, 0.18);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+a {
+  color: var(--color-accent);
+}
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6dae0;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
