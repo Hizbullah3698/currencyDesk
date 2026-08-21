@@ -64,6 +64,12 @@ export interface Account {
   typeChangedFrom?: AccountType
   typeChangedBy?: string
   typeChangedAt?: string
+
+  // Archive — hides the account from active lists/search without touching its data or
+  // transaction history. Distinct from delete, which stays blocked once any activity exists.
+  archived?: boolean
+  archivedAt?: string
+  archivedBy?: string
 }
 
 export type SettlementMethod = 'Cash' | 'Bank' | 'Cheque' | 'Credit'

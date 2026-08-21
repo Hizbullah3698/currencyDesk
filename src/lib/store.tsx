@@ -106,6 +106,8 @@ interface StoreCtx {
     },
   ) => string // '' on success, error message otherwise
   deleteAccount: (id: string) => string
+  archiveAccount: (id: string) => string
+  unarchiveAccount: (id: string) => void
 
   confirmPurchase: (input: {
     customerId: string
@@ -365,6 +367,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       mutate((s) => ({ ...s, accounts: s.accounts.filter((x) => x.id !== id) }))
       return ''
     },
+
+    archiveAccount: (id) => {
+      const a = getAccount(id)
+      if (!a || a.system) return "This account can't be archived."
+      mutate((s) => ({
+        ...s,
+        accounts: s.accounts.map((x) => (x.id === id ? { ...x, archived: true, archivedAt: new Date().toISOString(), archivedBy: actor } : x)),
+      }))
+      return ''
+    },
+    unarchiveAccount: (id) =>
+      mutate((s) => ({
+        ...s,
+        accounts: s.accounts.map((x) => (x.id === id ? { ...x, archived: false, archivedAt: undefined, archivedBy: undefined } : x)),
+      })),
 
     confirmPurchase: (input) => {
       const cust = getAccount(input.customerId)

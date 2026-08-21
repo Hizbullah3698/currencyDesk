@@ -1,21 +1,24 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer, Pencil, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { auditLine, relLabel } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { ACTIVITY_META, statusMeta } from '@/lib/ui-helpers'
 import { BackButton } from '@/components/BackButton'
 import { PrintHeader } from '@/components/PrintHeader'
+import { AccountFormModal } from '@/components/AccountFormModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 
 export function CustomerDetail() {
   const { id } = useParams()
-  const { state, getAccount } = useStore()
+  const { state, getAccount, isAdmin, accountHasActivity, archiveAccount, unarchiveAccount, deleteAccount } = useStore()
   const navigate = useNavigate()
+  const [editOpen, setEditOpen] = useState(false)
   const cust = getAccount(id)
 
   const txns = useMemo(() => (id ? state.activity.filter((t) => t.customerId === id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) : []), [state.activity, id])
@@ -38,6 +41,17 @@ export function CustomerDetail() {
   const pctR = openingR > 0 ? Math.min(100, Math.round((settledR / openingR) * 100)) : receivable === 0 ? 100 : 0
   const pctP = openingP > 0 ? Math.min(100, Math.round((settledP / openingP) * 100)) : payable === 0 ? 100 : 0
 
+  const hasActivity = accountHasActivity(cust.id)
+
+  function toggleArchive() {
+    if (cust!.archived) unarchiveAccount(cust!.id)
+    else archiveAccount(cust!.id)
+  }
+  function removeCustomer() {
+    const err = deleteAccount(cust!.id)
+    if (!err) navigate('/customers')
+  }
+
   return (
     <div>
       <PrintHeader title={`Customer Statement — ${cust.name}`} period={`All-time · ${txns.length} transaction${txns.length === 1 ? '' : 's'} on file.`} />
@@ -47,7 +61,45 @@ export function CustomerDetail() {
       </div>
       <div className="mb-3.5 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 mb-1 text-[19px] font-semibold tracking-tight">{cust.name}</h1>
+          <div className="mb-1 flex items-center gap-1.5">
+            <h1 className="m-0 text-[19px] font-semibold tracking-tight">{cust.name}</h1>
+            {cust.archived && <Badge variant="neutral">Archived</Badge>}
+            {isAdmin && (
+              <div className="flex items-center gap-0.5 print:hidden">
+                <button
+                  onClick={() => setEditOpen(true)}
+                  aria-label="Edit customer"
+                  title="Edit customer"
+                  className="rounded-[5px] p-1.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent"
+                >
+                  <Pencil size={13} strokeWidth={2} aria-hidden="true" />
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button aria-label="More customer actions" title="More actions" className="rounded-[5px] p-1.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-ink">
+                      <MoreVertical size={13} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={toggleArchive}>
+                      {cust.archived ? <ArchiveRestore size={13} strokeWidth={2} aria-hidden="true" /> : <Archive size={13} strokeWidth={2} aria-hidden="true" />}
+                      {cust.archived ? 'Unarchive customer' : 'Archive customer'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      destructive
+                      disabled={hasActivity}
+                      onSelect={removeCustomer}
+                      title={hasActivity ? 'Delete is only available for a customer with zero transactions ever posted.' : undefined}
+                    >
+                      <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
+                      Delete customer permanently
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2.5 text-[11px] font-normal text-muted-60">
             <span className="tabular">{cust.phone}</span>
             <span className="text-muted-42" aria-hidden="true">·</span>
@@ -180,6 +232,8 @@ export function CustomerDetail() {
         })}
       </Card>
       {txns.length === 0 && <EmptyState icon={Inbox} title={`No transactions yet with ${cust.name}.`} className="py-8" />}
+
+      {editOpen && <AccountFormModal mode="edit" editId={cust.id} onClose={() => setEditOpen(false)} />}
     </div>
   )
 }
