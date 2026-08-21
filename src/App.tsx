@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { StoreProvider, useStore } from '@/lib/store'
+import { ThemeProvider } from '@/lib/theme'
 import { AppShell } from '@/components/layout/AppShell'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/Dashboard'
@@ -83,10 +84,12 @@ function Gate() {
 
 export default function App() {
   return (
-    <StoreProvider>
-      <BrowserRouter>
-        <Gate />
-      </BrowserRouter>
-    </StoreProvider>
+    <ThemeProvider>
+      <StoreProvider>
+        <BrowserRouter>
+          <Gate />
+        </BrowserRouter>
+      </StoreProvider>
+    </ThemeProvider>
   )
 }

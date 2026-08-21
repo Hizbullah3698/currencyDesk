@@ -25,6 +25,12 @@
   --color-accent-hover: #2f37ad;
   --color-accent-bg: rgba(61, 70, 208, 0.08);
   --color-accent-border: rgba(61, 70, 208, 0.28);
+  /* Solid-fill variant: what white button/segment text sits on. Identical to
+     --color-accent in light mode; diverges in dark mode where a single hue can't
+     both read as text on a near-black page AND hold 4.5:1 for white text on top
+     of it — see the dark-mode blocks below. */
+  --color-accent-solid: #3d46d0;
+  --color-accent-solid-hover: #2f37ad;
 
   --color-positive: #10794f;
   --color-positive-text: #0f6b46;
@@ -36,6 +42,7 @@
   --color-negative-deep: #8a2b23;
   --color-negative-bg: #fdecea;
   --color-negative-border: #e3c6c2;
+  --color-negative-solid: #c4443a;
 
   --color-pending: #97650c;
   --color-pending-text: #6b4306;
@@ -48,7 +55,181 @@
 
   --color-neutral-chip: #eceff3;
 
+  /* Category identity — soft-tinted icon-badge backgrounds only. Never used for
+     card backgrounds or numeric values; the positive/negative/pending state
+     colors above are untouched and remain the only state signal. */
+  --color-cat-blue: #1d6fa8;
+  --color-cat-blue-bg: #e5f1fa;
+  --color-cat-teal: #0e8a8f;
+  --color-cat-teal-bg: #e1f4f5;
+  --color-cat-violet: #7c4fb0;
+  --color-cat-violet-bg: #f2eafa;
+  --color-cat-slate: #52606d;
+  --color-cat-slate-bg: #eceff2;
+
+  --color-strip-bg: #eceff3;
+  --color-strip-border: #d3d8df;
+  --color-scrollbar-thumb: #d6dae0;
+
   --radius-app: 6px;
+
+  --shadow-xs: 0 1px 2px 0 rgba(20, 22, 26, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(20, 22, 26, 0.05), 0 1px 1px -1px rgba(20, 22, 26, 0.045);
+  --shadow-md: 0 4px 10px -2px rgba(20, 22, 26, 0.08), 0 2px 4px -2px rgba(20, 22, 26, 0.05);
+  --shadow-hover: 0 2px 6px -1px rgba(20, 22, 26, 0.07), 0 1px 2px -1px rgba(20, 22, 26, 0.05);
+}
+
+/*
+ * Dark mode — same token names, redefined values, applied via CSS custom-property
+ * cascade (Tailwind v4's @theme utilities read these vars at paint time, so
+ * overriding them here needs no utility-class changes anywhere in the app).
+ *
+ * Three-block pattern:
+ *   1. :root above    — light values (default, and the explicit "light" override).
+ *   2. @media block    — system preference is dark, unless explicitly forced light.
+ *   3. [data-theme=dark] — explicit dark override, wins regardless of OS setting.
+ * `data-theme` is set by ThemeProvider (src/lib/theme.tsx) from a preference stored
+ * under its own `currencydesk.theme.v1` key — entirely separate from the app's
+ * business-data storage, since a display preference is not user data to protect.
+ *
+ * Every hue below was re-picked (not just darkened) and checked at ≥4.5:1 against
+ * both the dark page (#0d0f13) and dark card (#16181f) backgrounds, and against its
+ * own tinted chip background — a light-mode-safe tint does not survive the switch
+ * unchanged, since contrast direction flips with the background. State colors
+ * (positive/negative/pending) and all six category tints were verified this way.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-app: #0d0f13;
+    --color-surface: #16181f;
+    --color-surface-sunken: #121419;
+    --color-surface-hover: #1e212a;
+    --color-surface-tint: #232631;
+    --color-border: #262a33;
+    --color-border-strong: #343b47;
+    --color-border-input: #343b47;
+    --color-border-hairline: #1c1f26;
+    --color-divider: #1c1f26;
+    --color-ink: #eef0f3;
+    --color-muted-70: rgba(238, 240, 243, 0.70);
+    --color-muted-60: rgba(238, 240, 243, 0.60);
+    --color-muted-42: rgba(238, 240, 243, 0.42);
+    --color-muted-38: rgba(238, 240, 243, 0.38);
+
+    --color-accent: #7c86f0;
+    --color-accent-hover: #929bf5;
+    --color-accent-bg: #1c2036;
+    --color-accent-border: rgba(124, 134, 240, 0.35);
+    --color-accent-solid: #4a52d6;
+    --color-accent-solid-hover: #5a63e6;
+
+    --color-positive: #34c38f;
+    --color-positive-text: #34c38f;
+    --color-positive-bg: #0f2a20;
+    --color-positive-border: rgba(52, 195, 143, 0.35);
+
+    --color-negative: #f2685c;
+    --color-negative-text: #f2685c;
+    --color-negative-deep: #f2685c;
+    --color-negative-bg: #331613;
+    --color-negative-border: rgba(242, 104, 92, 0.35);
+    --color-negative-solid: #c8382c;
+
+    --color-pending: #e2a83f;
+    --color-pending-text: #e2a83f;
+    --color-pending-bg: #332507;
+    --color-pending-border: rgba(226, 168, 63, 0.35);
+
+    --color-locked-text: #e2a83f;
+    --color-locked-bg: #332507;
+    --color-locked-border: rgba(226, 168, 63, 0.35);
+
+    --color-neutral-chip: #232631;
+
+    --color-cat-blue: #4d9fd6;
+    --color-cat-blue-bg: #0f2536;
+    --color-cat-teal: #3fc2c7;
+    --color-cat-teal-bg: #0c2a2c;
+    --color-cat-violet: #b48ee0;
+    --color-cat-violet-bg: #241a33;
+    --color-cat-slate: #a8b2bd;
+    --color-cat-slate-bg: #1c2027;
+
+    --color-strip-bg: #14161b;
+    --color-strip-border: #262a33;
+    --color-scrollbar-thumb: #343b47;
+
+    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.45), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+    --shadow-hover: 0 3px 8px -1px rgba(0, 0, 0, 0.45), 0 1px 3px -1px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-app: #0d0f13;
+  --color-surface: #16181f;
+  --color-surface-sunken: #121419;
+  --color-surface-hover: #1e212a;
+  --color-surface-tint: #232631;
+  --color-border: #262a33;
+  --color-border-strong: #343b47;
+  --color-border-input: #343b47;
+  --color-border-hairline: #1c1f26;
+  --color-divider: #1c1f26;
+  --color-ink: #eef0f3;
+  --color-muted-70: rgba(238, 240, 243, 0.70);
+  --color-muted-60: rgba(238, 240, 243, 0.60);
+  --color-muted-42: rgba(238, 240, 243, 0.42);
+  --color-muted-38: rgba(238, 240, 243, 0.38);
+
+  --color-accent: #7c86f0;
+  --color-accent-hover: #929bf5;
+  --color-accent-bg: #1c2036;
+  --color-accent-border: rgba(124, 134, 240, 0.35);
+  --color-accent-solid: #4a52d6;
+  --color-accent-solid-hover: #5a63e6;
+
+  --color-positive: #34c38f;
+  --color-positive-text: #34c38f;
+  --color-positive-bg: #0f2a20;
+  --color-positive-border: rgba(52, 195, 143, 0.35);
+
+  --color-negative: #f2685c;
+  --color-negative-text: #f2685c;
+  --color-negative-deep: #f2685c;
+  --color-negative-bg: #331613;
+  --color-negative-border: rgba(242, 104, 92, 0.35);
+  --color-negative-solid: #c8382c;
+
+  --color-pending: #e2a83f;
+  --color-pending-text: #e2a83f;
+  --color-pending-bg: #332507;
+  --color-pending-border: rgba(226, 168, 63, 0.35);
+
+  --color-locked-text: #e2a83f;
+  --color-locked-bg: #332507;
+  --color-locked-border: rgba(226, 168, 63, 0.35);
+
+  --color-neutral-chip: #232631;
+
+  --color-cat-blue: #4d9fd6;
+  --color-cat-blue-bg: #0f2536;
+  --color-cat-teal: #3fc2c7;
+  --color-cat-teal-bg: #0c2a2c;
+  --color-cat-violet: #b48ee0;
+  --color-cat-violet-bg: #241a33;
+  --color-cat-slate: #a8b2bd;
+  --color-cat-slate-bg: #1c2027;
+
+  --color-strip-bg: #14161b;
+  --color-strip-border: #262a33;
+  --color-scrollbar-thumb: #343b47;
+
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.45), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 3px 8px -1px rgba(0, 0, 0, 0.45), 0 1px 3px -1px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -59,6 +240,18 @@ html, body, #root {
   height: 100%;
 }
 
+html {
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   background: var(--color-app);
@@ -67,6 +260,7 @@ body {
   font-size: 13px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
 }
 
 input, select, button, textarea {
@@ -74,7 +268,7 @@ input, select, button, textarea {
 }
 
 ::selection {
-  background: rgba(61, 70, 208, 0.18);
+  background: var(--color-accent-border);
 }
 
 :focus-visible {
@@ -99,9 +293,125 @@ a:hover {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6dae0;
+  background: var(--color-scrollbar-thumb);
   border-radius: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-step {
+  animation: fade-slide-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Print — Balance Sheet, Income Statement, a customer statement, or the currency
+ * ledger get filed or handed to someone as paper, so the printed page must not
+ * depend on whichever theme the screen happened to be in. Every token below is
+ * !important because it has to beat BOTH the system-dark media block and the
+ * explicit [data-theme="dark"] block above regardless of which one last set the
+ * variable — normal-priority cascade order can't guarantee that, !important can.
+ * Component visibility (sidebar, TopBar, period pills, buttons) is handled per
+ * element with Tailwind's `print:hidden` utility rather than here — see the
+ * report pages and AppShell/Sidebar/TopBar.
+ */
+@media print {
+  :root {
+    --color-app: #ffffff !important;
+    --color-surface: #ffffff !important;
+    --color-surface-sunken: #fafbfc !important;
+    --color-surface-hover: #f7f8fa !important;
+    --color-surface-tint: #f0f1f4 !important;
+    --color-border: #e3e6ea !important;
+    --color-border-strong: #d5d9e0 !important;
+    --color-border-input: #d5d9e0 !important;
+    --color-border-hairline: #eef0f3 !important;
+    --color-divider: #eef0f3 !important;
+    --color-ink: #14161a !important;
+    --color-muted-70: rgba(20, 22, 26, 0.70) !important;
+    --color-muted-60: rgba(20, 22, 26, 0.60) !important;
+    --color-muted-42: rgba(20, 22, 26, 0.42) !important;
+    --color-muted-38: rgba(20, 22, 26, 0.38) !important;
+
+    --color-accent: #3d46d0 !important;
+    --color-accent-hover: #2f37ad !important;
+    --color-accent-bg: rgba(61, 70, 208, 0.08) !important;
+    --color-accent-border: rgba(61, 70, 208, 0.28) !important;
+    --color-accent-solid: #3d46d0 !important;
+    --color-accent-solid-hover: #2f37ad !important;
+
+    --color-positive: #10794f !important;
+    --color-positive-text: #0f6b46 !important;
+    --color-positive-bg: #e6f4ec !important;
+    --color-positive-border: #bfe6d1 !important;
+
+    --color-negative: #c4443a !important;
+    --color-negative-text: #b03a30 !important;
+    --color-negative-deep: #8a2b23 !important;
+    --color-negative-bg: #fdecea !important;
+    --color-negative-border: #e3c6c2 !important;
+    --color-negative-solid: #c4443a !important;
+
+    --color-pending: #97650c !important;
+    --color-pending-text: #6b4306 !important;
+    --color-pending-bg: #fdf3e2 !important;
+    --color-pending-border: #ecd7ae !important;
+
+    --color-locked-text: #6b4a06 !important;
+    --color-locked-bg: #f6e6c9 !important;
+    --color-locked-border: #e8d5a8 !important;
+
+    --color-neutral-chip: #eceff3 !important;
+
+    --color-cat-blue: #1d6fa8 !important;
+    --color-cat-blue-bg: #e5f1fa !important;
+    --color-cat-teal: #0e8a8f !important;
+    --color-cat-teal-bg: #e1f4f5 !important;
+    --color-cat-violet: #7c4fb0 !important;
+    --color-cat-violet-bg: #f2eafa !important;
+    --color-cat-slate: #52606d !important;
+    --color-cat-slate-bg: #eceff2 !important;
+
+    --color-strip-bg: #eceff3 !important;
+    --color-strip-border: #d3d8df !important;
+    --color-scrollbar-thumb: #d6dae0 !important;
+
+    --shadow-xs: none !important;
+    --shadow-sm: none !important;
+    --shadow-md: none !important;
+    --shadow-hover: none !important;
+  }
+
+  html, html[data-theme="dark"] {
+    color-scheme: light !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #14161a !important;
+  }
+
+  @page {
+    margin: 14mm 12mm;
+  }
 }

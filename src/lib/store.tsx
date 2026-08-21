@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Account, AccountType, Activity, Cheque, JournalEntry, Role, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
 import { seedAccounts, seedActivity, seedCheques, seedJournalEntries, seedStocks } from './seed'
-import { buyCalc, chequeNoError, nextChequeNumber, sellCalc, stk } from './engine'
+import { buyCalc, chequeNoError, isToday, nextChequeNumber, sellCalc, stk } from './engine'
 
 const STORE_KEY = 'currencydesk.state.v1'
 
@@ -17,6 +17,13 @@ interface PersistShape {
   nextChequeNo: number
   role: Role
   userName: string
+  // True only for data that has never been touched by a real mutating action (a posted
+  // trade, payment, cheque action, journal entry, salary run, or account add/edit/delete).
+  // Every such action clears this via `mutate` below — see that helper for why this is the
+  // single point of truth rather than something set ad hoc per call site. Only ever used to
+  // gate the date-staleness auto-reseed in loadState(); it must never cause real entered
+  // data to be discarded.
+  pristine: boolean
 }
 
 function seedState(): PersistShape {
@@ -31,6 +38,7 @@ function seedState(): PersistShape {
     nextChequeNo: 4200,
     role: 'admin',
     userName: 'Admin',
+    pristine: true,
   }
 }
 
@@ -39,7 +47,19 @@ function loadState(): PersistShape {
     const raw = window.localStorage.getItem(STORE_KEY)
     if (!raw) return seedState()
     const saved = JSON.parse(raw)
-    return { ...seedState(), ...saved }
+    // Explicit `=== true` check, not a spread fallback: any persisted state written before
+    // this flag existed (or corrupted/partial JSON) has no `pristine` key and must be treated
+    // as NOT pristine — i.e. "unknown" defaults to "assume it might be real data, never wipe."
+    const merged: PersistShape = { ...seedState(), ...saved, pristine: saved.pristine === true }
+    // This is a presentation/demo build, so seed dates are generated relative to "now" at seed
+    // time — a session left untouched since an earlier day goes stale: "today" no longer has
+    // any trade and the dashboard reads as broken/empty. Self-heal by reseeding, but ONLY when
+    // the data is still the original untouched seed (`pristine`). The moment any real action
+    // has been taken, a quiet day with zero trades is indistinguishable from stale demo data —
+    // and a quiet day is completely normal for a real business, so it must never be wiped.
+    if (!merged.pristine) return merged
+    const hasTodayTrade = (merged.activity || []).some((t) => (t.type === 'sale' || t.type === 'purchase') && isToday(t.createdAt))
+    return hasTodayTrade ? merged : seedState()
   } catch {
     return seedState()
   }
@@ -139,6 +159,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [persisted])
 
+  // Every real data-mutating action goes through this, never through setPersisted directly,
+  // so `pristine` can't be left true by forgetting to clear it at some new call site — it's
+  // cleared once, here, for the whole store. login/setRole are view toggles, not data entry,
+  // so they use setPersisted directly and intentionally leave `pristine` untouched.
+  const mutate = (fn: (s: PersistShape) => PersistShape) => setPersisted((s) => ({ ...fn(s), pristine: false }))
+
   const state: AppState = { ...persisted, loggedIn }
   const isAdmin = persisted.role !== 'user'
   const actor = persisted.userName || (isAdmin ? 'Admin' : 'Operations user')
@@ -236,7 +262,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (typeChanged && prev.type === 'Customer' && ((prev.receivable || 0) !== 0 || (prev.payable || 0) !== 0)) {
           return `${prev.name} still carries an open receivable or payable. Settle the balance before changing the type.`
         }
-        setPersisted((s) => {
+        mutate((s) => {
           const accounts = s.accounts.map((a) =>
             a.id !== id
               ? a
@@ -322,7 +348,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         accounts: [...s.accounts, acct],
         nextId: s.nextId + 1,
@@ -336,7 +362,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const a = getAccount(id)
       if (!a || a.system) return "This account can't be deleted."
       if (accountHasActivity(id)) return "This account has transactions posted against it and can't be deleted."
-      setPersisted((s) => ({ ...s, accounts: s.accounts.filter((x) => x.id !== id) }))
+      mutate((s) => ({ ...s, accounts: s.accounts.filter((x) => x.id !== id) }))
       return ''
     },
 
@@ -377,7 +403,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cheque = chequeHeld ? buildCheque({ direction: 'Outward', party: cust.name, customerId: input.customerId, amount: paidNow, chqNo: input.chqNo, chqBank: input.chqBank, source: 'purchase', bankAccountId: input.bankId }, persisted.cheques, persisted.nextChequeNo) : null
       if (cheque) txn.chequeId = cheque.id
 
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         accounts: s.accounts.map((c) => (c.id === input.customerId ? { ...c, payable: (c.payable || 0) + ledgerOutstanding } : c)),
         stocks: { ...s.stocks, [code]: { available: newAvail, avgCost: newAvg } },
@@ -427,7 +453,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cheque = chequeHeld ? buildCheque({ direction: 'Inward', party: cust.name, customerId: input.customerId, amount: paidNow, chqNo: input.chqNo, chqBank: input.chqBank, source: 'sale', bankAccountId: input.bankId }, persisted.cheques, persisted.nextChequeNo) : null
       if (cheque) txn.chequeId = cheque.id
 
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         accounts: s.accounts.map((c) => (c.id === input.customerId ? { ...c, receivable: (c.receivable || 0) + ledgerOutstanding } : c)),
         stocks: { ...s.stocks, [input.currency]: { available: stk(s.stocks, input.currency).available - amount, avgCost: stk(s.stocks, input.currency).avgCost } },
@@ -462,7 +488,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cheque = chequeHeld ? buildCheque({ direction: 'Inward', party: cust.name, customerId: input.customerId, amount: input.amount, chqNo: input.chqNo, chqBank: input.chqBank, source: 'payment in', bankAccountId: input.bankId }, persisted.cheques, persisted.nextChequeNo) : null
       if (cheque) txn.chequeId = cheque.id
 
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         accounts: chequeHeld ? s.accounts : s.accounts.map((c) => (c.id === input.customerId ? { ...c, receivable: (c.receivable || 0) - input.amount } : c)),
         activity: [txn, ...s.activity],
@@ -496,7 +522,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cheque = chequeHeld ? buildCheque({ direction: 'Outward', party: cust.name, customerId: input.customerId, amount: input.amount, chqNo: input.chqNo, chqBank: input.chqBank, source: 'payment out', bankAccountId: input.bankId }, persisted.cheques, persisted.nextChequeNo) : null
       if (cheque) txn.chequeId = cheque.id
 
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         accounts: chequeHeld ? s.accounts : s.accounts.map((c) => (c.id === input.customerId ? { ...c, payable: (c.payable || 0) - input.amount } : c)),
         activity: [txn, ...s.activity],
@@ -527,18 +553,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         amount: input.debitAmount,
         ...stamp(),
       }
-      setPersisted((s) => ({ ...s, journalEntries: [entry, ...s.journalEntries], nextJnlNo: s.nextJnlNo + 1 }))
+      mutate((s) => ({ ...s, journalEntries: [entry, ...s.journalEntries], nextJnlNo: s.nextJnlNo + 1 }))
       return ''
     },
 
     depositCheque: (id) =>
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         cheques: s.cheques.map((q) => (q.id === id && q.status === 'Pending' ? { ...q, status: 'Deposited', updatedAt: new Date().toISOString(), updatedBy: actor, history: [...q.history, 'Deposited ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] } : q)),
       })),
 
     clearCheque: (id) =>
-      setPersisted((s) => {
+      mutate((s) => {
         const q = s.cheques.find((x) => x.id === id)
         if (!q || q.status !== 'Deposited') return s
         const accounts = q.customerId
@@ -560,7 +586,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
 
     returnCheque: (id) =>
-      setPersisted((s) => ({
+      mutate((s) => ({
         ...s,
         cheques: s.cheques.map((q) => (q.id === id && q.status === 'Deposited' ? { ...q, status: 'Returned', updatedAt: new Date().toISOString(), updatedBy: actor, history: [...q.history, 'Returned ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] } : q)),
       })),
@@ -590,7 +616,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         salary: { employeeId: empId, period, kind: 'accrual' },
         ...stamp(),
       }
-      setPersisted((s) => ({ ...s, journalEntries: [entry, ...s.journalEntries], nextJnlNo: s.nextJnlNo + 1 }))
+      mutate((s) => ({ ...s, journalEntries: [entry, ...s.journalEntries], nextJnlNo: s.nextJnlNo + 1 }))
       return ''
     },
 
@@ -610,7 +636,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         salary: { employeeId: emp.id, period, kind: 'accrual' },
         ...stamp(),
       }))
-      setPersisted((s) => ({ ...s, journalEntries: [...entries, ...s.journalEntries], nextJnlNo: s.nextJnlNo + entries.length }))
+      mutate((s) => ({ ...s, journalEntries: [...entries, ...s.journalEntries], nextJnlNo: s.nextJnlNo + entries.length }))
       return ''
     },
 
@@ -631,7 +657,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         salary: { employeeId: empId, period: '', kind: 'payment' },
         ...stamp(),
       }
-      setPersisted((s) => ({ ...s, journalEntries: [entry, ...s.journalEntries], nextJnlNo: s.nextJnlNo + 1 }))
+      mutate((s) => ({ ...s, journalEntries: [entry, ...s.journalEntries], nextJnlNo: s.nextJnlNo + 1 }))
       return ''
     },
 
@@ -652,7 +678,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         salary: { employeeId: x.e.id, period: '', kind: 'payment' },
         ...stamp(),
       }))
-      setPersisted((s) => ({ ...s, journalEntries: [...entries, ...s.journalEntries], nextJnlNo: s.nextJnlNo + entries.length }))
+      mutate((s) => ({ ...s, journalEntries: [...entries, ...s.journalEntries], nextJnlNo: s.nextJnlNo + entries.length }))
       return ''
     },
   }

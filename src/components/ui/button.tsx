@@ -4,14 +4,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] text-[12.5px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] text-[12.5px] font-semibold transition-[background-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: 'bg-accent text-white hover:bg-accent-hover',
-        secondary: 'bg-surface text-ink border border-border-strong hover:bg-surface-tint',
+        primary: 'bg-accent-solid text-white shadow-xs hover:bg-accent-solid-hover hover:shadow-hover',
+        secondary: 'bg-surface text-ink border border-border-strong shadow-xs hover:bg-surface-tint',
         ghost: 'text-muted-70 hover:bg-surface-tint hover:text-ink',
-        destructive: 'bg-negative text-white hover:brightness-95',
+        destructive: 'bg-negative-solid text-white shadow-xs hover:brightness-95',
         outlineDestructive: 'bg-surface text-negative-deep border border-negative border-dashed hover:bg-negative-bg',
         link: 'text-accent hover:text-accent-hover underline-offset-2 hover:underline p-0 h-auto',
       },

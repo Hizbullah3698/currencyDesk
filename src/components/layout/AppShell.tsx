@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
-        <div className="max-w-[1360px] px-[22px] pb-[72px] pt-7">{children}</div>
+        <div className="max-w-[1360px] px-[22px] pb-[72px] pt-7 print:max-w-none print:p-0">{children}</div>
       </div>
     </div>
   )

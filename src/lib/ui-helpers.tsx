@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { ArrowDownToLine, ArrowUpFromLine, ArrowDownCircle, ArrowUpCircle, Banknote, SquarePen } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, ArrowDownCircle, ArrowUpCircle, Banknote, SquarePen, Clock, CheckCircle2, XCircle, Landmark, AlertTriangle } from 'lucide-react'
 import type { ActivityType, ChequeStatus } from './types'
 
 export interface TypeMeta {
@@ -19,13 +19,63 @@ export const ACTIVITY_META: Record<ActivityType, TypeMeta> = {
 export const CHEQUE_META: TypeMeta = { label: 'Cheque', icon: Banknote, chipBg: 'var(--color-pending-bg)', chipColor: 'var(--color-pending)' }
 export const JOURNAL_META: TypeMeta = { label: 'Journal', icon: SquarePen, chipBg: 'var(--color-neutral-chip)', chipColor: 'var(--color-muted-70)' }
 
-export const CHEQUE_STATUS_STYLE: Record<ChequeStatus, { bg: string; color: string }> = {
-  Pending: { bg: 'var(--color-pending-bg)', color: 'var(--color-pending)' },
-  Deposited: { bg: 'var(--color-accent-bg)', color: 'var(--color-accent)' },
-  Cleared: { bg: 'var(--color-positive-bg)', color: 'var(--color-positive)' },
-  Returned: { bg: 'var(--color-negative-bg)', color: 'var(--color-negative)' },
+export type StatusBadgeVariant = 'neutral' | 'positive' | 'negative' | 'pending' | 'accent'
+
+export interface StatusMeta {
+  variant: StatusBadgeVariant
+  icon: ComponentType<{ size?: number; strokeWidth?: number; className?: string }>
+}
+
+/**
+ * Every status word used anywhere in the app (cheque lifecycle, settlement state,
+ * salary accrual, journal/ledger balance) maps to one badge variant + icon here,
+ * so the same word always renders the same way no matter which screen it's on.
+ * Icon choice must echo the variant's existing meaning, never add a new signal:
+ * pending = Clock (waiting), positive = CheckCircle2 (done), negative = XCircle/AlertTriangle
+ * (stopped / needs attention), accent = Landmark (in transit at the bank).
+ */
+export const STATUS_META: Record<string, StatusMeta> = {
+  Pending: { variant: 'pending', icon: Clock },
+  Deposited: { variant: 'accent', icon: Landmark },
+  Cleared: { variant: 'positive', icon: CheckCircle2 },
+  Returned: { variant: 'negative', icon: XCircle },
+  Open: { variant: 'pending', icon: Clock },
+  Settled: { variant: 'positive', icon: CheckCircle2 },
+  Posted: { variant: 'positive', icon: CheckCircle2 },
+  Accrued: { variant: 'positive', icon: CheckCircle2 },
+  'Not accrued': { variant: 'pending', icon: Clock },
+  Balanced: { variant: 'positive', icon: CheckCircle2 },
+  'Not balanced': { variant: 'pending', icon: AlertTriangle },
+  'Out of balance': { variant: 'negative', icon: AlertTriangle },
+}
+
+export function statusMeta(status: ChequeStatus | string): StatusMeta {
+  return STATUS_META[status] || { variant: 'neutral', icon: Clock }
 }
 
 export function activityLabel(type: ActivityType): string {
   return ACTIVITY_META[type].label
+}
+
+export type Category = 'fx' | 'bank' | 'customers' | 'cheques' | 'salary' | 'reports' | 'neutral'
+
+export interface CategoryColor {
+  bg: string
+  color: string
+}
+
+/**
+ * Category identity, used ONLY as a soft-tinted icon-badge background (dashboard
+ * stat-tile icons, sidebar nav icons, Balance Sheet section headers). Never applied
+ * to card backgrounds or to numeric values — the green/red/amber state rule (positive/
+ * negative/pending) is a separate system and is untouched by this map.
+ */
+export const CATEGORY_COLORS: Record<Category, CategoryColor> = {
+  fx: { bg: 'var(--color-accent-bg)', color: 'var(--color-accent)' },
+  bank: { bg: 'var(--color-cat-blue-bg)', color: 'var(--color-cat-blue)' },
+  customers: { bg: 'var(--color-cat-teal-bg)', color: 'var(--color-cat-teal)' },
+  cheques: { bg: 'var(--color-pending-bg)', color: 'var(--color-pending)' },
+  salary: { bg: 'var(--color-cat-violet-bg)', color: 'var(--color-cat-violet)' },
+  reports: { bg: 'var(--color-cat-slate-bg)', color: 'var(--color-cat-slate)' },
+  neutral: { bg: 'var(--color-neutral-chip)', color: 'var(--color-muted-70)' },
 }
