@@ -207,7 +207,7 @@ export function IncomeStatement() {
       )}
 
       <div className="mt-2 text-[11.5px] font-normal leading-relaxed text-muted-60">
-        PKR and AED (and USD, where held) are never blended into one figure — each currency desk's margin is computed and shown separately above.
+        PKR and AED are never blended into one figure — each currency desk's margin is computed and shown separately above.
       </div>
       <div className="mt-2 text-[11.5px] font-normal leading-relaxed text-muted-60">
         Overview's "Margin today" shows {fmt(todayMargin)} — the same margin data filtered to today only, so it is a subset of Gross Profit above, not a different figure.

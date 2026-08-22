@@ -104,7 +104,6 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               <label className="mb-1 block text-[11px] font-semibold text-muted-70">Currency</label>
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-1.5 text-[12.5px] font-semibold transition-colors duration-150">
                 <option value="AED">AED</option>
-                <option value="USD">USD</option>
               </select>
             </div>
             <div>

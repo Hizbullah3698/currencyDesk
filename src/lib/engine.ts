@@ -8,7 +8,7 @@ import type {
   Stocks,
 } from './types'
 
-export const CURRENCIES = ['AED', 'USD']
+export const CURRENCIES = ['AED']
 
 // ---------------------------------------------------------------------------
 // Dates

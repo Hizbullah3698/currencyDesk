@@ -7,7 +7,6 @@ export function seedAccounts(): Account[] {
     { id: 'bank2', type: 'Bank', name: 'Bank — HBL', bankName: 'Habib Bank', accountNo: '4471-0092-3', notes: 'Second settlement account.', since: 'Feb 2025', createdAt: daysAgoIso(180, 10), createdBy: 'Admin', updatedAt: daysAgoIso(180, 10), updatedBy: 'Admin' },
     { id: 'cash', type: 'Cash', name: 'Cash in hand', system: true, notes: 'Counter drawer.', since: 'Mar 2023', createdAt: daysAgoIso(900, 9), createdBy: 'System', updatedAt: daysAgoIso(900, 9), updatedBy: 'System' },
     { id: 'currency', type: 'Currency Stock', name: 'Currency stock (AED)', system: true, code: 'AED', notes: 'Quantity and weighted-average cost are derived from the currency ledger.', since: 'Mar 2023', createdAt: daysAgoIso(900, 9), createdBy: 'System', updatedAt: daysAgoIso(900, 9), updatedBy: 'System' },
-    { id: 'currencyUsd', type: 'Currency Stock', name: 'Currency stock (USD)', system: true, code: 'USD', notes: 'Second currency desk. Quantity and weighted-average cost are derived from its own ledger.', since: 'Aug 2026', createdAt: daysAgoIso(1, 9), createdBy: 'System', updatedAt: daysAgoIso(1, 9), updatedBy: 'System' },
     { id: 'margin', type: 'Income', name: 'Margin / Income', system: true, notes: 'Trading margin on currency sales, plus anything journalled to Income.', since: 'Mar 2023', createdAt: daysAgoIso(900, 9), createdBy: 'System', updatedAt: daysAgoIso(900, 9), updatedBy: 'System' },
     { id: 'expense', type: 'Expense', name: 'Expenses', system: true, category: 'General', notes: '', since: 'Mar 2023', createdAt: daysAgoIso(900, 9), createdBy: 'System', updatedAt: daysAgoIso(900, 9), updatedBy: 'System' },
     { id: 'salaryExpense', type: 'Expense', name: 'Salary Expense', system: true, category: 'Payroll', notes: 'Debited when a pay period is accrued.', since: 'Mar 2023', createdAt: daysAgoIso(900, 9), createdBy: 'System', updatedAt: daysAgoIso(900, 9), updatedBy: 'System' },
@@ -56,5 +55,5 @@ export function seedJournalEntries(): JournalEntry[] {
 }
 
 export function seedStocks(): Stocks {
-  return { AED: { available: 40000, avgCost: 78 }, USD: { available: 0, avgCost: 0 } }
+  return { AED: { available: 40000, avgCost: 78 } }
 }
