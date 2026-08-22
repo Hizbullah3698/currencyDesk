@@ -36,10 +36,10 @@ function Gate() {
         <Route path="/customers" element={<Customers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
         <Route path="/accounts" element={<Accounts />} />
-        <Route path="/purchase" element={<Trade mode="buy" />} />
-        <Route path="/sale" element={<Trade mode="sell" />} />
-        <Route path="/receive" element={<Settle mode="receive" />} />
-        <Route path="/pay" element={<Settle mode="pay" />} />
+        <Route path="/purchase" element={<Trade key="buy" mode="buy" />} />
+        <Route path="/sale" element={<Trade key="sell" mode="sell" />} />
+        <Route path="/receive" element={<Settle key="receive" mode="receive" />} />
+        <Route path="/pay" element={<Settle key="pay" mode="pay" />} />
         <Route path="/stock" element={<Stock />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/cheques" element={<Cheques />} />
