@@ -24,11 +24,14 @@ export const CORE_ACCOUNT_IDS = ['bank', 'cash', 'margin', 'expense', 'salaryExp
 // Dates
 // ---------------------------------------------------------------------------
 
-export function daysAgoIso(days: number, hour = 12): string {
-  const d = new Date()
-  d.setDate(d.getDate() - (days || 0))
-  d.setHours(hour, days ? 5 : 0, 0, 0)
-  return d.toISOString()
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// A short "since" label (e.g. "Aug 2026") for an account's creation month — used for both the
+// built-in system accounts (stamped once, whenever the desk is first set up for real) and every
+// account created afterward, so both read the account's actual creation date rather than a
+// fabricated backstory.
+export function sinceLabel(d: Date): string {
+  return MONTHS[d.getMonth()] + ' ' + d.getFullYear()
 }
 
 function dayIndex(d: Date): number {

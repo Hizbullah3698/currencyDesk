@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Account, AccountType, Activity, Cheque, JournalEntry, Role, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
 import { seedAccounts, seedActivity, seedCheques, seedJournalEntries, seedStocks } from './seed'
-import { buyCalc, chequeNoError, CORE_ACCOUNT_IDS, isToday, nextChequeNumber, sellCalc, stk } from './engine'
+import { buyCalc, chequeNoError, CORE_ACCOUNT_IDS, isToday, nextChequeNumber, sellCalc, sinceLabel, stk } from './engine'
 
 const STORE_KEY = 'currencydesk.state.v1'
 
@@ -51,12 +51,12 @@ function loadState(): PersistShape {
     // this flag existed (or corrupted/partial JSON) has no `pristine` key and must be treated
     // as NOT pristine — i.e. "unknown" defaults to "assume it might be real data, never wipe."
     const merged: PersistShape = { ...seedState(), ...saved, pristine: saved.pristine === true }
-    // This is a presentation/demo build, so seed dates are generated relative to "now" at seed
-    // time — a session left untouched since an earlier day goes stale: "today" no longer has
-    // any trade and the dashboard reads as broken/empty. Self-heal by reseeding, but ONLY when
-    // the data is still the original untouched seed (`pristine`). The moment any real action
-    // has been taken, a quiet day with zero trades is indistinguishable from stale demo data —
-    // and a quiet day is completely normal for a real business, so it must never be wiped.
+    // The seed itself is empty now (no demo trades), so an untouched (`pristine`) session always
+    // re-seeds on load — which is exactly what's wanted pre-first-use: it keeps the built-in
+    // system accounts' timestamps honestly at "now" instead of freezing at whenever the browser
+    // first opened the app. The moment any real action is taken, pristine flips false and this
+    // never runs again — a quiet day with zero trades afterward is completely normal for a real
+    // business and must never be wiped.
     if (!merged.pristine) return merged
     const hasTodayTrade = (merged.activity || []).some((t) => (t.type === 'sale' || t.type === 'purchase') && isToday(t.createdAt))
     return hasTodayTrade ? merged : seedState()
@@ -301,14 +301,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const newId = (form.type === 'Customer' ? 'c' : 'a') + persisted.nextId
       const opening = form.type === 'Customer' || form.type === 'Payable' || form.type === 'Bank' || form.type === 'Cash' ? parseFloat(form.opening) || 0 : 0
-      const now = new Date()
-      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
       const acct: Account = {
         id: newId,
         type: form.type,
         name,
         notes: form.notes.trim(),
-        since: MONTHS[now.getMonth()] + ' ' + now.getFullYear(),
+        since: sinceLabel(new Date()),
         ...stamp(),
       }
       if (form.type === 'Customer' || form.type === 'Employee') {
