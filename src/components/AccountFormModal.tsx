@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Lock, X } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import { CORE_ACCOUNT_IDS } from '@/lib/engine'
 import { ACCOUNT_TYPES } from '@/lib/types'
 import type { Account, AccountType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -86,7 +87,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
                     type="button"
                     variant="secondary"
                     size="sm"
-                    disabled={mode === 'edit' && !!editAccount?.system}
+                    disabled={mode === 'edit' && !!editAccount && CORE_ACCOUNT_IDS.includes(editAccount.id)}
                     aria-pressed={form.type === t}
                     onClick={() => setForm((f) => ({ ...f, type: t }))}
                     className={cn('text-[11.5px]', form.type === t && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
@@ -104,7 +105,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
                 </span>
               </div>
             )}
-            {mode === 'edit' && editAccount && !editAccount.system && typeLockedFor(editAccount) && !form.typeOverride && isAdmin && (
+            {mode === 'edit' && editAccount && !CORE_ACCOUNT_IDS.includes(editAccount.id) && typeLockedFor(editAccount) && !form.typeOverride && isAdmin && (
               <Button variant="outlineDestructive" size="sm" className="mt-1.5 border-dashed text-[11.5px]" onClick={() => setForm((f) => ({ ...f, typeOverride: true }))}>
                 Admin override — change type anyway
               </Button>
@@ -176,7 +177,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
           </Field>
           {error && <div className="text-[12px] font-semibold text-negative">{error}</div>}
           <div className="flex items-center justify-end gap-2 border-t border-divider pt-2.5">
-            {mode === 'edit' && editAccount && !editAccount.system && (
+            {mode === 'edit' && editAccount && !CORE_ACCOUNT_IDS.includes(editAccount.id) && (
               <Button variant="outlineDestructive" className="mr-auto border-solid" onClick={remove}>
                 Delete
               </Button>

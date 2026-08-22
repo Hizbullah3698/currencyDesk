@@ -10,6 +10,16 @@ import type {
 
 export const CURRENCIES = ['AED']
 
+// Ids that other parts of the app resolve directly by id rather than by looking the account up
+// fresh — accruing/paying salary posts against 'salaryExpense'/'salaryPayable', opening balances
+// post against 'capital', and Cash settlement resolves to 'cash' with 'bank' as the Bank-method
+// fallback. Deleting or retyping one of these would silently break that plumbing on the next
+// salary run, opening balance, or cash settlement, so even Admin can't delete or retype them.
+// This is a structural constraint, not a policy one — every other account (including the
+// built-in Currency Stock ledger row, whose actual quantities live in Stocks, not this record)
+// is fully editable/deletable/retypable for Admin.
+export const CORE_ACCOUNT_IDS = ['bank', 'cash', 'margin', 'expense', 'salaryExpense', 'salaryPayable', 'capital']
+
 // ---------------------------------------------------------------------------
 // Dates
 // ---------------------------------------------------------------------------

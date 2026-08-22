@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Account, AccountType, Activity, Cheque, JournalEntry, Role, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
 import { seedAccounts, seedActivity, seedCheques, seedJournalEntries, seedStocks } from './seed'
-import { buyCalc, chequeNoError, isToday, nextChequeNumber, sellCalc, stk } from './engine'
+import { buyCalc, chequeNoError, CORE_ACCOUNT_IDS, isToday, nextChequeNumber, sellCalc, stk } from './engine'
 
 const STORE_KEY = 'currencydesk.state.v1'
 
@@ -185,10 +185,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     persisted.cheques.some((q) => q.customerId === id) ||
     persisted.journalEntries.some((e) => e.debitAccount === id || e.creditAccount === id)
 
-  const typeLockedFor = (a?: Account) => !!a && (!!a.system || accountHasActivity(a.id))
+  const typeLockedFor = (a?: Account) => !!a && (CORE_ACCOUNT_IDS.includes(a.id) || accountHasActivity(a.id))
   const typeLockReason = (a?: Account) => {
     if (!a) return ''
-    if (a.system) return 'Type is locked — this is a built-in system account.'
+    if (CORE_ACCOUNT_IDS.includes(a.id)) return "Type is locked — other parts of the app depend on this account by id."
     if (accountHasActivity(a.id)) return 'Type is locked — this account has transaction history.'
     return ''
   }
@@ -259,7 +259,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const prev = getAccount(id)
         if (!prev) return 'That account no longer exists.'
         const typeChanged = prev.type !== form.type
-        if (typeChanged && prev.system) return "A system account's type cannot be changed."
+        if (typeChanged && CORE_ACCOUNT_IDS.includes(prev.id)) return "This account's type can't be changed — other parts of the app depend on it by id."
         if (typeChanged && !form.typeOverride && typeLockedFor(prev)) return typeLockReason(prev)
         if (typeChanged && prev.type === 'Customer' && ((prev.receivable || 0) !== 0 || (prev.payable || 0) !== 0)) {
           return `${prev.name} still carries an open receivable or payable. Settle the balance before changing the type.`
@@ -362,7 +362,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     deleteAccount: (id) => {
       const a = getAccount(id)
-      if (!a || a.system) return "This account can't be deleted."
+      if (!a) return "This account can't be deleted."
+      if (CORE_ACCOUNT_IDS.includes(id)) return "This account can't be deleted — other parts of the app depend on it by id."
       if (accountHasActivity(id)) return "This account has transactions posted against it and can't be deleted."
       mutate((s) => ({ ...s, accounts: s.accounts.filter((x) => x.id !== id) }))
       return ''
@@ -370,7 +371,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     archiveAccount: (id) => {
       const a = getAccount(id)
-      if (!a || a.system) return "This account can't be archived."
+      if (!a) return "This account can't be archived."
+      if (CORE_ACCOUNT_IDS.includes(id)) return "This account can't be archived — other parts of the app depend on it by id."
       mutate((s) => ({
         ...s,
         accounts: s.accounts.map((x) => (x.id === id ? { ...x, archived: true, archivedAt: new Date().toISOString(), archivedBy: actor } : x)),
