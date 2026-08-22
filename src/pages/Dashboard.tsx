@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { isToday, stk, stockTrend } from '@/lib/engine'
+import { isToday, stk, stockTrend, txnIsOpen } from '@/lib/engine'
 import { fmt, fmtNum, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
@@ -116,7 +116,7 @@ export function Dashboard() {
               const meta = ACTIVITY_META[row.type]
               const Icon = meta.icon
               const cheque = row.chequeId ? state.cheques.find((q) => q.id === row.chequeId) : undefined
-              const statusLabel = cheque ? cheque.status : row.type === 'sale' || row.type === 'purchase' ? (row.outstanding ? 'Open' : 'Settled') : 'Posted'
+              const statusLabel = cheque ? cheque.status : row.type === 'sale' || row.type === 'purchase' ? (txnIsOpen(row, state.accounts) ? 'Open' : 'Settled') : 'Posted'
               const status = statusMeta(statusLabel)
               const StatusIcon = status.icon
               return (

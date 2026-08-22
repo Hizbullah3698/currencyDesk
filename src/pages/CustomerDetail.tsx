@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer, Pencil, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { auditLine, relLabel } from '@/lib/engine'
+import { auditLine, relLabel, txnIsOpen } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { ACTIVITY_META, statusMeta } from '@/lib/ui-helpers'
 import { BackButton } from '@/components/BackButton'
@@ -206,7 +206,7 @@ export function CustomerDetail() {
           const meta = ACTIVITY_META[t.type]
           const Icon = meta.icon
           const cheque = t.chequeId ? state.cheques.find((q) => q.id === t.chequeId) : undefined
-          const statusLabel = cheque ? cheque.status : t.outstanding ? 'Open' : 'Settled'
+          const statusLabel = cheque ? cheque.status : txnIsOpen(t, state.accounts) ? 'Open' : 'Settled'
           const status = statusMeta(statusLabel)
           const StatusIcon = status.icon
           const detail = t.type === 'sale' || t.type === 'purchase' ? `${t.amount?.toLocaleString('en-US')} ${t.currency} @ ${t.rate}` : `via ${t.method}`

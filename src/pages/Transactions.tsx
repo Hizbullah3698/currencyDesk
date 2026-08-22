@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { auditLine, relLabel } from '@/lib/engine'
+import { auditLine, relLabel, txnIsOpen } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
@@ -36,7 +36,7 @@ export function Transactions() {
     const txnRows: Row[] = state.activity.map((t) => {
       const meta = ACTIVITY_META[t.type]
       const cheque = t.chequeId ? state.cheques.find((q) => q.id === t.chequeId) : undefined
-      const status = cheque ? cheque.status : t.outstanding ? 'Open' : 'Settled'
+      const status = cheque ? cheque.status : txnIsOpen(t, state.accounts) ? 'Open' : 'Settled'
       const detail = t.type === 'sale' || t.type === 'purchase' ? `${t.amount?.toLocaleString('en-US')} ${t.currency} @ ${t.rate} · ${t.method}` : `via ${t.method}`
       return { id: t.id, ref: t.id.toUpperCase(), type: t.type === 'sale' || t.type === 'purchase' ? t.type : 'payment', meta, who: t.customerName, detail, status, amount: t.pkrValue, date: t.createdAt, audit: auditLine(t), customerId: t.customerId }
     })

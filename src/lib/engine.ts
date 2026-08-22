@@ -135,6 +135,19 @@ export function custEffects(customerId: string, activity: Activity[], cheques: C
   }
 }
 
+// A purchase/sale's own `outstanding` field is a one-time snapshot from when it was posted —
+// later Receive/Make Payment actions adjust the customer's aggregate receivable/payable but
+// never go back and clear it (there's no per-invoice settlement matching in this app). Once the
+// customer's balance on that side reaches zero, showing that old snapshot as still "Open" is
+// simply wrong, so re-derive the badge from the current balance instead of the frozen field.
+export function txnIsOpen(t: Activity, accounts: Account[]): boolean {
+  if (!t.outstanding) return false
+  if (t.type !== 'sale' && t.type !== 'purchase') return true
+  const cust = accounts.find((a) => a.id === t.customerId)
+  const balance = cust ? (t.type === 'sale' ? cust.receivable : cust.payable) || 0 : t.outstanding
+  return balance > 0
+}
+
 export function customerBalanceAsOf(cust: Account, activity: Activity[], cheques: Cheque[], toT: number) {
   const opening = { receivable: cust.openingReceivable || 0, payable: cust.openingPayable || 0 }
   const effects = custEffects(cust.id, activity, cheques, (iso) => stampTime(iso) <= toT)
