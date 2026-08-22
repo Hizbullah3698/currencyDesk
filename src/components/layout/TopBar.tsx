@@ -17,6 +17,7 @@ function StripItem({
   valueClassName,
   sub,
   bordered = true,
+  onClick,
 }: {
   category: keyof typeof CATEGORY_COLORS
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
@@ -25,10 +26,11 @@ function StripItem({
   valueClassName?: string
   sub?: string
   bordered?: boolean
+  onClick?: () => void
 }) {
   const cat = CATEGORY_COLORS[category]
-  return (
-    <div className={cn('flex flex-none items-center gap-2.5 whitespace-nowrap py-2 pl-[18px] pr-[18px]', bordered && 'border-r border-strip-border')}>
+  const content = (
+    <>
       <div className="flex items-center gap-1.5">
         <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]" style={{ background: cat.bg, color: cat.color }}>
           <Icon size={11} strokeWidth={2.2} aria-hidden="true" />
@@ -37,8 +39,17 @@ function StripItem({
       </div>
       <span className={cn('tabular text-[13px] font-semibold', valueClassName)}>{value}</span>
       {sub && <span className="text-[11px] text-muted-60">{sub}</span>}
-    </div>
+    </>
   )
+  const className = cn('flex flex-none items-center gap-2.5 whitespace-nowrap py-2 pl-[18px] pr-[18px]', bordered && 'border-r border-strip-border')
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cn(className, 'cursor-pointer transition-colors duration-150 hover:bg-surface-hover')}>
+        {content}
+      </button>
+    )
+  }
+  return <div className={className}>{content}</div>
 }
 
 export function TopBar() {
@@ -109,9 +120,25 @@ export function TopBar() {
       </div>
 
       <div className="flex min-h-[44px] items-stretch gap-0 overflow-x-auto border-b border-border-strong bg-strip-bg px-[22px]">
-        <StripItem category="customers" icon={ArrowDownCircle} label="Owed to you" value={fmt(totals.receivable)} valueClassName="text-positive-text" sub={`${totals.receivableCount} customers`} />
-        <StripItem category="customers" icon={ArrowUpCircle} label="You owe" value={fmt(totals.payable)} valueClassName="text-negative-text" sub={`${totals.payableCount} customers`} />
-        <StripItem category="fx" icon={Coins} label="AED stock" value={fmtNum(aed.available)} sub={`@ ${fmtRate(aed.avgCost)}`} />
+        <StripItem
+          category="customers"
+          icon={ArrowDownCircle}
+          label="Owed to you"
+          value={fmt(totals.receivable)}
+          valueClassName="text-positive-text"
+          sub={`${totals.receivableCount} customers`}
+          onClick={() => navigate('/customers?owe=receivable')}
+        />
+        <StripItem
+          category="customers"
+          icon={ArrowUpCircle}
+          label="You owe"
+          value={fmt(totals.payable)}
+          valueClassName="text-negative-text"
+          sub={`${totals.payableCount} customers`}
+          onClick={() => navigate('/customers?owe=payable')}
+        />
+        <StripItem category="fx" icon={Coins} label="AED stock" value={fmtNum(aed.available)} sub={`@ ${fmtRate(aed.avgCost)}`} onClick={() => navigate('/stock')} />
         <div className="ml-auto flex flex-none items-center gap-2.5 whitespace-nowrap py-2 pl-[18px]">
           <div className="flex items-center gap-1.5">
             <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]" style={{ background: CATEGORY_COLORS.reports.bg, color: CATEGORY_COLORS.reports.color }}>

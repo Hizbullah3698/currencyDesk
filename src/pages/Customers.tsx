@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { relLabel } from '@/lib/engine'
@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils'
 export function Customers() {
   const { state, isAdmin } = useStore()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const owe = searchParams.get('owe') === 'payable' ? 'payable' : searchParams.get('owe') === 'receivable' ? 'receivable' : null
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -21,7 +23,7 @@ export function Customers() {
 
   const customers = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return state.accounts
+    let list = state.accounts
       .filter((a) => a.type === 'Customer')
       .filter((a) => showArchived || !a.archived)
       .filter((a) => !q || a.name.toLowerCase().includes(q))
@@ -29,10 +31,25 @@ export function Customers() {
         const last = state.activity.filter((t) => t.customerId === c.id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
         return { ...c, lastActivity: last ? relLabel(last.createdAt) : '—' }
       })
-  }, [state.accounts, state.activity, search, showArchived])
+    if (owe === 'receivable') list = list.filter((c) => (c.receivable || 0) > 0).sort((a, b) => (b.receivable || 0) - (a.receivable || 0))
+    if (owe === 'payable') list = list.filter((c) => (c.payable || 0) > 0).sort((a, b) => (b.payable || 0) - (a.payable || 0))
+    return list
+  }, [state.accounts, state.activity, search, showArchived, owe])
 
   return (
     <div>
+      {owe && (
+        <div className="mb-3 flex items-center justify-between gap-2.5 rounded-[6px] border border-border-strong bg-surface-tint px-3 py-2 text-[12.5px]">
+          <span>
+            {owe === 'payable'
+              ? `Showing customers you owe money to, largest balance first — open one and use "Make Payment" to pay it.`
+              : `Showing customers who owe you money, largest balance first — open one and use "Receive Payment" to collect it.`}
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => setSearchParams({})}>
+            Show all customers
+          </Button>
+        </div>
+      )}
       <div className="mb-3.5 flex items-center justify-between gap-2.5">
         <h1 className="m-0 text-[17px] font-semibold">Customers</h1>
         <div className="flex items-center gap-2">
@@ -79,7 +96,18 @@ export function Customers() {
           </div>
         ))}
       </Card>
-      {customers.length === 0 && <EmptyState icon={SearchX} title={`No customers match "${search}".`} />}
+      {customers.length === 0 && (
+        <EmptyState
+          icon={SearchX}
+          title={
+            owe === 'payable'
+              ? 'No customers currently owed money.'
+              : owe === 'receivable'
+                ? 'No customers currently owe you money.'
+                : `No customers match "${search}".`
+          }
+        />
+      )}
     </div>
   )
 }
