@@ -19,6 +19,7 @@ export function CustomerDetail() {
   const { state, getAccount, isAdmin, accountHasActivity, archiveAccount, unarchiveAccount, deleteAccount } = useStore()
   const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
   const cust = getAccount(id)
 
   const txns = useMemo(() => (id ? state.activity.filter((t) => t.customerId === id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) : []), [state.activity, id])
@@ -43,12 +44,15 @@ export function CustomerDetail() {
 
   const hasActivity = accountHasActivity(cust.id)
 
-  function toggleArchive() {
-    if (cust!.archived) unarchiveAccount(cust!.id)
-    else archiveAccount(cust!.id)
+  async function toggleArchive() {
+    setBusy(true)
+    await (cust!.archived ? unarchiveAccount(cust!.id) : archiveAccount(cust!.id))
+    setBusy(false)
   }
-  function removeCustomer() {
-    const err = deleteAccount(cust!.id)
+  async function removeCustomer() {
+    setBusy(true)
+    const err = await deleteAccount(cust!.id)
+    setBusy(false)
     if (!err) navigate('/customers')
   }
 
@@ -81,14 +85,14 @@ export function CustomerDetail() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem onSelect={toggleArchive}>
+                    <DropdownMenuItem onSelect={toggleArchive} disabled={busy}>
                       {cust.archived ? <ArchiveRestore size={13} strokeWidth={2} aria-hidden="true" /> : <Archive size={13} strokeWidth={2} aria-hidden="true" />}
                       {cust.archived ? 'Unarchive customer' : 'Archive customer'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       destructive
-                      disabled={hasActivity}
+                      disabled={hasActivity || busy}
                       onSelect={removeCustomer}
                       title={hasActivity ? 'Delete is only available for a customer with zero transactions ever posted.' : undefined}
                     >

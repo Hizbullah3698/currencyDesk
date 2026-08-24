@@ -36,7 +36,7 @@ const GROUP_META: Record<string, { category: Category; icon: React.ComponentType
 }
 
 export function BalanceSheet() {
-  const { state, resetDemoData } = useStore()
+  const { state } = useStore()
   const [preset, setPreset] = useState<ReportPreset>('all')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -69,9 +69,6 @@ export function BalanceSheet() {
           <Button variant="secondary" size="sm" className="whitespace-nowrap text-[11.5px] font-medium" onClick={() => window.print()}>
             <Printer size={13} strokeWidth={2} aria-hidden="true" />
             Print
-          </Button>
-          <Button variant="ghost" size="sm" className="whitespace-nowrap text-[11.5px] font-medium" onClick={resetDemoData}>
-            Reset demo data
           </Button>
         </div>
       </div>

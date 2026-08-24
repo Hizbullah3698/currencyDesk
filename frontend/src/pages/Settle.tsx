@@ -26,6 +26,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   const [chqNo, setChqNo] = useState('')
   const [chqBank, setChqBank] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [posted, setPosted] = useState<{ amount: number; remaining: number } | null>(null)
 
   const customers = state.accounts.filter((a) => a.type === 'Customer')
@@ -44,9 +45,11 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
     setStep('review')
   }
 
-  function confirm() {
+  async function confirm() {
     const input = { customerId, amount: amt, method, bankId, chqNo, chqBank }
-    const res = mode === 'receive' ? confirmReceive(input) : confirmPay(input)
+    setSubmitting(true)
+    const res = mode === 'receive' ? await confirmReceive(input) : await confirmPay(input)
+    setSubmitting(false)
     if (!res.ok) return setError(res.error || 'Could not post this payment.')
     setPosted({ amount: amt, remaining: method === 'Cheque' ? outstanding : remaining })
     setStep('done')
@@ -182,12 +185,13 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               <b className="font-semibold">{method}</b>
             </div>
           </div>
+          {error && <div className="mt-3 text-[12px] font-semibold text-negative">{error}</div>}
           <div className="mt-3.5 flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setStep('form')}>
+            <Button type="button" variant="secondary" disabled={submitting} onClick={() => setStep('form')}>
               Back
             </Button>
-            <Button type="button" variant="primary" onClick={confirm}>
-              Confirm Payment
+            <Button type="button" variant="primary" disabled={submitting} onClick={confirm}>
+              {submitting ? 'Posting…' : 'Confirm Payment'}
             </Button>
           </div>
         </Card>

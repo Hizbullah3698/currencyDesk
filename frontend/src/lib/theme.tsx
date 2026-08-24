@@ -2,9 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 export type ThemePref = 'light' | 'dark' | 'system'
 
-// Deliberately its own key, not part of currencydesk.state.v1 — a display
-// preference is not business data, so it has no reason to live anywhere near
-// the pristine/mutate() system that protects real user-entered records.
+// Deliberately its own localStorage key — a display preference isn't business data (which now
+// lives server-side, fetched via useStore()), so it has no reason to travel with it.
 const THEME_KEY = 'currencydesk.theme.v1'
 
 function loadThemePref(): ThemePref {

@@ -30,6 +30,7 @@ export function Salary() {
   const banks = state.accounts.filter((a) => a.type === 'Bank' || a.type === 'Cash')
   const [bankId, setBankId] = useState(banks[0]?.id || '')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const emps = employees()
   const stats = emps.map((e) => ({ emp: e, stats: salaryStats(e.id) }))
@@ -38,8 +39,10 @@ export function Salary() {
 
   const postings = state.journalEntries.filter((e) => e.salary)
 
-  function run(fn: () => string) {
-    const err = fn()
+  async function run(fn: () => Promise<string>) {
+    setBusy(true)
+    const err = await fn()
+    setBusy(false)
     setError(err)
   }
 
@@ -103,13 +106,13 @@ export function Salary() {
       </div>
 
       <div className="mb-3 flex items-center gap-2">
-        <Button variant="primary" disabled={!isAdmin} onClick={() => run(() => accrueAllSalaries(period))}>
+        <Button variant="primary" disabled={!isAdmin || busy} onClick={() => run(() => accrueAllSalaries(period))}>
           <SquarePen size={14} strokeWidth={2} aria-hidden="true" />
-          Accrue {period} for all
+          {busy ? 'Working…' : `Accrue ${period} for all`}
         </Button>
-        <Button variant="secondary" disabled={!isAdmin} onClick={() => run(() => payAllSalaries(bankId))}>
+        <Button variant="secondary" disabled={!isAdmin || busy} onClick={() => run(() => payAllSalaries(bankId))}>
           <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" />
-          Pay everything outstanding from {banks.find((b) => b.id === bankId)?.name || '—'}
+          {busy ? 'Working…' : `Pay everything outstanding from ${banks.find((b) => b.id === bankId)?.name || '—'}`}
         </Button>
       </div>
       {error && <div className="mb-3 text-[12px] font-semibold text-negative-deep">{error}</div>}
@@ -149,10 +152,10 @@ export function Salary() {
               <div className="tabular min-w-[120px] text-right text-[12.5px] font-normal text-muted-70">{fmt(emp.monthlySalary || 0)}</div>
               <div className={`tabular min-w-[120px] text-right text-[12.5px] font-medium ${s.outstanding > 0 ? 'text-negative-deep' : ''}`}>{fmt(s.outstanding)}</div>
               <div className="flex min-w-[168px] justify-end gap-1.5">
-                <Button variant="secondary" size="sm" className="text-[11.5px]" disabled={!isAdmin || accruedThisPeriod} onClick={() => run(() => accrueSalary(emp.id, period))}>
+                <Button variant="secondary" size="sm" className="text-[11.5px]" disabled={!isAdmin || busy || accruedThisPeriod} onClick={() => run(() => accrueSalary(emp.id, period))}>
                   Accrue
                 </Button>
-                <Button variant="primary" size="sm" className="text-[11.5px]" disabled={!isAdmin || s.outstanding <= 0} onClick={() => run(() => paySalary(emp.id, bankId))}>
+                <Button variant="primary" size="sm" className="text-[11.5px]" disabled={!isAdmin || busy || s.outstanding <= 0} onClick={() => run(() => paySalary(emp.id, bankId))}>
                   Mark paid
                 </Button>
               </div>

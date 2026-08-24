@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { Banknote } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { fmt } from '@/lib/format'
+import { fmt, fmtShortDate } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -11,6 +12,20 @@ export function Cheques() {
   const { state, isAdmin, depositCheque, clearCheque, returnCheque } = useStore()
   const inward = state.cheques.filter((q) => q.direction === 'Inward' && q.status !== 'Cleared' && q.status !== 'Returned')
   const outward = state.cheques.filter((q) => q.direction === 'Outward' && q.status !== 'Cleared' && q.status !== 'Returned')
+
+  // Per-cheque pending/error state — this page previously had no error UI at all, since the old
+  // client-side actions couldn't fail. A guarded status transition or a network error now can,
+  // so each row tracks its own in-flight/error state independently of the others.
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  async function run(id: string, action: (id: string) => Promise<string>) {
+    setPendingId(id)
+    setErrors((e) => ({ ...e, [id]: '' }))
+    const err = await action(id)
+    setPendingId(null)
+    if (err) setErrors((e) => ({ ...e, [id]: err }))
+  }
 
   return (
     <div>
@@ -42,6 +57,7 @@ export function Cheques() {
         {state.cheques.map((q) => {
           const status = statusMeta(q.status)
           const StatusIcon = status.icon
+          const busy = pendingId === q.id
           return (
             <div key={q.id} className="border-b border-divider px-[13px] py-2.5">
               <div className="flex items-center gap-2.5">
@@ -56,29 +72,30 @@ export function Cheques() {
                   </Badge>
                 </div>
                 <div className="tabular min-w-[110px] text-right text-[12.5px] font-medium">{fmt(q.amount)}</div>
-                <div className="min-w-[74px] text-right text-[11px] font-normal text-muted-60">{q.due}</div>
+                <div className="min-w-[74px] text-right text-[11px] font-normal text-muted-60">{fmtShortDate(q.due)}</div>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <div className="min-w-[200px] flex-1 text-[10.5px] font-normal text-muted-60">{q.history.join(' → ')}</div>
                 {q.status === 'Pending' && (
-                  <Button variant="secondary" size="sm" className="text-[11px]" onClick={() => depositCheque(q.id)}>
-                    Mark deposited
+                  <Button variant="secondary" size="sm" className="text-[11px]" disabled={busy} onClick={() => run(q.id, depositCheque)}>
+                    {busy ? 'Working…' : 'Mark deposited'}
                   </Button>
                 )}
                 {q.status === 'Deposited' &&
                   (isAdmin ? (
                     <>
-                      <Button variant="primary" size="sm" className="text-[11px]" onClick={() => clearCheque(q.id)}>
-                        Mark cleared
+                      <Button variant="primary" size="sm" className="text-[11px]" disabled={busy} onClick={() => run(q.id, clearCheque)}>
+                        {busy ? 'Working…' : 'Mark cleared'}
                       </Button>
-                      <Button variant="outlineDestructive" size="sm" className="text-[11px]" onClick={() => returnCheque(q.id)}>
-                        Mark returned
+                      <Button variant="outlineDestructive" size="sm" className="text-[11px]" disabled={busy} onClick={() => run(q.id, returnCheque)}>
+                        {busy ? 'Working…' : 'Mark returned'}
                       </Button>
                     </>
                   ) : (
                     <span className="flex items-center gap-1 whitespace-nowrap rounded-[6px] border border-dashed border-border-input bg-app px-2.5 py-1 text-[11px] font-semibold text-muted-38">Mark cleared — Admin</span>
                   ))}
               </div>
+              {errors[q.id] && <div className="mt-1.5 text-[11px] font-semibold text-negative">{errors[q.id]}</div>}
             </div>
           )
         })}

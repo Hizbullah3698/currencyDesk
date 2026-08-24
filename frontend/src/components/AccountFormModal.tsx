@@ -51,14 +51,19 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
   const editAccount = editId ? state.accounts.find((a) => a.id === editId) : undefined
   const [form, setForm] = useState(() => initialForm(mode, editAccount, defaultType))
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  function save() {
-    const err = saveAccount(mode, editId, form)
+  async function save() {
+    setBusy(true)
+    const err = await saveAccount(mode, editId, form)
+    setBusy(false)
     if (err) return setError(err)
     onClose()
   }
-  function remove() {
-    const err = deleteAccount(editId)
+  async function remove() {
+    setBusy(true)
+    const err = await deleteAccount(editId)
+    setBusy(false)
     if (err) return setError(err)
     onClose()
   }
@@ -178,15 +183,15 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
           {error && <div className="text-[12px] font-semibold text-negative">{error}</div>}
           <div className="flex items-center justify-end gap-2 border-t border-divider pt-2.5">
             {mode === 'edit' && editAccount && !CORE_ACCOUNT_IDS.includes(editAccount.id) && (
-              <Button variant="outlineDestructive" className="mr-auto border-solid" onClick={remove}>
+              <Button variant="outlineDestructive" className="mr-auto border-solid" disabled={busy} onClick={remove}>
                 Delete
               </Button>
             )}
-            <Button variant="secondary" onClick={onClose}>
+            <Button variant="secondary" disabled={busy} onClick={onClose}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={save}>
-              {mode === 'new' ? 'Create account' : 'Save changes'}
+            <Button variant="primary" disabled={busy} onClick={save}>
+              {busy ? 'Saving…' : mode === 'new' ? 'Create account' : 'Save changes'}
             </Button>
           </div>
         </div>

@@ -30,6 +30,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
   const [chqNo, setChqNo] = useState('')
   const [chqBank, setChqBank] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [lastResult, setLastResult] = useState<{ amount: number; rate: number; value: number; margin?: number; outstanding: number } | null>(null)
 
   const customers = state.accounts.filter((a) => a.type === 'Customer')
@@ -63,12 +64,14 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
     setStep('review')
   }
 
-  function confirm() {
+  async function confirm() {
     const amt = parseFloat(amount) || 0
     const r = parseFloat(rate) || 0
     const pNow = parseFloat(paidNow) || 0
     const input = { customerId, currency, amount: amt, rate: r, method, paidNow: pNow, bankId, chqNo, chqBank }
-    const res = mode === 'buy' ? confirmPurchase(input) : confirmSale(input)
+    setSubmitting(true)
+    const res = mode === 'buy' ? await confirmPurchase(input) : await confirmSale(input)
+    setSubmitting(false)
     if (!res.ok) return setError(res.error || 'Could not post this transaction.')
     setLastResult({ amount: amt, rate: r, value, margin, outstanding: mode === 'buy' ? (calc as ReturnType<typeof buyCalc>).outstanding : (calc as ReturnType<typeof sellCalc>).outstanding })
     setStep('done')
@@ -251,12 +254,13 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               {calc.outstanding > 0 ? `${fmt(calc.outstanding)} stays outstanding as a ${mode === 'buy' ? 'payable' : 'receivable'}.` : 'Fully settled — nothing stays outstanding.'}
             </Bullet>
           </div>
+          {error && <div className="mt-3 text-[12px] font-semibold text-negative">{error}</div>}
           <div className="mt-3.5 flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setStep('form')}>
+            <Button type="button" variant="secondary" disabled={submitting} onClick={() => setStep('form')}>
               Back
             </Button>
-            <Button type="button" variant="primary" onClick={confirm}>
-              Confirm {mode === 'buy' ? 'Purchase' : 'Sale'}
+            <Button type="button" variant="primary" disabled={submitting} onClick={confirm}>
+              {submitting ? 'Posting…' : `Confirm ${mode === 'buy' ? 'Purchase' : 'Sale'}`}
             </Button>
           </div>
         </Card>

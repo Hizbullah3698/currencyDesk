@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { StoreProvider, useStore } from '@/lib/store'
 import { ThemeProvider } from '@/lib/theme'
 import { AuthProvider, useAuth } from '@/lib/auth'
@@ -34,20 +35,30 @@ function ServerUnreachable() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-app px-5">
       <div className="max-w-[360px] text-center text-[12.5px] leading-relaxed text-muted-70">
-        Can't reach the server. Make sure the backend is running (<code className="tabular">npm run dev --prefix server</code>), then reload.
+        Can't reach the server. Make sure the backend is running (<code className="tabular">npm run dev</code> inside <code className="tabular">backend/</code>), then reload.
       </div>
     </div>
   )
 }
 
-function Gate() {
-  // Reads the 3-way auth status directly, not via useStore()'s derived `loggedIn` boolean —
-  // that boolean collapses 'checking' and 'anonymous' into the same `false` value, which would
-  // flash the login screen for a returning user while their session is still being verified.
-  const { status } = useAuth()
-  if (status === 'checking') return <BootSplash />
-  if (status === 'unreachable') return <ServerUnreachable />
-  if (status === 'anonymous') return <Login />
+function StoreLoadFailed({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-app px-5">
+      <div className="flex max-w-[360px] flex-col items-center gap-3 text-center">
+        <div className="text-[12.5px] leading-relaxed text-muted-70">Couldn't load your data: {message}</div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-[6px] border border-border-strong bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors duration-150 hover:bg-surface-tint"
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RoutedApp() {
   return (
     <AppShell>
       <Routes>
@@ -100,6 +111,38 @@ function Gate() {
       </Routes>
     </AppShell>
   )
+}
+
+function Gate() {
+  // Reads the 3-way auth status directly, not via useStore()'s derived `loggedIn` boolean —
+  // that boolean collapses 'checking' and 'anonymous' into the same `false` value, which would
+  // flash the login screen for a returning user while their session is still being verified.
+  const { status: authStatus } = useAuth()
+  const { status: storeStatus, loadError, refetch } = useStore()
+  const location = useLocation()
+  const skippedFirst = useRef(false)
+
+  // Refetch business data on every navigation (not just once at boot) — this is the app's whole
+  // multi-tab/multi-user sync strategy: no websockets, no polling, just "the data is at most one
+  // navigation stale." Skips the very first run so it doesn't duplicate the initial load
+  // StoreProvider already triggers itself when auth resolves to 'authenticated'.
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return
+    if (!skippedFirst.current) {
+      skippedFirst.current = true
+      return
+    }
+    refetch()
+  }, [location.pathname, authStatus, refetch])
+
+  if (authStatus === 'checking') return <BootSplash />
+  if (authStatus === 'unreachable') return <ServerUnreachable />
+  if (authStatus === 'anonymous') return <Login />
+
+  if (storeStatus === 'loading') return <BootSplash />
+  if (storeStatus === 'error') return <StoreLoadFailed message={loadError || 'unknown error'} onRetry={refetch} />
+
+  return <RoutedApp />
 }
 
 export default function App() {

@@ -18,6 +18,7 @@ export function Journal() {
   const [creditAmount, setCreditAmount] = useState('')
   const [narration, setNarration] = useState('')
   const [error, setError] = useState('')
+  const [posting, setPosting] = useState(false)
 
   const options = state.accounts.slice().sort((a, b) => ACCOUNT_TYPES.indexOf(a.type) - ACCOUNT_TYPES.indexOf(b.type) || a.name.localeCompare(b.name))
   const dr = parseFloat(debitAmount) || 0
@@ -35,8 +36,10 @@ export function Journal() {
     setError('')
   }
 
-  function post() {
-    const err = postJournal({ debitAccount, debitAmount: dr, creditAccount, creditAmount: cr, narration })
+  async function post() {
+    setPosting(true)
+    const err = await postJournal({ debitAccount, debitAmount: dr, creditAccount, creditAmount: cr, narration })
+    setPosting(false)
     if (err) return setError(err)
     reset()
   }
@@ -106,12 +109,12 @@ export function Journal() {
           </div>
           {error && <div className="rounded-[6px] border border-negative-border bg-negative-bg px-2.5 py-2 text-[12px] font-normal leading-[1.5] text-negative-deep">{error}</div>}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={reset}>
+            <Button variant="secondary" disabled={posting} onClick={reset}>
               Clear
             </Button>
-            <Button variant="primary" onClick={post}>
+            <Button variant="primary" disabled={posting} onClick={post}>
               <SquarePen size={14} strokeWidth={2} aria-hidden="true" />
-              Post Entry
+              {posting ? 'Posting…' : 'Post Entry'}
             </Button>
           </div>
         </div>
