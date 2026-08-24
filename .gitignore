@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .claude/
 
+# Backend env files (backend/.env.example is tracked; real secrets are not)
+backend/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
