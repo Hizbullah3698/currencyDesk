@@ -16,5 +16,5 @@
     "resolveJsonModule": true
   },
   "include": ["src"],
-  "exclude": ["src/test", "**/*.test.ts"]
+  "exclude": ["src/test", "**/*.test.ts", "src/scripts/setupTestDb.ts"]
 }

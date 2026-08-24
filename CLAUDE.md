@@ -183,8 +183,9 @@ this writing:
   friendly message, not a stack trace.
 - **Not yet exercised by this verification pass** (noted honestly, not assumed fine):
   `accrueAllSalaries`/`payAllSalaries` (bulk endpoints — logic mirrors the single-row versions
-  closely but wasn't independently hit) and `deleteAccount`'s success path (only the
-  blocked-by-activity path was exercised). Explicitly deferred by the user, not an oversight.
+  closely but wasn't independently hit — **since closed by Phase 4's automated tests, see
+  below**) and `deleteAccount`'s success path (only the blocked-by-activity path was exercised,
+  still open). Explicitly deferred by the user, not an oversight.
 - **The local dev Postgres database has been wiped back to exactly the eight seed accounts**
   (zero activity/cheques/journal entries, `stock_positions` reset to `AED: 0/0`,
   `cheque_number_seq`/`journal_ref_seq` both reset) after this verification pass generated real
@@ -294,7 +295,7 @@ this writing:
   and a pinned `CORE_ACCOUNT_IDS` regression guard (this exact array is what migration `009`'s
   trigger is generated from — a silent change here would silently change what the database
   protects). Run via `npm run test` from `packages/engine/` (or the root fan-out).
-- **`backend`'s three integration tests automate the exact concurrency mechanisms this project's
+- **`backend`'s integration tests automate the exact concurrency mechanisms this project's
   manual Phases 1-2 verification passes already proved by hand** — not new scenarios, the same
   ones, now regression-tested on every run instead of only ever having been checked once by a
   human:
@@ -316,7 +317,23 @@ this writing:
      `/api/salary/accrue` requests for the same employee/period; asserts exactly one `200`/one
      `409` (`"... is already accrued for ..."`), and counts the actual `journal_entries` rows
      afterward rather than trusting the two HTTP responses.
-  All three fire their concurrent requests via `Promise.all` with no `await` between dispatch,
+  4. `src/test/integration/salaryBulk.concurrency.test.ts` — closes the
+     `accrueAllSalaries`/`payAllSalaries` gap Phase 2's manual pass explicitly disclosed as
+     untested (see above), with 6 tests: `accrue-all` tolerates one already-accrued employee
+     without aborting the rest of the batch (the actual point of its per-row
+     `ON CONFLICT DO NOTHING`, not a bare multi-row insert); `accrue-all` returns a clean `400`
+     once every employee is already accrued; two concurrent `accrue-all` calls for the same
+     period never double-accrue any employee (accrue-all has no whole-set lock, so the 200/400
+     split between the two calls is legitimately nondeterministic — only "no duplicate row per
+     employee" is asserted as the real invariant); `pay-all` pays every employee with an
+     outstanding balance and skips those with none; a second `pay-all` call once nothing is
+     outstanding gets a clean `400` instead of double-paying; and two concurrent `pay-all` calls
+     are **deterministically** one `200` (with the real payments) and one `400` (finds nothing
+     left) — deterministic here specifically because `payAllSalaries` takes a `FOR UPDATE` lock
+     on the *entire* employee set in a fixed `ORDER BY id` up front, so the second call fully
+     blocks behind the first instead of racing it (and would surface a real Postgres `40P01`
+     deadlock error, not a clean `appError`, if that fixed lock order ever regressed).
+  All four fire their concurrent requests via `Promise.all` with no `await` between dispatch,
   against a real `http.createServer(createApp())` instance on an ephemeral port — the same
   lesson CLAUDE.md already documented from forcing these races by hand (shelled-out `curl`
   processes arrive too far apart in real time to reliably collide).
@@ -352,8 +369,11 @@ this writing:
 - **Build hygiene**: both `packages/engine/tsconfig.json` and `backend/tsconfig.json` gained an
   `exclude` for `*.test.ts` (and backend's `src/test/` directory) — without it, `npm run build`
   silently compiled test files straight into the production `dist/` output (`engine.test.js`
-  ended up in `packages/engine/dist/` before this was caught). Verified by rebuilding both from
-  a clean `dist/` afterward and confirming no test-related files remain in either.
+  ended up in `packages/engine/dist/` before this was caught). `backend/tsconfig.json` also
+  excludes `src/scripts/setupTestDb.ts` specifically (it isn't named `*.test.ts`, so the first
+  pass of this exclude missed it — `dist/scripts/setupTestDb.js` was found and removed the same
+  way). Verified by rebuilding both from a clean `dist/` afterward and confirming no
+  test-related files remain in either.
 - **Audited separately from the concurrency tests, as its own Phase 4 checklist item: every
   mutating route across all seven route groups uses the single checked-out client from
   `services/transact.ts`, never a bare `pool.query()`.** Verified by grep, not read-through:
@@ -372,9 +392,10 @@ this writing:
   required); confirmed the one real call site compiles unchanged and the full build + test suite
   still pass.
 - **Not yet exercised / deliberately out of scope**: no frontend tests (none were requested for
-  this phase); `accrueAllSalaries`/`payAllSalaries`/`deleteAccount`'s success path remain
-  untested by anything automated (same gap Phase 2's manual pass already disclosed, still open);
-  no CI wiring runs any of this automatically on push — `npm run test` is still a manual step.
+  this phase); `deleteAccount`'s success path remains untested by anything automated (same gap
+  Phase 2's manual pass disclosed, still open — only `accrueAllSalaries`/`payAllSalaries` from
+  that same disclosure were closed, by test file 4 above); no CI wiring runs any of this
+  automatically on push — `npm run test` is still a manual step.
 
 ## Current Architecture
 
@@ -535,8 +556,8 @@ Verified against `frontend/package.json` / `frontend/package-lock.json` and
   without a separate build step; `tsc` still compiles it for `npm run build`.
 - **PostgreSQL 16** (`backend/docker-compose.yml`, `postgres:16-alpine`) — local dev only, no
   managed/production Postgres has been configured.
-- **Vitest** (`^4.1.11`, hoisted from the root devDependency) — 3 integration tests
-  (`src/test/integration/*.test.ts`) against a separate `currencydesk_test` database, run via
+- **Vitest** (`^4.1.11`, hoisted from the root devDependency) — 4 integration test files, 9 tests
+  total (`src/test/integration/*.test.ts`) against a separate `currencydesk_test` database, run via
   `npm run test` (see "Business-data migration" → Phase 4). No supertest or similar — tests boot
   a real `http.createServer(createApp())` and use plain `fetch`.
 
@@ -728,7 +749,9 @@ F:\currencyDesk\
         │   └── integration/
         │       ├── trades.concurrency.test.ts       Oversell race on shared stock
         │       ├── cheques.concurrency.test.ts        Forced cheque-number collision + retry
-        │       └── salary.concurrency.test.ts          Concurrent same-period accrual dedup
+        │       ├── salary.concurrency.test.ts          Concurrent same-period accrual dedup
+        │       └── salaryBulk.concurrency.test.ts       accrue-all/pay-all batch tolerance +
+        │                                             fixed-lock-order concurrency
         └── types/express-session.d.ts        Module augmentation: req.session.userId / role
 ```
 
@@ -979,11 +1002,12 @@ project's own work). `frontend` has no test script yet.
 **A basic Vitest suite exists for `packages/engine` and `backend` (Phase 4) — there is still
 none for `frontend`.** `npm run test` from the repo root fans out to both (see "Business-data
 migration" → Phase 4 for exactly what's covered): `packages/engine`'s 17 unit tests need nothing
-running; `backend`'s 3 integration tests need the local Postgres up (the same one `docker compose
-up -d` starts for dev — see "Development") and create/migrate their own separate
+running; `backend`'s 9 integration tests (4 files) need the local Postgres up (the same one
+`docker compose up -d` starts for dev — see "Development") and create/migrate their own separate
 `currencydesk_test` database automatically via `pretest`, never touching the real dev database.
 This is a *regression* suite for the specific mechanics Phases 1-2's manual verification already
-proved by hand (weighted-average cost, buy/sell math, the three flagship concurrency guards) —
+proved by hand (weighted-average cost, buy/sell math, the concurrency guards on trades,
+settlements, cheques, and both single and bulk salary actions) —
 it is not comprehensive, and most of the app (every React component, every report page, cheque
 lifecycle transitions, salary bulk actions) still has no automated coverage. Correctness there is
 still verified by type-checking (`tsc -b` for the frontend, `tsc -p tsconfig.json` for the
