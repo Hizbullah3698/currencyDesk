@@ -1,18 +1,24 @@
 import { Router } from 'express'
-import rateLimit from 'express-rate-limit'
+import { rateLimit } from 'express-rate-limit'
 import { attemptLogin } from '../services/authService.js'
 import { findUserById, toPublicUser } from '../services/userService.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 import { env } from '../config/env.js'
+import { pool } from '../db/pool.js'
+import { PostgresRateLimitStore } from '../services/rateLimitStore.js'
 
 export const authRouter = Router()
 
+// A Postgres-backed store, not the default in-memory one — see rateLimitStore.ts for why: this
+// limit must hold even when multiple separate server instances (e.g. serverless function
+// invocations) are running concurrently, each with its own process memory.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Try again later.' },
+  store: new PostgresRateLimitStore(pool),
 })
 
 authRouter.post('/login', loginLimiter, async (req, res) => {
