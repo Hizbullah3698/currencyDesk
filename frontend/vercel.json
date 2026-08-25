@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd .. && npm install --include=dev && npm run build --workspace=frontend",
+  "buildCommand": "cd .. && npm install --include=dev && npm run build --workspace=@currencydesk/engine && npm run build --workspace=frontend",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
