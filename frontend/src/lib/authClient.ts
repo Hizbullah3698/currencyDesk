@@ -1,4 +1,5 @@
 import type { Role } from './types'
+import { apiUrl } from './apiBase'
 
 export interface SessionUser {
   id: string
@@ -17,10 +18,10 @@ async function parseJson(res: Response): Promise<any> {
 
 export async function login(email: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }> {
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
+      credentials: 'include',
       body: JSON.stringify({ email, password }),
     })
     const body = await parseJson(res)
@@ -33,7 +34,7 @@ export async function login(email: string, password: string): Promise<{ ok: true
 
 export async function logout(): Promise<void> {
   try {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    await fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' })
   } catch {
     /* best-effort — local session state is cleared regardless by the caller */
   }
@@ -43,7 +44,7 @@ export type MeResult = { status: 'authenticated'; user: SessionUser } | { status
 
 export async function me(): Promise<MeResult> {
   try {
-    const res = await fetch('/api/auth/me', { credentials: 'same-origin' })
+    const res = await fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
     if (res.status === 401) return { status: 'anonymous' }
     if (!res.ok) return { status: 'unreachable' }
     const body = await parseJson(res)

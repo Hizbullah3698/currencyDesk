@@ -25,4 +25,9 @@ export const env = {
   nodeEnv: clean(process.env.NODE_ENV) || 'development',
   cookieName: clean(process.env.COOKIE_NAME) || 'cd.sid',
   sessionMaxAgeDays: Number(clean(process.env.SESSION_MAX_AGE_DAYS)) || 30,
+  // Optional and unset in local dev — the Vite dev proxy makes the browser see everything as
+  // same-origin there, so no CORS header is needed at all. Only production, where the frontend
+  // and backend are genuinely different origins, needs this set — to exactly one real origin,
+  // never a wildcard, since credentialed (cookie-carrying) requests can't use one anyway.
+  frontendOrigin: clean(process.env.FRONTEND_ORIGIN),
 }

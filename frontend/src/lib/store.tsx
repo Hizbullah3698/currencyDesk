@@ -3,6 +3,7 @@ import type { Account, AccountType, Activity, Cheque, JournalEntry, SettlementMe
 import { ACCOUNT_TYPES } from './types'
 import { CORE_ACCOUNT_IDS } from './engine'
 import { useAuth } from './auth'
+import { apiUrl } from './apiBase'
 
 export interface AppState {
   accounts: Account[]
@@ -32,10 +33,10 @@ type ApiResult = { ok: true; snapshot: AppState } | { ok: false; error: string }
 
 async function apiCall(method: string, url: string, body?: unknown): Promise<ApiResult> {
   try {
-    const res = await fetch(url, {
+    const res = await fetch(apiUrl(url), {
       method,
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
+      credentials: 'include',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
     const json = await parseJson(res)
