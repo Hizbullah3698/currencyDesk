@@ -35,3 +35,11 @@ export function createApp() {
 
   return app
 }
+
+// Vercel's native Express support scans for a conventionally-named app.js and specifically
+// requires ITS default export to be the app/server — independent of, and in addition to, the
+// api/index.ts entry point. The named createApp() factory above stays the primary export (used
+// by src/index.ts for local/Railway/Render's persistent-process model, and by the test suite to
+// construct an independent instance per test file) — this default export exists only to satisfy
+// Vercel's own convention-based detection of this specific file.
+export default createApp()
