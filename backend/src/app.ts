@@ -13,6 +13,14 @@ import { accountsRouter } from './routes/accounts.js'
 export function createApp() {
   const app = express()
 
+  // Every deployment target (Vercel, Render, Railway) puts exactly one reverse proxy in front of
+  // this app, which sets X-Forwarded-For to the real client IP. Without telling Express to trust
+  // that one hop, req.ip resolves to the proxy's own address (useless for express-rate-limit's
+  // per-client keying) — and express-rate-limit v7 throws rather than silently keying on the
+  // wrong IP, which is what actually crashed every request through loginLimiter on Vercel.
+  // `1` (not `true`) trusts only the immediate hop, not an arbitrary chain of proxies.
+  app.set('trust proxy', 1)
+
   app.use(express.json())
   app.use(sessionMiddleware)
 
