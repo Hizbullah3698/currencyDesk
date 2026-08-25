@@ -1,4 +1,5 @@
 {
+  "buildCommand": "cd .. && npm install --include=dev && npm run build --workspace=frontend",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
