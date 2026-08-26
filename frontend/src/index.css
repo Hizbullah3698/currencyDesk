@@ -54,6 +54,13 @@
   --color-positive-bg: #e6f4ec;
   --color-positive-border: #bfe6d1;
   --color-positive-glow: rgba(16, 121, 79, 0.14);
+  /* Solid-fill variant, added for the Dashboard's bold KPI cards (see
+     Dashboard.tsx's KpiCard) — the first genuine solid positive fill in the
+     app. Checked at 5.43:1 for white text and reused as-is in dark mode: a
+     solid fill's contrast only depends on the fill color itself, not the page
+     it sits on, so — unlike --color-accent-solid — this one doesn't need a
+     separate darker dark-mode value. */
+  --color-positive-solid: #10794f;
 
   --color-negative: #c4443a;
   --color-negative-text: #b03a30;
@@ -75,11 +82,15 @@
   --color-inflow-bg: rgba(14, 116, 144, 0.07);
   --color-inflow-border: rgba(14, 116, 144, 0.24);
   --color-inflow-glow: rgba(14, 116, 144, 0.16);
+  /* Checked at 5.36:1 for white text — same value works in both themes. */
+  --color-inflow-solid: #0e7490;
 
   --color-outflow: #b45309;
   --color-outflow-bg: rgba(180, 83, 9, 0.07);
   --color-outflow-border: rgba(180, 83, 9, 0.24);
   --color-outflow-glow: rgba(180, 83, 9, 0.16);
+  /* Checked at 5.02:1 for white text — same value works in both themes. */
+  --color-outflow-solid: #b45309;
 
   --color-pending: #97650c;
   --color-pending-text: #6b4306;
@@ -165,6 +176,10 @@
     --color-positive-bg: #0f2a20;
     --color-positive-border: rgba(52, 195, 143, 0.35);
     --color-positive-glow: rgba(52, 195, 143, 0.22);
+    /* Deliberately NOT the bright #34c38f above — that hue is picked to read as
+       text on a near-black page and is too light to hold white text at 4.5:1.
+       Reuses the same deep value as light mode (see its own comment). */
+    --color-positive-solid: #10794f;
 
     --color-negative: #f2685c;
     --color-negative-text: #f2685c;
@@ -180,11 +195,15 @@
     --color-inflow-bg: rgba(56, 189, 248, 0.1);
     --color-inflow-border: rgba(56, 189, 248, 0.32);
     --color-inflow-glow: rgba(56, 189, 248, 0.22);
+    /* Same reasoning as positive-solid above — the bright dark-mode text hue
+       can't hold white text, so this reuses light mode's deeper value. */
+    --color-inflow-solid: #0e7490;
 
     --color-outflow: #fb923c;
     --color-outflow-bg: rgba(251, 146, 60, 0.1);
     --color-outflow-border: rgba(251, 146, 60, 0.32);
     --color-outflow-glow: rgba(251, 146, 60, 0.22);
+    --color-outflow-solid: #b45309;
 
     --color-pending: #e2a83f;
     --color-pending-text: #e2a83f;
@@ -246,6 +265,7 @@
   --color-positive-bg: #0f2a20;
   --color-positive-border: rgba(52, 195, 143, 0.35);
   --color-positive-glow: rgba(52, 195, 143, 0.22);
+  --color-positive-solid: #10794f;
 
   --color-negative: #f2685c;
   --color-negative-text: #f2685c;
@@ -259,11 +279,13 @@
   --color-inflow-bg: rgba(56, 189, 248, 0.1);
   --color-inflow-border: rgba(56, 189, 248, 0.32);
   --color-inflow-glow: rgba(56, 189, 248, 0.22);
+  --color-inflow-solid: #0e7490;
 
   --color-outflow: #fb923c;
   --color-outflow-bg: rgba(251, 146, 60, 0.1);
   --color-outflow-border: rgba(251, 146, 60, 0.32);
   --color-outflow-glow: rgba(251, 146, 60, 0.22);
+  --color-outflow-solid: #b45309;
 
   --color-pending: #e2a83f;
   --color-pending-text: #e2a83f;
@@ -428,6 +450,7 @@ a:hover {
     --color-positive-bg: #e6f4ec !important;
     --color-positive-border: #bfe6d1 !important;
     --color-positive-glow: rgba(16, 121, 79, 0.14) !important;
+    --color-positive-solid: #10794f !important;
 
     --color-negative: #c4443a !important;
     --color-negative-text: #b03a30 !important;
@@ -440,12 +463,14 @@ a:hover {
     --color-inflow: #0e7490 !important;
     --color-inflow-bg: rgba(14, 116, 144, 0.07) !important;
     --color-inflow-border: rgba(14, 116, 144, 0.24) !important;
+    --color-inflow-solid: #0e7490 !important;
     --color-inflow-glow: rgba(14, 116, 144, 0.16) !important;
 
     --color-outflow: #b45309 !important;
     --color-outflow-bg: rgba(180, 83, 9, 0.07) !important;
     --color-outflow-border: rgba(180, 83, 9, 0.24) !important;
     --color-outflow-glow: rgba(180, 83, 9, 0.16) !important;
+    --color-outflow-solid: #b45309 !important;
 
     --color-pending: #97650c !important;
     --color-pending-text: #6b4306 !important;
