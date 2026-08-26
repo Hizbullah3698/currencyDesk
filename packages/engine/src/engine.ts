@@ -227,6 +227,7 @@ export function stockAsOf(code: string, stocks: Stocks, activity: Activity[], to
 
 export interface TrendBar {
   heightPct: number
+  value: number
   label: string
   color: string
   labelColor: string
@@ -249,6 +250,7 @@ export function stockTrend(code: string, stocks: Stocks, activity: Activity[], c
   const max = Math.max(...points.map((p) => p.qty), 1)
   return points.map((p, i) => ({
     heightPct: Math.max(10, Math.round((p.qty / max) * 100)),
+    value: p.qty,
     label: p.kind ? p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
     color: i === points.length - 1 ? 'var(--color-accent)' : 'var(--color-accent-border)',
     labelColor: 'var(--color-muted-60)',

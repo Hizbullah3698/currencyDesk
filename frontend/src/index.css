@@ -21,16 +21,16 @@
   --color-muted-42: rgba(20, 22, 26, 0.42);
   --color-muted-38: rgba(20, 22, 26, 0.38);
 
-  --color-accent: #3d46d0;
-  --color-accent-hover: #2f37ad;
-  --color-accent-bg: rgba(61, 70, 208, 0.08);
-  --color-accent-border: rgba(61, 70, 208, 0.28);
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-bg: rgba(37, 99, 235, 0.08);
+  --color-accent-border: rgba(37, 99, 235, 0.28);
   /* Solid-fill variant: what white button/segment text sits on. Identical to
      --color-accent in light mode; diverges in dark mode where a single hue can't
      both read as text on a near-black page AND hold 4.5:1 for white text on top
      of it — see the dark-mode blocks below. */
-  --color-accent-solid: #3d46d0;
-  --color-accent-solid-hover: #2f37ad;
+  --color-accent-solid: #2563eb;
+  --color-accent-solid-hover: #1d4ed8;
 
   --color-positive: #10794f;
   --color-positive-text: #0f6b46;
@@ -116,12 +116,12 @@
     --color-muted-42: rgba(238, 240, 243, 0.42);
     --color-muted-38: rgba(238, 240, 243, 0.38);
 
-    --color-accent: #7c86f0;
-    --color-accent-hover: #929bf5;
-    --color-accent-bg: #1c2036;
-    --color-accent-border: rgba(124, 134, 240, 0.35);
-    --color-accent-solid: #4a52d6;
-    --color-accent-solid-hover: #5a63e6;
+    --color-accent: #5b9df5;
+    --color-accent-hover: #7db4f7;
+    --color-accent-bg: #10233b;
+    --color-accent-border: rgba(91, 157, 245, 0.35);
+    --color-accent-solid: #2f66d6;
+    --color-accent-solid-hover: #3f76e2;
 
     --color-positive: #34c38f;
     --color-positive-text: #34c38f;
@@ -183,12 +183,12 @@
   --color-muted-42: rgba(238, 240, 243, 0.42);
   --color-muted-38: rgba(238, 240, 243, 0.38);
 
-  --color-accent: #7c86f0;
-  --color-accent-hover: #929bf5;
-  --color-accent-bg: #1c2036;
-  --color-accent-border: rgba(124, 134, 240, 0.35);
-  --color-accent-solid: #4a52d6;
-  --color-accent-solid-hover: #5a63e6;
+  --color-accent: #5b9df5;
+  --color-accent-hover: #7db4f7;
+  --color-accent-bg: #10233b;
+  --color-accent-border: rgba(91, 157, 245, 0.35);
+  --color-accent-solid: #2f66d6;
+  --color-accent-solid-hover: #3f76e2;
 
   --color-positive: #34c38f;
   --color-positive-text: #34c38f;
@@ -353,12 +353,12 @@ a:hover {
     --color-muted-42: rgba(20, 22, 26, 0.42) !important;
     --color-muted-38: rgba(20, 22, 26, 0.38) !important;
 
-    --color-accent: #3d46d0 !important;
-    --color-accent-hover: #2f37ad !important;
-    --color-accent-bg: rgba(61, 70, 208, 0.08) !important;
-    --color-accent-border: rgba(61, 70, 208, 0.28) !important;
-    --color-accent-solid: #3d46d0 !important;
-    --color-accent-solid-hover: #2f37ad !important;
+    --color-accent: #2563eb !important;
+    --color-accent-hover: #1d4ed8 !important;
+    --color-accent-bg: rgba(37, 99, 235, 0.08) !important;
+    --color-accent-border: rgba(37, 99, 235, 0.28) !important;
+    --color-accent-solid: #2563eb !important;
+    --color-accent-solid-hover: #1d4ed8 !important;
 
     --color-positive: #10794f !important;
     --color-positive-text: #0f6b46 !important;

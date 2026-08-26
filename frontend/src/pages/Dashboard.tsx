@@ -7,6 +7,7 @@ import { fmt, fmtNum, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { StockTrendChart } from '@/components/charts/StockTrendChart'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -195,10 +196,8 @@ export function Dashboard() {
                     <div className="tabular text-[13px] font-medium">{fmt(aed.available * aed.avgCost)}</div>
                   </div>
                 </div>
-                <div className="mt-3 flex h-11 items-end gap-1">
-                  {trend.map((bar, i) => (
-                    <div key={i} className="flex-1 rounded-t-[2px] transition-[height] duration-300 ease-out" style={{ background: bar.color, height: `${bar.heightPct}%`, minHeight: 3 }} />
-                  ))}
+                <div className="mt-3">
+                  <StockTrendChart data={trend} seriesLabel="AED on hand" formatValue={(v) => fmtNum(v)} height={44} />
                 </div>
               </>
             )}

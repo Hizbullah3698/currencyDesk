@@ -6,6 +6,7 @@ import { fmt, fmtNum, fmtRate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PrintHeader } from '@/components/PrintHeader'
+import { StockTrendChart } from '@/components/charts/StockTrendChart'
 
 export function Stock() {
   const { state, isAdmin } = useStore()
@@ -57,13 +58,7 @@ export function Stock() {
         </div>
         <div>
           <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Stock movement</div>
-          <div className="flex h-[52px] items-end gap-1.5">
-            {trend.map((bar, i) => (
-              <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
-                <div className="w-full rounded-t-[2px] transition-[height] duration-300 ease-out" style={{ background: bar.color, height: `${bar.heightPct}%`, minHeight: 3 }} />
-              </div>
-            ))}
-          </div>
+          <StockTrendChart data={trend} seriesLabel="AED on hand" formatValue={(v) => fmtNum(v)} height={52} showAxis />
         </div>
       </Card>
 
