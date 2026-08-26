@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { isToday, stk, stockTrend, txnIsOpen } from '@/lib/engine'
 import { fmt, fmtNum, fmtRate } from '@/lib/format'
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBootReady } from '@/lib/useBootReady'
+import { cn } from '@/lib/utils'
 
 export function Dashboard() {
   const { state } = useStore()
@@ -82,9 +83,13 @@ export function Dashboard() {
               <div className="tabular text-hero-lg font-semibold tracking-tight text-ink">{fmt(stats.purchasesValue)}</div>
               <div className="mt-2.5 text-meta font-normal text-muted-60">Cost of AED taken in today</div>
             </Card>
-            <Card variant="flat" className="border-t-2 border-t-accent px-6 pb-6 pt-[22px]">
+            <Card variant="flat" className={cn('border-t-2 border-t-accent px-6 pb-6 pt-[22px]', stats.net >= 0 ? 'bg-positive-bg' : 'bg-negative-bg')}>
               <CatLabel category="bank" icon={Wallet} label="Net cash movement" />
-              <div className="tabular text-hero-lg font-semibold tracking-tight text-accent">{fmt(Math.abs(stats.net))}</div>
+              <div className={cn('tabular flex items-center gap-2 text-hero-lg font-semibold tracking-tight', stats.net >= 0 ? 'text-positive-text' : 'text-negative-deep')}>
+                {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
+                {stats.net >= 0 ? '+' : '−'}
+                {fmt(Math.abs(stats.net))}
+              </div>
               <div className="mt-2.5 text-meta font-normal text-muted-60">
                 In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
               </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, AlertTriangle, Printer } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Printer, TrendingUp, TrendingDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { rangeBounds, isToday } from '@/lib/engine'
 import { computeIncomeStatement } from '@/lib/reports'
@@ -8,6 +8,7 @@ import type { ReportPreset } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Card } from '@/components/ui/card'
+import { SignedAmount } from '@/components/ui/signed-amount'
 import { PrintHeader } from '@/components/PrintHeader'
 import { cn } from '@/lib/utils'
 
@@ -119,12 +120,16 @@ export function IncomeStatement() {
           <div className="min-w-[150px] text-right">Amount</div>
         </div>
 
-        <div className="flex items-center gap-2.5 border-b border-divider bg-surface-sunken px-[13px] py-2.5">
+        <div className={cn('flex items-center gap-2.5 border-b border-divider px-[13px] py-2.5', result.gross >= 0 ? 'bg-positive-bg' : 'bg-negative-bg')}>
           <div className="flex-1">
             <div className="text-body font-bold">Gross Profit / Loss</div>
             <div className="text-meta font-normal text-muted-60">Margin on currency sales plus journal postings to Income</div>
           </div>
-          <div className={`tabular min-w-[150px] text-right text-body font-bold ${result.gross >= 0 ? 'text-positive' : 'text-negative'}`}>{fmt(result.gross)}</div>
+          <div className={cn('tabular flex min-w-[150px] items-center justify-end gap-1 text-body font-bold', result.gross >= 0 ? 'text-positive-text' : 'text-negative-deep')}>
+            {result.gross >= 0 ? <TrendingUp size={13} strokeWidth={2.6} aria-hidden="true" /> : <TrendingDown size={13} strokeWidth={2.6} aria-hidden="true" />}
+            {result.gross >= 0 ? '+' : '−'}
+            {fmt(Math.abs(result.gross))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2.5 border-b border-divider py-2 pl-5 pr-[13px]">
@@ -141,7 +146,9 @@ export function IncomeStatement() {
               <div className="text-body font-medium">{cur.code} desk</div>
               <div className="text-meta font-normal text-muted-60">{cur.sub}</div>
             </div>
-            <div className={`tabular min-w-[150px] text-right text-body font-medium ${cur.margin >= 0 ? '' : 'text-negative'}`}>{fmt(cur.margin)}</div>
+            <div className="flex min-w-[150px] justify-end">
+              <SignedAmount value={cur.margin} />
+            </div>
           </div>
         ))}
 
@@ -191,12 +198,16 @@ export function IncomeStatement() {
           <div className="tabular min-w-[150px] text-right text-body font-bold">{fmt(result.salaryDue)}</div>
         </div>
 
-        <div className="flex items-center gap-2.5 border-t-2 border-border-input bg-surface-hover px-[13px] py-2.5">
+        <div className={cn('flex items-center gap-2.5 border-t-2 border-border-input px-[13px] py-2.5', result.net >= 0 ? 'bg-positive-bg' : 'bg-negative-bg')}>
           <div className="flex-1">
             <div className="text-body font-bold">Net Profit / Loss</div>
             <div className="text-meta font-normal text-muted-60">Gross profit less expenses (the salary accrual is inside Expenses)</div>
           </div>
-          <div className={`tabular min-w-[150px] text-right text-hero font-bold ${result.net >= 0 ? 'text-positive' : 'text-negative'}`}>{fmt(result.net)}</div>
+          <div className={cn('tabular flex min-w-[150px] items-center justify-end gap-1.5 text-hero font-bold', result.net >= 0 ? 'text-positive-text' : 'text-negative-deep')}>
+            {result.net >= 0 ? <TrendingUp size={20} strokeWidth={2.4} aria-hidden="true" /> : <TrendingDown size={20} strokeWidth={2.4} aria-hidden="true" />}
+            {result.net >= 0 ? '+' : '−'}
+            {fmt(Math.abs(result.net))}
+          </div>
         </div>
       </Card>
 

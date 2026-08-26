@@ -8,6 +8,7 @@ import { BackButton } from '@/components/BackButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { SignedAmount } from '@/components/ui/signed-amount'
 import { cn } from '@/lib/utils'
 
 const METHODS: SettlementMethod[] = ['Cash', 'Bank', 'Cheque', 'Credit']
@@ -133,11 +134,11 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               </div>
               <div className="bg-surface-sunken px-2.5 py-2">
                 <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Est. margin</div>
-                <div className={`tabular text-body font-semibold ${(margin || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>{fmtNum(margin || 0)}</div>
+                <SignedAmount value={margin || 0} format={fmtNum} />
               </div>
               <div className="bg-surface-sunken px-2.5 py-2">
                 <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Expected profit</div>
-                <div className={`tabular text-body font-semibold ${(margin || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>{fmtNum(margin || 0)}</div>
+                <SignedAmount value={margin || 0} format={fmtNum} />
               </div>
             </div>
           )}
