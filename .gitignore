@@ -18,6 +18,10 @@ backend/.env
 backend/.env.*
 !backend/.env.example
 
+# Full project briefing with real credentials (deployment URLs, DB connection strings, live
+# login passwords) — meant to be handed to an AI session as context, never committed.
+PROJECT_BRIEFING.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
