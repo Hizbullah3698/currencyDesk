@@ -28,8 +28,8 @@ export function createApp() {
   // different origins — allowlisted to exactly that one real origin, never a wildcard, since a
   // wildcard can't be combined with credentials: true anyway (the whole point of a session
   // cookie is that it's credentialed).
-  if (env.frontendOrigin) {
-    app.use(cors({ origin: env.frontendOrigin, credentials: true }))
+  if (env.frontendOrigins.length) {
+    app.use(cors({ origin: env.frontendOrigins, credentials: true }))
   }
 
   app.use(express.json())
