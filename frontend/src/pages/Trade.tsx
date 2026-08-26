@@ -85,15 +85,15 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
       <div className="mb-3">
         <BackButton label="Currency Stock" onBack={() => navigate('/stock')} />
       </div>
-      <h1 className="m-0 mb-[3px] text-[17px] font-semibold">{title}</h1>
-      <div className="mb-3.5 text-[12px] text-muted-60">{sub}</div>
+      <h1 className="m-0 mb-[3px] text-heading font-semibold">{title}</h1>
+      <div className="mb-3.5 text-body text-muted-60">{sub}</div>
 
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-muted-70">{mode === 'buy' ? 'Customer / Supplier' : 'Customer'}</label>
-            <Input value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="Type to filter customers…" className="mb-1.5 h-[30px] text-[12px]" />
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-2.5 text-[12.5px] transition-colors duration-150">
+            <label className="mb-1 block text-meta font-semibold text-muted-70">{mode === 'buy' ? 'Customer / Supplier' : 'Customer'}</label>
+            <Input value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="Type to filter customers…" className="mb-1.5 h-[30px] text-body" />
+            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
               <option value="">Select customer…</option>
               {filteredCustomers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -104,46 +104,46 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
           </div>
           <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr] gap-2.5">
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-70">Currency</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-1.5 text-[12.5px] font-semibold transition-colors duration-150">
+              <label className="mb-1 block text-meta font-semibold text-muted-70">Currency</label>
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-1.5 text-body font-semibold transition-colors duration-150">
                 <option value="AED">AED</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-70">Amount to {mode === 'buy' ? 'buy' : 'sell'}</label>
-              <Input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" placeholder="0" className="tabular h-[34px] text-[12.5px]" />
-              {mode === 'sell' && <div className="mt-0.5 text-[10px] font-normal text-muted-60">Available {fmtNum(avail)}</div>}
+              <label className="mb-1 block text-meta font-semibold text-muted-70">Amount to {mode === 'buy' ? 'buy' : 'sell'}</label>
+              <Input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" placeholder="0" className="tabular h-[34px] text-body" />
+              {mode === 'sell' && <div className="mt-0.5 text-meta font-normal text-muted-60">Available {fmtNum(avail)}</div>}
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-70">{mode === 'buy' ? 'Purchase rate' : 'Selling rate'}</label>
-              <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" placeholder="0.00" className="tabular h-[34px] text-[12.5px]" />
-              <div className="mt-0.5 text-[10px] font-normal text-muted-60">Avg cost {fmtRate(avgCost)}</div>
+              <label className="mb-1 block text-meta font-semibold text-muted-70">{mode === 'buy' ? 'Purchase rate' : 'Selling rate'}</label>
+              <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" placeholder="0.00" className="tabular h-[34px] text-body" />
+              <div className="mt-0.5 text-meta font-normal text-muted-60">Avg cost {fmtRate(avgCost)}</div>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-70">PKR value</label>
-              <div className="tabular flex h-[34px] items-center rounded-[6px] border border-border bg-app px-2.5 text-[12.5px] font-medium">{fmtNum(value)}</div>
+              <label className="mb-1 block text-meta font-semibold text-muted-70">PKR value</label>
+              <div className="tabular flex h-[34px] items-center rounded-[6px] border border-border bg-app px-2.5 text-body font-medium">{fmtNum(value)}</div>
             </div>
           </div>
 
           {mode === 'sell' && (
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[6px] border border-border bg-border">
               <div className="bg-surface-sunken px-2.5 py-2">
-                <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-60">Inventory cost</div>
-                <div className="tabular text-[13px] font-medium">{fmtNum(cost || 0)}</div>
+                <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Inventory cost</div>
+                <div className="tabular text-body font-medium">{fmtNum(cost || 0)}</div>
               </div>
               <div className="bg-surface-sunken px-2.5 py-2">
-                <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-60">Est. margin</div>
-                <div className={`tabular text-[13px] font-semibold ${(margin || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>{fmtNum(margin || 0)}</div>
+                <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Est. margin</div>
+                <div className={`tabular text-body font-semibold ${(margin || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>{fmtNum(margin || 0)}</div>
               </div>
               <div className="bg-surface-sunken px-2.5 py-2">
-                <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-60">Expected profit</div>
-                <div className={`tabular text-[13px] font-semibold ${(margin || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>{fmtNum(margin || 0)}</div>
+                <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Expected profit</div>
+                <div className={`tabular text-body font-semibold ${(margin || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>{fmtNum(margin || 0)}</div>
               </div>
             </div>
           )}
 
           <div>
-            <label className="mb-1.5 block text-[11px] font-semibold text-muted-70">Settlement</label>
+            <label className="mb-1.5 block text-meta font-semibold text-muted-70">Settlement</label>
             <div className="inline-flex flex-wrap gap-1.5">
               {METHODS.map((m) => (
                 <Button
@@ -163,7 +163,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
 
           {(method === 'Bank' || method === 'Cheque') && (
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-70">Bank account</label>
+              <label className="mb-1 block text-meta font-semibold text-muted-70">Bank account</label>
               <div className="flex flex-wrap gap-1.5">
                 {banks.map((b) => (
                   <Button
@@ -173,7 +173,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
                     size="sm"
                     aria-pressed={bankId === b.id}
                     onClick={() => setBankId(b.id)}
-                    className={cn('text-[11.5px]', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                    className={cn('text-meta', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
                   >
                     {b.name}
                   </Button>
@@ -186,15 +186,15 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             <div className="rounded-[6px] border border-border bg-surface-sunken p-2.5">
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold text-muted-70">Cheque no.</label>
-                  <Input value={chqNo} onChange={(e) => setChqNo(e.target.value)} placeholder="Auto" className="tabular h-8 text-[12px]" />
+                  <label className="mb-1 block text-meta font-semibold text-muted-70">Cheque no.</label>
+                  <Input value={chqNo} onChange={(e) => setChqNo(e.target.value)} placeholder="Auto" className="tabular h-8 text-body" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold text-muted-70">Bank</label>
-                  <Input value={chqBank} onChange={(e) => setChqBank(e.target.value)} placeholder="Meezan, HBL…" className="h-8 text-[12px]" />
+                  <label className="mb-1 block text-meta font-semibold text-muted-70">Bank</label>
+                  <Input value={chqBank} onChange={(e) => setChqBank(e.target.value)} placeholder="Meezan, HBL…" className="h-8 text-body" />
                 </div>
               </div>
-              <div className="mt-2 text-[11px] font-normal leading-[1.45] text-muted-60">
+              <div className="mt-2 text-meta font-normal leading-[1.45] text-muted-60">
                 Recorded as a pending {mode === 'buy' ? 'outward' : 'inward'} cheque. The {mode === 'buy' ? 'payable' : 'receivable'} stays outstanding until the cheque clears.
               </div>
             </div>
@@ -202,17 +202,17 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
 
           {(method === 'Cash' || method === 'Bank' || method === 'Cheque') && (
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-70">Amount {mode === 'buy' ? 'paid' : 'received'} now (PKR)</label>
-              <Input value={paidNow} onChange={(e) => setPaidNow(e.target.value)} type="number" className="tabular h-[34px] text-[12.5px]" />
+              <label className="mb-1 block text-meta font-semibold text-muted-70">Amount {mode === 'buy' ? 'paid' : 'received'} now (PKR)</label>
+              <Input value={paidNow} onChange={(e) => setPaidNow(e.target.value)} type="number" className="tabular h-[34px] text-body" />
             </div>
           )}
 
           {calc.outstanding > 0 && (
-            <div className={`rounded-[6px] px-2.5 py-2 text-[12px] font-normal ${mode === 'buy' ? 'bg-negative-bg text-negative-deep' : 'bg-positive-bg text-positive-text'}`}>
+            <div className={`rounded-[6px] px-2.5 py-2 text-body font-normal ${mode === 'buy' ? 'bg-negative-bg text-negative-deep' : 'bg-positive-bg text-positive-text'}`}>
               Creates a <b className="font-semibold">{mode === 'buy' ? 'Payable' : 'Receivable'} of {fmt(calc.outstanding)}</b> {mode === 'buy' ? 'to' : 'from'} {cust?.name || 'this customer'}.
             </div>
           )}
-          {error && <div className="text-[12px] font-semibold text-negative">{error}</div>}
+          {error && <div className="text-body font-semibold text-negative">{error}</div>}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
@@ -226,15 +226,15 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
       )}
 
       {step === 'review' && (
-        <Card className="animate-step p-4">
-          <div className="mb-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">Review {mode === 'buy' ? 'purchase' : 'sale'}</div>
-          <div className="flex flex-col gap-1.5 text-[12.5px]">
+        <Card variant="flat" className="animate-step p-4">
+          <div className="mb-2.5 text-meta font-semibold uppercase tracking-wide text-muted-60">Review {mode === 'buy' ? 'purchase' : 'sale'}</div>
+          <div className="flex flex-col gap-1.5 text-body">
             <Row label={mode === 'buy' ? 'Supplier' : 'Customer'} value={cust?.name || ''} bold />
             <Row label={mode === 'buy' ? 'Amount' : 'Sell'} value={`${fmtNum(parseFloat(amount) || 0)} ${currency}`} mono />
             <Row label={mode === 'buy' ? 'Purchase rate' : 'Selling rate'} value={fmtRate(parseFloat(rate) || 0)} mono />
             <div className="flex justify-between border-t border-divider pt-2">
               <span className="font-normal text-muted-70">{mode === 'buy' ? 'PKR value' : 'Sale value'}</span>
-              <b className="tabular text-[16px] font-semibold">{fmt(value)}</b>
+              <b className="tabular text-body font-semibold">{fmt(value)}</b>
             </div>
             {mode === 'sell' && (
               <>
@@ -245,7 +245,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             <Row label="Settlement" value={method} bold />
           </div>
           <div className="mt-3 flex flex-col gap-1.5 rounded-[6px] border border-border bg-surface-sunken p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-60">What will happen</div>
+            <div className="text-meta font-semibold uppercase tracking-wide text-muted-60">What will happen</div>
             <Bullet color="var(--color-accent)">
               {mode === 'buy' ? `${currency} stock increases by ${fmtNum(parseFloat(amount) || 0)}.` : `${currency} stock decreases by ${fmtNum(parseFloat(amount) || 0)}.`}
             </Bullet>
@@ -254,7 +254,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               {calc.outstanding > 0 ? `${fmt(calc.outstanding)} stays outstanding as a ${mode === 'buy' ? 'payable' : 'receivable'}.` : 'Fully settled — nothing stays outstanding.'}
             </Bullet>
           </div>
-          {error && <div className="mt-3 text-[12px] font-semibold text-negative">{error}</div>}
+          {error && <div className="mt-3 text-body font-semibold text-negative">{error}</div>}
           <div className="mt-3.5 flex justify-end gap-2">
             <Button type="button" variant="secondary" disabled={submitting} onClick={() => setStep('form')}>
               Back
@@ -267,14 +267,14 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
       )}
 
       {step === 'done' && lastResult && (
-        <Card className={`animate-step border-l-[3px] p-4 ${mode === 'buy' ? 'border-l-accent' : 'border-l-positive'}`}>
-          <div className={`mb-2 text-[10.5px] font-semibold uppercase tracking-wide ${mode === 'buy' ? 'text-accent' : 'text-positive'}`}>{mode === 'buy' ? 'Purchase posted' : 'Sale posted'}</div>
-          <div className="mb-3 text-[12.5px] font-normal">
+        <Card variant="flat" className={`animate-step border-l-[3px] p-4 ${mode === 'buy' ? 'border-l-accent' : 'border-l-positive'}`}>
+          <div className={`mb-2 text-meta font-semibold uppercase tracking-wide ${mode === 'buy' ? 'text-accent' : 'text-positive'}`}>{mode === 'buy' ? 'Purchase posted' : 'Sale posted'}</div>
+          <div className="mb-3 text-body font-normal">
             {mode === 'buy' ? 'Bought' : 'Sold'} <b className="font-semibold">{fmtNum(lastResult.amount)} {currency}</b> {mode === 'buy' ? 'from' : 'to'} <b className="font-semibold">{cust?.name}</b> at {fmtRate(lastResult.rate)} — {fmt(lastResult.value)} total
             {mode === 'sell' && <> , margin {fmt(lastResult.margin || 0)}</>}.
           </div>
           {lastResult.outstanding > 0 && (
-            <div className="mb-3 text-[12.5px] font-normal">
+            <div className="mb-3 text-body font-normal">
               {mode === 'buy' ? 'Payable' : 'Receivable'} created: <b className="tabular font-semibold">{fmt(lastResult.outstanding)}</b>
             </div>
           )}
@@ -310,7 +310,7 @@ function Bullet({ children, color }: { children: React.ReactNode; color: string 
   return (
     <div className="flex items-start gap-2">
       <div className="mt-[5px] h-[5px] w-[5px] flex-none rounded-full" style={{ background: color }} aria-hidden="true" />
-      <div className="text-[12px] font-normal leading-[1.45]">{children}</div>
+      <div className="text-body font-normal leading-[1.45]">{children}</div>
     </div>
   )
 }

@@ -32,11 +32,11 @@ export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLD
 }
 
 export function DialogTitle({ className, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn('text-[14px] font-semibold text-ink', className)} {...props} />
+  return <DialogPrimitive.Title className={cn('text-body font-semibold text-ink', className)} {...props} />
 }
 
 export function DialogDescription({ className, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn('mt-1 text-[12px] text-muted-70', className)} {...props} />
+  return <DialogPrimitive.Description className={cn('mt-1 text-body text-muted-70', className)} {...props} />
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

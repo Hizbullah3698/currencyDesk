@@ -57,15 +57,15 @@ export function Accounts() {
     <div>
       <div className="mb-[18px] flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 mb-1 text-[22px] font-semibold tracking-tight">Accounts</h1>
-          <div className="text-[12px] font-normal text-muted-70">{state.accounts.length} accounts — customers, banks, expenses and equity in one book.</div>
+          <h1 className="m-0 mb-1 text-heading font-semibold tracking-tight">Accounts</h1>
+          <div className="text-body font-normal text-muted-70">{state.accounts.length} accounts — customers, banks, expenses and equity in one book.</div>
         </div>
         {isAdmin ? (
           <Button variant="primary" className="flex-none px-3.5 py-2" onClick={() => openNew('Customer')}>
             New account
           </Button>
         ) : (
-          <div className="flex flex-none items-center gap-1.5 rounded-[6px] border border-locked-border bg-locked-bg px-2.5 py-1.5 text-[11.5px] font-semibold text-locked-text">
+          <div className="flex flex-none items-center gap-1.5 rounded-[6px] border border-locked-border bg-locked-bg px-2.5 py-1.5 text-meta font-semibold text-locked-text">
             <Lock size={12} strokeWidth={2.4} aria-hidden="true" />
             Read-only — account management is Admin-only
           </div>
@@ -86,10 +86,10 @@ export function Accounts() {
                 size="sm"
                 aria-pressed={active}
                 onClick={() => setTypeFilter(t)}
-                className={cn('flex-none gap-1 text-[11.5px]', active && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                className={cn('flex-none gap-1 text-meta', active && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
               >
                 {t}
-                <span className="tabular text-[10.5px] opacity-70">{count}</span>
+                <span className="tabular text-meta opacity-70">{count}</span>
               </Button>
             )
           })}
@@ -97,7 +97,7 @@ export function Accounts() {
       </div>
 
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-0 flex-1">Account</div>
           <div className="min-w-[112px]">Type</div>
           <div className="min-w-0 flex-[1.1]">Detail</div>
@@ -110,13 +110,13 @@ export function Accounts() {
           const inUse = accountHasActivity(a.id)
           return (
             <div key={a.id} onClick={() => openEdit(a)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
-              <div className="min-w-0 flex-1 text-[12.5px] font-semibold">{a.name}</div>
-              <div className="min-w-[112px] text-[11.5px] font-normal text-muted-70">{a.type}</div>
-              <div className="min-w-0 flex-[1.1] truncate text-[11.5px] font-normal text-muted-70">{detailFor(a)}</div>
+              <div className="min-w-0 flex-1 text-body font-semibold">{a.name}</div>
+              <div className="min-w-[112px] text-meta font-normal text-muted-70">{a.type}</div>
+              <div className="min-w-0 flex-[1.1] truncate text-meta font-normal text-muted-70">{detailFor(a)}</div>
               <div className="flex min-w-[150px] items-baseline justify-end gap-1.5 text-right">
-                {bal.dr > 0 && <span className="tabular text-[12.5px] font-medium text-positive">{fmt(bal.dr)}</span>}
-                {bal.cr > 0 && <span className="tabular text-[12.5px] font-medium text-negative">{fmt(bal.cr)}</span>}
-                {!bal.dr && !bal.cr && <span className="tabular text-[12.5px] font-normal text-muted-60">—</span>}
+                {bal.dr > 0 && <span className="tabular text-body font-medium text-positive">{fmt(bal.dr)}</span>}
+                {bal.cr > 0 && <span className="tabular text-body font-medium text-negative">{fmt(bal.cr)}</span>}
+                {!bal.dr && !bal.cr && <span className="tabular text-body font-normal text-muted-60">—</span>}
               </div>
               <div className="min-w-[62px] text-right">
                 <Badge variant={inUse ? 'accent' : 'neutral'}>{inUse ? 'In use' : 'Unused'}</Badge>

@@ -8,14 +8,14 @@ export function PrintHeader({ title, period }: { title: string; period?: string 
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <Logo size={15} />
-          <span className="text-[12.5px] font-semibold tracking-tight">Currency Desk</span>
+          <span className="text-body font-semibold tracking-tight">Currency Desk</span>
         </div>
-        <span className="text-[10.5px] font-normal text-muted-60">
+        <span className="text-meta font-normal text-muted-60">
           Generated on {new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
         </span>
       </div>
-      <h1 className="m-0 mt-2.5 text-[16px] font-semibold tracking-tight">{title}</h1>
-      {period && <div className="mt-0.5 text-[11px] font-normal text-muted-60">{period}</div>}
+      <h1 className="m-0 mt-2.5 text-heading font-semibold tracking-tight">{title}</h1>
+      {period && <div className="mt-0.5 text-meta font-normal text-muted-60">{period}</div>}
     </div>
   )
 }

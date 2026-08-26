@@ -28,7 +28,7 @@ export function CustomerDetail() {
     return (
       <div>
         <BackButton label="All Customers" onBack={() => navigate('/customers')} />
-        <div className="mt-6 text-[13px] font-normal text-muted-60">Customer not found.</div>
+        <div className="mt-6 text-body font-normal text-muted-60">Customer not found.</div>
       </div>
     )
   }
@@ -66,7 +66,7 @@ export function CustomerDetail() {
       <div className="mb-3.5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 flex items-center gap-1.5">
-            <h1 className="m-0 text-[19px] font-semibold tracking-tight">{cust.name}</h1>
+            <h1 className="m-0 text-heading font-semibold tracking-tight">{cust.name}</h1>
             {cust.archived && <Badge variant="neutral">Archived</Badge>}
             {isAdmin && (
               <div className="flex items-center gap-0.5 print:hidden">
@@ -104,7 +104,7 @@ export function CustomerDetail() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2.5 text-[11px] font-normal text-muted-60">
+          <div className="flex items-center gap-2.5 text-meta font-normal text-muted-60">
             <span className="tabular">{cust.phone}</span>
             <span className="text-muted-42" aria-hidden="true">·</span>
             <span>{cust.city}</span>
@@ -113,7 +113,7 @@ export function CustomerDetail() {
             <span className="text-muted-42" aria-hidden="true">·</span>
             <span>{txns.length} deals</span>
           </div>
-          <div className="mt-1 inline-flex cursor-help items-center gap-1 rounded-[5px] p-1.5 text-[10.5px] font-normal text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent print:hidden" title={auditLine(cust)}>
+          <div className="mt-1 inline-flex cursor-help items-center gap-1 rounded-[5px] p-1.5 text-meta font-normal text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent print:hidden" title={auditLine(cust)}>
             history
           </div>
         </div>
@@ -144,62 +144,62 @@ export function CustomerDetail() {
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <Card className="overflow-hidden border-l-[3px] border-l-positive print:shadow-none">
+        <Card variant="flat" className="overflow-hidden border-l-[3px] border-l-positive print:shadow-none">
           <div className="flex items-center gap-1.5 border-b border-divider px-3.5 py-2.5">
             <div className="h-1.5 w-1.5 rounded-full bg-positive" aria-hidden="true" />
-            <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-70">Receivable — owed to you</div>
+            <div className="text-meta font-semibold uppercase tracking-wide text-muted-70">Receivable — owed to you</div>
           </div>
           <div className="px-3.5 pb-3.5 pt-3">
             <div className="flex items-baseline justify-between py-1">
-              <span className="text-[11.5px] font-normal text-muted-70">Original</span>
-              <span className="tabular text-[13px] font-normal">{fmt(openingR)}</span>
+              <span className="text-meta font-normal text-muted-70">Original</span>
+              <span className="tabular text-body font-normal">{fmt(openingR)}</span>
             </div>
             <div className="flex items-baseline justify-between border-b border-divider py-1">
-              <span className="text-[11.5px] font-normal text-muted-70">Settled</span>
-              <span className="tabular text-[13px] font-normal text-muted-60">− {fmt(settledR)}</span>
+              <span className="text-meta font-normal text-muted-70">Settled</span>
+              <span className="tabular text-body font-normal text-muted-60">− {fmt(settledR)}</span>
             </div>
             <div className="flex items-baseline justify-between pt-2">
-              <span className="text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Remaining</span>
-              <span className="tabular text-[24px] font-semibold tracking-tight text-positive">{fmt(receivable)}</span>
+              <span className="text-meta font-medium uppercase tracking-wide text-muted-60">Remaining</span>
+              <span className="tabular text-hero font-semibold tracking-tight text-positive">{fmt(receivable)}</span>
             </div>
             <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
               <div className="h-full bg-positive transition-[width] duration-300 ease-out" style={{ width: `${pctR}%` }} />
             </div>
-            <div className="mt-1 text-[10px] font-normal text-muted-60">{pctR}% settled</div>
+            <div className="mt-1 text-meta font-normal text-muted-60">{pctR}% settled</div>
           </div>
         </Card>
-        <Card className="overflow-hidden border-l-[3px] border-l-negative print:shadow-none">
+        <Card variant="flat" className="overflow-hidden border-l-[3px] border-l-negative print:shadow-none">
           <div className="flex items-center gap-1.5 border-b border-divider px-3.5 py-2.5">
             <div className="h-1.5 w-1.5 rounded-full bg-negative" aria-hidden="true" />
-            <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-70">Payable — you owe</div>
+            <div className="text-meta font-semibold uppercase tracking-wide text-muted-70">Payable — you owe</div>
           </div>
           <div className="px-3.5 pb-3.5 pt-3">
             <div className="flex items-baseline justify-between py-1">
-              <span className="text-[11.5px] font-normal text-muted-70">Original</span>
-              <span className="tabular text-[13px] font-normal">{fmt(openingP)}</span>
+              <span className="text-meta font-normal text-muted-70">Original</span>
+              <span className="tabular text-body font-normal">{fmt(openingP)}</span>
             </div>
             <div className="flex items-baseline justify-between border-b border-divider py-1">
-              <span className="text-[11.5px] font-normal text-muted-70">Settled</span>
-              <span className="tabular text-[13px] font-normal text-muted-60">− {fmt(settledP)}</span>
+              <span className="text-meta font-normal text-muted-70">Settled</span>
+              <span className="tabular text-body font-normal text-muted-60">− {fmt(settledP)}</span>
             </div>
             <div className="flex items-baseline justify-between pt-2">
-              <span className="text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Remaining</span>
-              <span className="tabular text-[24px] font-semibold tracking-tight text-negative">{fmt(payable)}</span>
+              <span className="text-meta font-medium uppercase tracking-wide text-muted-60">Remaining</span>
+              <span className="tabular text-hero font-semibold tracking-tight text-negative">{fmt(payable)}</span>
             </div>
             <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
               <div className="h-full bg-negative transition-[width] duration-300 ease-out" style={{ width: `${pctP}%` }} />
             </div>
-            <div className="mt-1 text-[10px] font-normal text-muted-60">{pctP}% settled</div>
+            <div className="mt-1 text-meta font-normal text-muted-60">{pctP}% settled</div>
           </div>
         </Card>
       </div>
 
       <Card className="overflow-hidden print:shadow-none">
         <div className="flex items-center justify-between border-b border-border px-[13px] py-2.5">
-          <div className="text-[12.5px] font-semibold">Transaction history</div>
-          <div className="text-[11px] font-normal text-muted-60">{cust.name} only</div>
+          <div className="text-body font-semibold">Transaction history</div>
+          <div className="text-meta font-normal text-muted-60">{cust.name} only</div>
         </div>
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-1.5 text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-[86px]">Type</div>
           <div className="flex-1">Detail</div>
           <div className="min-w-[70px]">Status</div>
@@ -215,22 +215,22 @@ export function CustomerDetail() {
           const StatusIcon = status.icon
           const detail = t.type === 'sale' || t.type === 'purchase' ? `${t.amount?.toLocaleString('en-US')} ${t.currency} @ ${t.rate}` : `via ${t.method}`
           return (
-            <div key={t.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2">
+            <div key={t.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex min-w-[102px] items-center gap-1.5">
                 <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: meta.chipBg, color: meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
-                <span className="text-[12px] font-medium text-ink">{meta.label}</span>
+                <span className="text-body font-medium text-ink">{meta.label}</span>
               </div>
-              <div className="flex-1 text-[12.5px] font-normal text-muted-70">{detail}</div>
+              <div className="flex-1 text-body font-normal text-muted-70">{detail}</div>
               <div className="min-w-[70px]">
                 <Badge variant={status.variant}>
                   <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
                   {statusLabel}
                 </Badge>
               </div>
-              <div className="tabular min-w-[110px] text-right text-[12.5px] font-medium">{fmt(t.pkrValue)}</div>
-              <div className="min-w-[62px] text-right text-[11px] font-normal text-muted-60">{relLabel(t.createdAt)}</div>
+              <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(t.pkrValue)}</div>
+              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60">{relLabel(t.createdAt)}</div>
             </div>
           )
         })}

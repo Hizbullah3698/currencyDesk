@@ -36,10 +36,10 @@ function StripItem({
         <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]" style={{ background: cat.bg, color: cat.color }}>
           <Icon size={11} strokeWidth={2.2} aria-hidden="true" />
         </span>
-        <span className="text-[10.5px] font-medium uppercase tracking-wide text-muted-70">{label}</span>
+        <span className="text-meta font-medium uppercase tracking-wide text-muted-70">{label}</span>
       </div>
-      <span className={cn('tabular text-[13px] font-semibold', valueClassName)}>{value}</span>
-      {sub && <span className="text-[11px] text-muted-60">{sub}</span>}
+      <span className={cn('tabular text-body font-semibold', valueClassName)}>{value}</span>
+      {sub && <span className="text-meta text-muted-60">{sub}</span>}
     </>
   )
   const className = cn('flex flex-none items-center gap-2.5 whitespace-nowrap py-2 pl-[18px] pr-[18px]', bordered && 'border-r border-strip-border')
@@ -87,17 +87,17 @@ export function TopBar() {
             onKeyDown={onSearchEnter}
             placeholder="Search customers"
             aria-label="Search customers"
-            className="h-auto min-w-0 flex-1 border-none bg-transparent p-0 text-[12.5px] text-ink shadow-none focus-visible:outline-none"
+            className="h-auto min-w-0 flex-1 border-none bg-transparent p-0 text-body text-ink shadow-none focus-visible:outline-none"
           />
         </div>
         <div className="ml-auto flex flex-none items-center gap-3">
           <ThemeToggle />
-          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-border-strong bg-surface-sunken px-2.5 py-1.5 text-[11.5px]">
+          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-border-strong bg-surface-sunken px-2.5 py-1.5 text-meta">
             <span className="font-semibold text-ink">{actor}</span>
             <span className="text-muted-60">·</span>
             <span className="font-medium text-muted-70">{isAdmin ? 'Admin' : 'Operator'}</span>
           </div>
-          <button onClick={() => logout()} className="whitespace-nowrap px-2 py-1.5 text-[11.5px] font-medium text-muted-70 transition-colors duration-150 hover:text-ink">
+          <button onClick={() => logout()} className="whitespace-nowrap px-2 py-1.5 text-meta font-medium text-muted-70 transition-colors duration-150 hover:text-ink">
             Sign out
           </button>
         </div>
@@ -128,14 +128,14 @@ export function TopBar() {
             <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]" style={{ background: CATEGORY_COLORS.reports.bg, color: CATEGORY_COLORS.reports.color }}>
               <TrendingUp size={11} strokeWidth={2.2} aria-hidden="true" />
             </span>
-            <span className="text-[10.5px] font-medium uppercase tracking-wide text-muted-70">Margin today</span>
+            <span className="text-meta font-medium uppercase tracking-wide text-muted-70">Margin today</span>
           </div>
-          <span className="tabular text-[13px] font-semibold text-positive-text">{fmt(totals.marginToday)}</span>
+          <span className="tabular text-body font-semibold text-positive-text">{fmt(totals.marginToday)}</span>
         </div>
       </div>
 
       {!isAdmin && (
-        <div className="flex items-center gap-2 border-b border-pending-border bg-pending-bg px-[22px] py-1.5 text-[11.5px] leading-normal text-pending-text">
+        <div className="flex items-center gap-2 border-b border-pending-border bg-pending-bg px-[22px] py-1.5 text-meta leading-normal text-pending-text">
           <Lock size={11} className="flex-none" strokeWidth={2.4} aria-hidden="true" />
           <strong className="font-bold">Operations user</strong>
           <span>Journal Entry, Salary, Balance Sheet, Income Statement and the currency ledger are Admin-only, as is creating or editing any account. Cheques can be marked deposited, but clearing and returning need Admin.</span>

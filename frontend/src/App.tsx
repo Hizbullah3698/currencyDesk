@@ -28,13 +28,13 @@ function RequireAdmin({ children, label }: { children: React.ReactNode; label: s
 }
 
 function BootSplash() {
-  return <div className="flex min-h-screen items-center justify-center bg-app text-[12.5px] text-muted-60">Loading…</div>
+  return <div className="flex min-h-screen items-center justify-center bg-app text-body text-muted-60">Loading…</div>
 }
 
 function ServerUnreachable() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-app px-5">
-      <div className="max-w-[360px] text-center text-[12.5px] leading-relaxed text-muted-70">
+      <div className="max-w-[360px] text-center text-body leading-relaxed text-muted-70">
         Can't reach the server. Make sure the backend is running (<code className="tabular">npm run dev</code> inside <code className="tabular">backend/</code>), then reload.
       </div>
     </div>
@@ -45,11 +45,11 @@ function StoreLoadFailed({ message, onRetry }: { message: string; onRetry: () =>
   return (
     <div className="flex min-h-screen items-center justify-center bg-app px-5">
       <div className="flex max-w-[360px] flex-col items-center gap-3 text-center">
-        <div className="text-[12.5px] leading-relaxed text-muted-70">Couldn't load your data: {message}</div>
+        <div className="text-body leading-relaxed text-muted-70">Couldn't load your data: {message}</div>
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-[6px] border border-border-strong bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors duration-150 hover:bg-surface-tint"
+          className="rounded-[6px] border border-border-strong bg-surface px-3 py-1.5 text-body font-semibold text-ink transition-colors duration-150 hover:bg-surface-tint"
         >
           Retry
         </button>

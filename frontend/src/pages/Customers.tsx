@@ -39,7 +39,7 @@ export function Customers() {
   return (
     <div>
       {owe && (
-        <div className="mb-3 flex items-center justify-between gap-2.5 rounded-[6px] border border-border-strong bg-surface-tint px-3 py-2 text-[12.5px]">
+        <div className="mb-3 flex items-center justify-between gap-2.5 rounded-[6px] border border-border-strong bg-surface-tint px-3 py-2 text-body">
           <span>
             {owe === 'payable'
               ? `Showing customers you owe money to, largest balance first — open one and use "Make Payment" to pay it.`
@@ -51,7 +51,7 @@ export function Customers() {
         </div>
       )}
       <div className="mb-3.5 flex items-center justify-between gap-2.5">
-        <h1 className="m-0 text-[17px] font-semibold">Customers</h1>
+        <h1 className="m-0 text-heading font-semibold">Customers</h1>
         <div className="flex items-center gap-2">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" className="min-w-[220px]" />
           {archivedCount > 0 && (
@@ -61,10 +61,10 @@ export function Customers() {
               size="sm"
               aria-pressed={showArchived}
               onClick={() => setShowArchived((v) => !v)}
-              className={cn('gap-1 text-[11.5px]', showArchived && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+              className={cn('gap-1 text-meta', showArchived && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
             >
               Show archived
-              <span className="tabular text-[10.5px] opacity-70">{archivedCount}</span>
+              <span className="tabular text-meta opacity-70">{archivedCount}</span>
             </Button>
           )}
           {isAdmin && (
@@ -76,7 +76,7 @@ export function Customers() {
       </div>
 
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="flex-1">Customer</div>
           <div className="min-w-[130px] text-right">Owed to you</div>
           <div className="min-w-[130px] text-right">You owe</div>
@@ -86,12 +86,12 @@ export function Customers() {
         {customers.map((c) => (
           <div key={c.id} onClick={() => navigate(`/customers/${c.id}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
             <div className="flex flex-1 items-center gap-1.5">
-              <span className="text-[13px] font-semibold">{c.name}</span>
+              <span className="text-body font-semibold">{c.name}</span>
               {c.archived && <Badge variant="neutral">Archived</Badge>}
             </div>
-            <div className={`tabular min-w-[130px] text-right text-[12.5px] font-medium ${(c.receivable || 0) > 0 ? 'text-positive' : 'text-muted-60'}`}>{fmt(c.receivable || 0)}</div>
-            <div className={`tabular min-w-[130px] text-right text-[12.5px] font-medium ${(c.payable || 0) > 0 ? 'text-negative' : 'text-muted-60'}`}>{fmt(c.payable || 0)}</div>
-            <div className="min-w-[80px] text-right text-[11px] font-normal text-muted-60">{c.lastActivity}</div>
+            <div className={`tabular min-w-[130px] text-right text-body font-medium ${(c.receivable || 0) > 0 ? 'text-positive' : 'text-muted-60'}`}>{fmt(c.receivable || 0)}</div>
+            <div className={`tabular min-w-[130px] text-right text-body font-medium ${(c.payable || 0) > 0 ? 'text-negative' : 'text-muted-60'}`}>{fmt(c.payable || 0)}</div>
+            <div className="min-w-[80px] text-right text-meta font-normal text-muted-60">{c.lastActivity}</div>
             <div className="w-3.5 text-muted-42" aria-hidden="true">→</div>
           </div>
         ))}

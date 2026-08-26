@@ -5,6 +5,23 @@
   --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
+  /* Type scale — meta/labels, body copy, section/page headers, and the single most
+     important number(s) on a screen. `text-hero-lg` is a dedicated top-of-range size
+     reserved for the Dashboard's 3 headline KPI cards specifically; every other
+     "most important number" on a page (customer balances, salary totals, the AED
+     stock figure, a statement's net line) uses `text-hero`. Apply these instead of
+     one-off text-[Npx] arbitrary values going forward. */
+  --text-meta: 12px;
+  --text-meta--line-height: 1.4;
+  --text-body: 14px;
+  --text-body--line-height: 1.45;
+  --text-heading: 22px;
+  --text-heading--line-height: 1.2;
+  --text-hero: 30px;
+  --text-hero--line-height: 1.1;
+  --text-hero-lg: 36px;
+  --text-hero-lg--line-height: 1.05;
+
   --color-app: #f5f6f8;
   --color-surface: #ffffff;
   --color-surface-sunken: #fafbfc;
@@ -257,8 +274,8 @@ body {
   background: var(--color-app);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
