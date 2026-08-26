@@ -53,6 +53,7 @@
   --color-positive-text: #0f6b46;
   --color-positive-bg: #e6f4ec;
   --color-positive-border: #bfe6d1;
+  --color-positive-glow: rgba(16, 121, 79, 0.14);
 
   --color-negative: #c4443a;
   --color-negative-text: #b03a30;
@@ -60,6 +61,25 @@
   --color-negative-bg: #fdecea;
   --color-negative-border: #e3c6c2;
   --color-negative-solid: #c4443a;
+  --color-negative-glow: rgba(196, 68, 58, 0.14);
+
+  /* Inflow/outflow — dedicated identity pair for the Dashboard's Sales/Purchases
+     KPI tiles (see Dashboard.tsx's KpiCard). Deliberately distinct from
+     positive/negative: those two mean "signed value, can be good or bad" (a
+     margin, a net movement). Inflow/outflow mean "direction of a routine,
+     one-directional total" — a purchase isn't a loss, so it must never render
+     with the negative-red language. Kept as their own token pair rather than
+     reusing --color-cat-blue/--color-pending so this identity isn't tied to (and
+     can't drift with) an unrelated category or state meaning elsewhere. */
+  --color-inflow: #0e7490;
+  --color-inflow-bg: rgba(14, 116, 144, 0.07);
+  --color-inflow-border: rgba(14, 116, 144, 0.24);
+  --color-inflow-glow: rgba(14, 116, 144, 0.16);
+
+  --color-outflow: #b45309;
+  --color-outflow-bg: rgba(180, 83, 9, 0.07);
+  --color-outflow-border: rgba(180, 83, 9, 0.24);
+  --color-outflow-glow: rgba(180, 83, 9, 0.16);
 
   --color-pending: #97650c;
   --color-pending-text: #6b4306;
@@ -144,6 +164,7 @@
     --color-positive-text: #34c38f;
     --color-positive-bg: #0f2a20;
     --color-positive-border: rgba(52, 195, 143, 0.35);
+    --color-positive-glow: rgba(52, 195, 143, 0.22);
 
     --color-negative: #f2685c;
     --color-negative-text: #f2685c;
@@ -151,6 +172,19 @@
     --color-negative-bg: #331613;
     --color-negative-border: rgba(242, 104, 92, 0.35);
     --color-negative-solid: #c8382c;
+    --color-negative-glow: rgba(242, 104, 92, 0.22);
+
+    /* Re-picked for dark, not darkened — see the light-mode definition's comment
+       for why these stay a separate pair from positive/negative. */
+    --color-inflow: #38bdf8;
+    --color-inflow-bg: rgba(56, 189, 248, 0.1);
+    --color-inflow-border: rgba(56, 189, 248, 0.32);
+    --color-inflow-glow: rgba(56, 189, 248, 0.22);
+
+    --color-outflow: #fb923c;
+    --color-outflow-bg: rgba(251, 146, 60, 0.1);
+    --color-outflow-border: rgba(251, 146, 60, 0.32);
+    --color-outflow-glow: rgba(251, 146, 60, 0.22);
 
     --color-pending: #e2a83f;
     --color-pending-text: #e2a83f;
@@ -211,6 +245,7 @@
   --color-positive-text: #34c38f;
   --color-positive-bg: #0f2a20;
   --color-positive-border: rgba(52, 195, 143, 0.35);
+  --color-positive-glow: rgba(52, 195, 143, 0.22);
 
   --color-negative: #f2685c;
   --color-negative-text: #f2685c;
@@ -218,6 +253,17 @@
   --color-negative-bg: #331613;
   --color-negative-border: rgba(242, 104, 92, 0.35);
   --color-negative-solid: #c8382c;
+  --color-negative-glow: rgba(242, 104, 92, 0.22);
+
+  --color-inflow: #38bdf8;
+  --color-inflow-bg: rgba(56, 189, 248, 0.1);
+  --color-inflow-border: rgba(56, 189, 248, 0.32);
+  --color-inflow-glow: rgba(56, 189, 248, 0.22);
+
+  --color-outflow: #fb923c;
+  --color-outflow-bg: rgba(251, 146, 60, 0.1);
+  --color-outflow-border: rgba(251, 146, 60, 0.32);
+  --color-outflow-glow: rgba(251, 146, 60, 0.22);
 
   --color-pending: #e2a83f;
   --color-pending-text: #e2a83f;
@@ -381,6 +427,7 @@ a:hover {
     --color-positive-text: #0f6b46 !important;
     --color-positive-bg: #e6f4ec !important;
     --color-positive-border: #bfe6d1 !important;
+    --color-positive-glow: rgba(16, 121, 79, 0.14) !important;
 
     --color-negative: #c4443a !important;
     --color-negative-text: #b03a30 !important;
@@ -388,6 +435,17 @@ a:hover {
     --color-negative-bg: #fdecea !important;
     --color-negative-border: #e3c6c2 !important;
     --color-negative-solid: #c4443a !important;
+    --color-negative-glow: rgba(196, 68, 58, 0.14) !important;
+
+    --color-inflow: #0e7490 !important;
+    --color-inflow-bg: rgba(14, 116, 144, 0.07) !important;
+    --color-inflow-border: rgba(14, 116, 144, 0.24) !important;
+    --color-inflow-glow: rgba(14, 116, 144, 0.16) !important;
+
+    --color-outflow: #b45309 !important;
+    --color-outflow-bg: rgba(180, 83, 9, 0.07) !important;
+    --color-outflow-border: rgba(180, 83, 9, 0.24) !important;
+    --color-outflow-glow: rgba(180, 83, 9, 0.16) !important;
 
     --color-pending: #97650c !important;
     --color-pending-text: #6b4306 !important;

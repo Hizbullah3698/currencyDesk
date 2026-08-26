@@ -73,18 +73,15 @@ export function Dashboard() {
           </>
         ) : (
           <>
-            <Card variant="flat" className="border-t-2 border-t-accent px-6 pb-6 pt-[22px]">
-              <CatLabel category="fx" icon={ArrowUpFromLine} label="Sales today" />
+            <KpiCard tone="inflow" icon={ArrowUpFromLine} label="Sales today">
               <div className="tabular text-hero-lg font-semibold tracking-tight text-ink">{fmt(stats.salesValue)}</div>
               <div className="mt-2.5 text-meta font-normal text-muted-60">{stats.salesCount} sales booked</div>
-            </Card>
-            <Card variant="flat" className="border-t-2 border-t-accent px-6 pb-6 pt-[22px]">
-              <CatLabel category="fx" icon={ArrowDownToLine} label="Purchases today" />
+            </KpiCard>
+            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today">
               <div className="tabular text-hero-lg font-semibold tracking-tight text-ink">{fmt(stats.purchasesValue)}</div>
               <div className="mt-2.5 text-meta font-normal text-muted-60">Cost of AED taken in today</div>
-            </Card>
-            <Card variant="flat" className={cn('border-t-2 border-t-accent px-6 pb-6 pt-[22px]', stats.net >= 0 ? 'bg-positive-bg' : 'bg-negative-bg')}>
-              <CatLabel category="bank" icon={Wallet} label="Net cash movement" />
+            </KpiCard>
+            <KpiCard tone={stats.net >= 0 ? 'positive' : 'negative'} icon={Wallet} label="Net cash movement">
               <div className={cn('tabular flex items-center gap-2 text-hero-lg font-semibold tracking-tight', stats.net >= 0 ? 'text-positive-text' : 'text-negative-deep')}>
                 {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
                 {stats.net >= 0 ? '+' : '−'}
@@ -93,7 +90,7 @@ export function Dashboard() {
               <div className="mt-2.5 text-meta font-normal text-muted-60">
                 In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
               </div>
-            </Card>
+            </KpiCard>
           </>
         )}
       </div>
@@ -228,11 +225,58 @@ export function Dashboard() {
   )
 }
 
+/**
+ * Identity for the Dashboard's 3 headline KPI tiles. 'inflow'/'outflow' are a
+ * dedicated pair for routine, one-directional totals (a purchase isn't a
+ * loss); 'positive'/'negative' reuse the app's genuine signed-value tokens,
+ * for Net Cash Movement only, which really can land on either side of zero.
+ */
+const KPI_TONE = {
+  inflow: { border: 'var(--color-inflow-border)', glow: 'var(--color-inflow-glow)', chipBg: 'var(--color-inflow-bg)', chipColor: 'var(--color-inflow)' },
+  outflow: { border: 'var(--color-outflow-border)', glow: 'var(--color-outflow-glow)', chipBg: 'var(--color-outflow-bg)', chipColor: 'var(--color-outflow)' },
+  positive: { border: 'var(--color-positive-border)', glow: 'var(--color-positive-glow)', chipBg: 'var(--color-positive-bg)', chipColor: 'var(--color-positive)' },
+  negative: { border: 'var(--color-negative-border)', glow: 'var(--color-negative-glow)', chipBg: 'var(--color-negative-bg)', chipColor: 'var(--color-negative)' },
+} as const
+
+function KpiCard({
+  tone,
+  icon: Icon,
+  label,
+  children,
+}: {
+  tone: keyof typeof KPI_TONE
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
+  label: string
+  children: React.ReactNode
+}) {
+  const t = KPI_TONE[tone]
+  return (
+    <div
+      className="relative overflow-hidden rounded-[8px] border px-6 pb-6 pt-[22px] shadow-md transition-shadow duration-150"
+      style={{
+        borderColor: t.border,
+        backgroundImage: `radial-gradient(150% 130% at 100% -15%, ${t.glow}, transparent 60%), linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-tint) 100%)`,
+      }}
+    >
+      <div className="mb-2.5 flex items-center gap-1.5">
+        <span
+          className="flex h-6 w-6 flex-none items-center justify-center rounded-[6px]"
+          style={{ background: t.chipBg, color: t.chipColor, boxShadow: `0 0 14px 1px ${t.glow}` }}
+        >
+          <Icon size={12} strokeWidth={2.2} aria-hidden="true" />
+        </span>
+        <span className="text-meta font-medium uppercase tracking-wider text-muted-60">{label}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 function StatTileSkeleton() {
   return (
-    <Card variant="flat" className="border-t-2 border-t-accent-border px-6 pb-6 pt-[22px]">
+    <Card variant="flat" className="border border-border px-6 pb-6 pt-[22px] shadow-md">
       <div className="mb-2.5 flex items-center gap-1.5">
-        <Skeleton className="h-[19px] w-[19px] rounded-[5px]" />
+        <Skeleton className="h-6 w-6 rounded-[6px]" />
         <Skeleton className="h-2.5 w-24" />
       </div>
       <Skeleton className="h-9 w-36" />
@@ -264,17 +308,5 @@ function SideCardSkeleton({ chart }: { chart?: boolean }) {
         </div>
       )}
     </>
-  )
-}
-
-function CatLabel({ category, icon: Icon, label }: { category: keyof typeof CATEGORY_COLORS; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; label: string }) {
-  const cat = CATEGORY_COLORS[category]
-  return (
-    <div className="mb-2.5 flex items-center gap-1.5">
-      <span className="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-[5px]" style={{ background: cat.bg, color: cat.color }}>
-        <Icon size={11} strokeWidth={2.2} aria-hidden="true" />
-      </span>
-      <span className="text-meta font-medium uppercase tracking-wider text-muted-60">{label}</span>
-    </div>
   )
 }
