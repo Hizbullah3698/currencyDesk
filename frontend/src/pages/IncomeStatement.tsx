@@ -6,7 +6,7 @@ import { computeIncomeStatement } from '@/lib/reports'
 import { fmt } from '@/lib/format'
 import type { ReportPreset } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card } from '@/components/ui/card'
 import { PrintHeader } from '@/components/PrintHeader'
 import { cn } from '@/lib/utils'
@@ -76,9 +76,23 @@ export function IncomeStatement() {
           </Button>
         ))}
         <span className="h-5 w-px bg-border" aria-hidden="true" />
-        <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPreset('custom'))} className="h-[30px] w-auto text-meta" />
+        <DatePicker
+          value={from}
+          onChange={(v) => {
+            setFrom(v)
+            setPreset('custom')
+          }}
+          placeholder="From"
+        />
         <span className="text-meta font-normal text-muted-60">to</span>
-        <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPreset('custom'))} className="h-[30px] w-auto text-meta" />
+        <DatePicker
+          value={to}
+          onChange={(v) => {
+            setTo(v)
+            setPreset('custom')
+          }}
+          placeholder="To"
+        />
         {rangeActive && (
           <Button
             type="button"

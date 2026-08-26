@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { StoreProvider, useStore } from '@/lib/store'
 import { ThemeProvider } from '@/lib/theme'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell } from '@/components/layout/AppShell'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/Dashboard'
@@ -150,9 +151,11 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <StoreProvider>
-          <BrowserRouter>
-            <Gate />
-          </BrowserRouter>
+          <TooltipProvider delayDuration={200}>
+            <BrowserRouter>
+              <Gate />
+            </BrowserRouter>
+          </TooltipProvider>
         </StoreProvider>
       </AuthProvider>
     </ThemeProvider>

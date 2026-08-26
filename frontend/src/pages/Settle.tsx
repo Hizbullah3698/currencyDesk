@@ -63,7 +63,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
         <BackButton label={cust ? cust.name : 'Overview'} onBack={() => navigate(-1)} />
       </div>
       <h1 className="m-0 mb-[3px] text-heading font-semibold">{title}</h1>
-      <div className="mb-3.5 text-body text-muted-60">Applies against the customer's outstanding {mode === 'receive' ? 'receivable' : 'payable'}.</div>
+      <div className="mb-[26px] text-body text-muted-60">Applies against the customer's outstanding {mode === 'receive' ? 'receivable' : 'payable'}.</div>
 
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">

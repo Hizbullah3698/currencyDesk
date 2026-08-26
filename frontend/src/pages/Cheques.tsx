@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Banknote } from 'lucide-react'
+import { Banknote, Lock } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { fmt, fmtShortDate } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function Cheques() {
   const { state, isAdmin, depositCheque, clearCheque, returnCheque } = useStore()
@@ -30,8 +31,8 @@ export function Cheques() {
   return (
     <div>
       <h1 className="m-0 mb-[3px] text-heading font-semibold">Cheques</h1>
-      <div className="mb-3 text-body font-normal text-muted-60">Inward and outward cheques and where they sit in their lifecycle. A cheque only moves a balance when it clears.</div>
-      <div className="mb-3.5 grid grid-cols-2 gap-3">
+      <div className="mb-[26px] text-body font-normal text-muted-60">Inward and outward cheques and where they sit in their lifecycle. A cheque only moves a balance when it clears.</div>
+      <div className="mb-5 grid grid-cols-2 gap-5">
         <Card variant="flat" className="border-l-[3px] border-l-positive px-3.5 py-2.5">
           <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Inward uncleared</div>
           <div className="tabular text-hero font-semibold tracking-tight text-positive">{fmt(inward.reduce((s, q) => s + q.amount, 0))}</div>
@@ -92,7 +93,15 @@ export function Cheques() {
                       </Button>
                     </>
                   ) : (
-                    <span className="flex items-center gap-1 whitespace-nowrap rounded-[6px] border border-dashed border-border-input bg-app px-2.5 py-1 text-meta font-semibold text-muted-38">Mark cleared — Admin</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="primary" size="sm" aria-disabled="true" className="cursor-not-allowed gap-1 text-meta opacity-50 hover:bg-accent-solid">
+                          <Lock size={10} strokeWidth={2.4} aria-hidden="true" />
+                          Mark cleared
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Clearing and returning a cheque needs Admin.</TooltipContent>
+                    </Tooltip>
                   ))}
               </div>
               {errors[q.id] && <div className="mt-1.5 text-meta font-semibold text-negative">{errors[q.id]}</div>}

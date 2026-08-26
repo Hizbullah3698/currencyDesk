@@ -25,7 +25,7 @@ export function Stock() {
     <div>
       <PrintHeader title="Currency Ledger" period={`AED desk · as of ${new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })}.`} />
 
-      <div className="mb-3.5 flex items-center justify-between gap-2.5 print:hidden">
+      <div className="mb-[26px] flex items-center justify-between gap-2.5 print:hidden">
         <h1 className="m-0 text-heading font-semibold">Currency Stock</h1>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => window.print()}>
@@ -43,7 +43,7 @@ export function Stock() {
         </div>
       </div>
 
-      <Card variant="flat" className="mb-4 grid grid-cols-[1fr_1fr_1fr_1.4fr] items-end gap-5 p-4 print:shadow-none">
+      <Card variant="flat" className="mb-5 grid grid-cols-[1fr_1fr_1fr_1.4fr] items-end gap-5 p-4 print:shadow-none">
         <div>
           <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">AED available</div>
           <div className="tabular text-hero font-semibold">{fmtNum(aed.available)}</div>
@@ -62,7 +62,7 @@ export function Stock() {
         </div>
       </Card>
 
-      <div className="mb-4 grid grid-cols-2 gap-4 print:hidden">
+      <div className="mb-5 grid grid-cols-2 gap-5 print:hidden">
         <Card className="overflow-hidden">
           <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Recent purchases</div>
           {purchases.map((r) => (
@@ -101,7 +101,7 @@ export function Stock() {
         </Card>
       </div>
 
-      <Card className="mb-4 overflow-hidden print:shadow-none">
+      <Card className="mb-5 overflow-hidden print:shadow-none">
         <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Currency stock</div>
         <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-[70px]">Currency</div>

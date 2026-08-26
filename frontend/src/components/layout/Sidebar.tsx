@@ -3,6 +3,7 @@ import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Bank
 import { cn } from '@/lib/utils'
 import { useStore } from '@/lib/store'
 import { CATEGORY_COLORS, type Category } from '@/lib/ui-helpers'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Logo } from './Logo'
 
 interface NavItemDef {
@@ -39,7 +40,8 @@ function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[
       <div className="px-2 pb-1 text-meta font-bold uppercase tracking-wider text-muted-70">{title}</div>
       {items.map((item) => {
         const cat = CATEGORY_COLORS[item.category]
-        return (
+        const locked = !isAdmin && item.adminOnly
+        const link = (
           <NavLink
             key={item.to}
             to={item.to}
@@ -47,7 +49,7 @@ function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[
               cn(
                 'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-body no-underline whitespace-nowrap transition-[background-color,box-shadow,color] duration-150 ease-out',
                 isActive ? 'bg-accent-bg font-semibold text-accent shadow-xs' : 'font-normal text-ink hover:bg-surface-tint',
-                !isAdmin && item.adminOnly && 'opacity-60',
+                locked && 'opacity-60',
               )
             }
           >
@@ -55,8 +57,15 @@ function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[
               <item.icon size={13} strokeWidth={2} aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            {!isAdmin && item.adminOnly && <Lock size={10} className="ml-auto flex-none text-muted-42" aria-hidden="true" />}
+            {locked && <Lock size={10} className="ml-auto flex-none text-muted-42" aria-hidden="true" />}
           </NavLink>
+        )
+        if (!locked) return link
+        return (
+          <Tooltip key={item.to}>
+            <TooltipTrigger asChild>{link}</TooltipTrigger>
+            <TooltipContent side="right">{item.label} is Admin-only.</TooltipContent>
+          </Tooltip>
         )
       })}
     </div>

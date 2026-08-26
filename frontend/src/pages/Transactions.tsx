@@ -86,7 +86,7 @@ export function Transactions() {
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2.5">
+      <div className="mb-[26px] flex flex-wrap items-center justify-between gap-2.5">
         <h1 className="m-0 text-heading font-semibold">Transactions</h1>
         <div className="inline-flex gap-1.5">
           {chips.map((c) => (

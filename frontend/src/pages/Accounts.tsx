@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccountFormModal } from '@/components/AccountFormModal'
 import { cn } from '@/lib/utils'
 
@@ -55,7 +56,7 @@ export function Accounts() {
 
   return (
     <div>
-      <div className="mb-[18px] flex items-start justify-between gap-4">
+      <div className="mb-[26px] flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 mb-1 text-heading font-semibold tracking-tight">Accounts</h1>
           <div className="text-body font-normal text-muted-70">{state.accounts.length} accounts — customers, banks, expenses and equity in one book.</div>
@@ -65,14 +66,19 @@ export function Accounts() {
             New account
           </Button>
         ) : (
-          <div className="flex flex-none items-center gap-1.5 rounded-[6px] border border-locked-border bg-locked-bg px-2.5 py-1.5 text-meta font-semibold text-locked-text">
-            <Lock size={12} strokeWidth={2.4} aria-hidden="true" />
-            Read-only — account management is Admin-only
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="primary" aria-disabled="true" className="flex-none cursor-not-allowed px-3.5 py-2 opacity-50 hover:bg-accent-solid hover:shadow-xs">
+                <Lock size={12} strokeWidth={2.4} aria-hidden="true" />
+                New account
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Account management is Admin-only.</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
-      <div className="mb-3.5 flex items-center gap-2.5">
+      <div className="mb-5 flex items-center gap-2.5">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts" className="w-[250px] flex-none" />
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
           {(['All', ...ACCOUNT_TYPES] as const).map((t) => {

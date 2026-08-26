@@ -48,7 +48,7 @@ export function Salary() {
 
   return (
     <div>
-      <div className="mb-[18px]">
+      <div className="mb-[26px]">
         <h1 className="m-0 mb-1 text-heading font-semibold tracking-tight">Salary</h1>
         <div className="text-body font-normal text-muted-70">Accrual posts Dr Salary Expense / Cr Salary Payable. Payment posts Dr Salary Payable / Cr the account you pick.</div>
       </div>
@@ -92,7 +92,7 @@ export function Salary() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3">
+      <div className="mb-5 grid grid-cols-2 gap-5">
         <Card variant="flat" className="px-[15px] py-[13px]">
           <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Accrued but unpaid</div>
           <div className="tabular text-hero font-semibold tracking-tight text-negative-deep">{fmt(totalOutstanding)}</div>

@@ -86,7 +86,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
         <BackButton label="Currency Stock" onBack={() => navigate('/stock')} />
       </div>
       <h1 className="m-0 mb-[3px] text-heading font-semibold">{title}</h1>
-      <div className="mb-3.5 text-body text-muted-60">{sub}</div>
+      <div className="mb-[26px] text-body text-muted-60">{sub}</div>
 
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">

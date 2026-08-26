@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Lock, ArrowDownCircle, ArrowUpCircle, Coins, TrendingUp } from 'lucide-react'
+import { Search, ArrowDownCircle, ArrowUpCircle, Coins, TrendingUp } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
 import { isToday, stk } from '@/lib/engine'
@@ -133,14 +133,6 @@ export function TopBar() {
           <span className="tabular text-body font-semibold text-positive-text">{fmt(totals.marginToday)}</span>
         </div>
       </div>
-
-      {!isAdmin && (
-        <div className="flex items-center gap-2 border-b border-pending-border bg-pending-bg px-[22px] py-1.5 text-meta leading-normal text-pending-text">
-          <Lock size={11} className="flex-none" strokeWidth={2.4} aria-hidden="true" />
-          <strong className="font-bold">Operations user</strong>
-          <span>Journal Entry, Salary, Balance Sheet, Income Statement and the currency ledger are Admin-only, as is creating or editing any account. Cheques can be marked deposited, but clearing and returning need Admin.</span>
-        </div>
-      )}
     </div>
   )
 }

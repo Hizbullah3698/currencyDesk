@@ -15,7 +15,7 @@ export function Payments() {
 
   return (
     <div>
-      <div className="mb-3.5 flex items-center justify-between gap-2.5">
+      <div className="mb-[26px] flex items-center justify-between gap-2.5">
         <h1 className="m-0 text-heading font-semibold">Payments</h1>
         <div className="flex gap-2">
           <Button variant="primary" onClick={() => navigate('/receive')}>

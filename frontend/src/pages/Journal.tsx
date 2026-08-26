@@ -47,7 +47,7 @@ export function Journal() {
   return (
     <div>
       <h1 className="m-0 mb-[3px] text-heading font-semibold">Journal Entry</h1>
-      <div className="mb-3.5 text-body font-normal text-muted-60">Free-form double entry against any two accounts. Total debit must equal total credit; amounts post exactly as entered.</div>
+      <div className="mb-[26px] text-body font-normal text-muted-60">Free-form double entry against any two accounts. Total debit must equal total credit; amounts post exactly as entered.</div>
 
       <Card className="max-w-[820px] overflow-hidden">
         <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
@@ -120,7 +120,7 @@ export function Journal() {
         </div>
       </Card>
 
-      <Card className="mt-4 max-w-[820px] overflow-hidden">
+      <Card className="mt-5 max-w-[820px] overflow-hidden">
         <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Posted entries</div>
         {state.journalEntries.length === 0 && <EmptyState icon={SquarePen} title="No journal entries posted yet" description="Free-form debit/credit postings you record will show up here." className="py-8" />}
         {state.journalEntries.map((e) => (

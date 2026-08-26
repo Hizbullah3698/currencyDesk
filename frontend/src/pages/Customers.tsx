@@ -50,7 +50,7 @@ export function Customers() {
           </Button>
         </div>
       )}
-      <div className="mb-3.5 flex items-center justify-between gap-2.5">
+      <div className="mb-[26px] flex items-center justify-between gap-2.5">
         <h1 className="m-0 text-heading font-semibold">Customers</h1>
         <div className="flex items-center gap-2">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" className="min-w-[220px]" />
