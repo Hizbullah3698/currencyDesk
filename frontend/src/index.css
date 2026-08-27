@@ -399,11 +399,25 @@ input, select, button, textarea {
   outline-offset: 1px;
 }
 
-a {
-  color: var(--color-accent);
-}
-a:hover {
-  color: var(--color-accent-hover);
+/*
+ * Wrapped in @layer base deliberately: Tailwind v4 emits utility classes into
+ * its own `utilities` cascade layer, which always wins over an unlayered
+ * rule's specificity would suggest — but a BARE (unlayered) rule like this
+ * one used to sit outside all cascade layers entirely, which gives it
+ * unconditional top priority over every layered rule, utilities included.
+ * That silently defeated any text-color utility applied to a real <a> tag
+ * (the Sidebar's NavLink is the only one in the app) — its "brighten the nav
+ * text to near-white" utility class was always losing to this rule, no
+ * matter what value it set. Layering this correctly restores normal
+ * cascade-layer precedence, so a utility class on the element wins again.
+ */
+@layer base {
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-hover);
+  }
 }
 
 .tabular {
