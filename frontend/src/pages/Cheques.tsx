@@ -107,7 +107,7 @@ export function Cheques() {
             </div>
           )
         })}
-        {state.cheques.length === 0 && <EmptyState icon={Banknote} title="No cheques recorded yet" description="Cheques taken as settlement on a purchase, sale, or payment will show up here." />}
+        {state.cheques.length === 0 && <EmptyState category="cheques" icon={Banknote} title="No cheques recorded yet" description="Cheques taken as settlement on a purchase, sale, or payment will show up here." />}
       </Card>
     </div>
   )

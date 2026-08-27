@@ -53,7 +53,7 @@ export function IncomeStatement() {
       <PrintHeader title="Income Statement" period={`Showing ${bounds.label}.`} />
 
       <div className="flex items-start justify-between gap-3 print:hidden">
-        <h1 className="m-0 mb-[3px] text-heading font-semibold">Income Statement</h1>
+        <h1 className="m-0 mb-[3px] font-serif text-report font-normal tracking-tight">Income Statement</h1>
         <Button variant="secondary" size="sm" className="whitespace-nowrap text-meta font-medium" onClick={() => window.print()}>
           <Printer size={13} strokeWidth={2} aria-hidden="true" />
           Print
@@ -212,7 +212,7 @@ export function IncomeStatement() {
       </Card>
 
       {failed.length > 0 ? (
-        <div className="mt-3 rounded-[6px] border border-negative-border border-l-[3px] border-l-negative bg-negative-bg px-3 py-2.5">
+        <div className="mt-3 rounded-control border border-negative-border border-l-[3px] border-l-negative bg-negative-bg px-3 py-2.5">
           <div className="mb-1 flex items-center gap-1.5 text-body font-bold text-negative-deep">
             <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
             {failed.length} integrity check{failed.length === 1 ? '' : 's'} failed

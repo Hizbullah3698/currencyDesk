@@ -42,7 +42,7 @@ export function Payments() {
           return (
             <div key={t.id} onClick={() => t.customerId && navigate(`/customers/${t.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex min-w-[108px] items-center gap-1.5">
-                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: meta.chipBg, color: meta.chipColor }}>
+                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: meta.chipBg, color: meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
                 <span className="text-body font-medium">{meta.label}</span>
@@ -56,7 +56,7 @@ export function Payments() {
         })}
       </Card>
       {rows.length === 0 && (
-        <EmptyState
+        <EmptyState category="customers"
           icon={ArrowDownCircle}
           title="No payments recorded yet"
           description="Payments settle a specific receivable or payable. Record the first one to see it here."

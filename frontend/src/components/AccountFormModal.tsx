@@ -75,7 +75,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
       <Card className="w-full max-w-[440px] overflow-hidden shadow-md" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
           <div className="text-body font-semibold">{mode === 'new' ? 'New account' : 'Edit account'}</div>
-          <button onClick={onClose} aria-label="Close" className="rounded-[4px] p-1 text-muted-60 transition-colors duration-150 hover:text-ink">
+          <button onClick={onClose} aria-label="Close" className="rounded-control p-1 text-muted-60 transition-colors duration-150 hover:text-ink">
             <X size={15} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
@@ -83,7 +83,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Account type</label>
             {locked ? (
-              <div className="inline-flex h-[30px] items-center rounded-[6px] border border-border-input bg-surface-sunken px-2.5 text-body font-semibold text-muted-70">{form.type}</div>
+              <div className="inline-flex h-[30px] items-center rounded-control border border-border-input bg-surface-sunken px-2.5 text-body font-semibold text-muted-70">{form.type}</div>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {ACCOUNT_TYPES.map((t) => (
@@ -104,7 +104,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
             )}
             {mode === 'edit' && editAccount && typeLockedFor(editAccount) && (
               <div className="mt-1.5 flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded-[5px] border border-locked-border bg-locked-bg px-1.5 py-0.5 text-meta font-semibold text-locked-text">
+                <span className="inline-flex items-center gap-1 rounded-data border border-locked-border bg-locked-bg px-1.5 py-0.5 text-meta font-semibold text-locked-text">
                   <Lock size={11} strokeWidth={2.4} aria-hidden="true" />
                   {typeLockReason(editAccount)}
                 </span>
@@ -116,7 +116,7 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
               </Button>
             )}
             {form.typeOverride && (
-              <div className="mt-2 rounded-[6px] border border-negative-border border-l-[3px] border-l-negative bg-negative-bg px-2.5 py-2">
+              <div className="mt-2 rounded-control border border-negative-border border-l-[3px] border-l-negative bg-negative-bg px-2.5 py-2">
                 <div className="mb-0.5 text-meta font-bold text-negative-deep">Admin override active</div>
                 <div className="text-meta font-normal leading-[1.45] text-negative-deep">Only for correcting a data-entry error. The type change is recorded against your name.</div>
                 <Button variant="secondary" size="sm" className="mt-1.5 text-meta" onClick={() => setForm((f) => ({ ...f, typeOverride: false, type: editAccount?.type || f.type }))}>

@@ -75,13 +75,13 @@ export function CustomerDetail() {
                   onClick={() => setEditOpen(true)}
                   aria-label="Edit customer"
                   title="Edit customer"
-                  className="rounded-[5px] p-1.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent"
+                  className="rounded-control p-1.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent"
                 >
                   <Pencil size={13} strokeWidth={2} aria-hidden="true" />
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button aria-label="More customer actions" title="More actions" className="rounded-[5px] p-1.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-ink">
+                    <button aria-label="More customer actions" title="More actions" className="rounded-control p-1.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-ink">
                       <MoreVertical size={13} strokeWidth={2} aria-hidden="true" />
                     </button>
                   </DropdownMenuTrigger>
@@ -114,7 +114,7 @@ export function CustomerDetail() {
             <span className="text-muted-42" aria-hidden="true">·</span>
             <span>{txns.length} deals</span>
           </div>
-          <div className="mt-1 inline-flex cursor-help items-center gap-1 rounded-[5px] p-1.5 text-meta font-normal text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent print:hidden" title={auditLine(cust)}>
+          <div className="mt-1 inline-flex cursor-help items-center gap-1 rounded-control p-1.5 text-meta font-normal text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-accent print:hidden" title={auditLine(cust)}>
             history
           </div>
         </div>
@@ -160,8 +160,8 @@ export function CustomerDetail() {
                 <span className="text-meta font-normal text-muted-70">Settled</span>
                 <span className="tabular text-body font-normal text-muted-60">− {fmt(settledR)}</span>
               </div>
-              <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
-                <div className="h-full bg-positive transition-[width] duration-300 ease-out" style={{ width: `${pctR}%` }} />
+              <div className="mt-2.5 h-[3px] overflow-hidden rounded-data bg-divider">
+                <div className="h-full bg-positive transition-[width] duration-200 ease-out" style={{ width: `${pctR}%` }} />
               </div>
               <div className="mt-1 text-meta font-normal text-muted-60">{pctR}% settled</div>
             </>
@@ -182,8 +182,8 @@ export function CustomerDetail() {
                 <span className="text-meta font-normal text-muted-70">Settled</span>
                 <span className="tabular text-body font-normal text-muted-60">− {fmt(settledP)}</span>
               </div>
-              <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
-                <div className="h-full bg-negative transition-[width] duration-300 ease-out" style={{ width: `${pctP}%` }} />
+              <div className="mt-2.5 h-[3px] overflow-hidden rounded-data bg-divider">
+                <div className="h-full bg-negative transition-[width] duration-200 ease-out" style={{ width: `${pctP}%` }} />
               </div>
               <div className="mt-1 text-meta font-normal text-muted-60">{pctP}% settled</div>
             </>
@@ -214,7 +214,7 @@ export function CustomerDetail() {
           return (
             <div key={t.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex min-w-[102px] items-center gap-1.5">
-                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: meta.chipBg, color: meta.chipColor }}>
+                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: meta.chipBg, color: meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
                 <span className="text-body font-medium text-ink">{meta.label}</span>
@@ -232,7 +232,7 @@ export function CustomerDetail() {
           )
         })}
       </Card>
-      {txns.length === 0 && <EmptyState icon={Inbox} title={`No transactions yet with ${cust.name}.`} className="py-8" />}
+      {txns.length === 0 && <EmptyState category="customers" icon={Inbox} title={`No transactions yet with ${cust.name}.`} className="py-8" />}
 
       {editOpen && <AccountFormModal mode="edit" editId={cust.id} onClose={() => setEditOpen(false)} />}
     </div>

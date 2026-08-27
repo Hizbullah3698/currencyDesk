@@ -64,7 +64,7 @@ export function BalanceSheet() {
       <PrintHeader title="Balance Sheet" period={`As of ${bounds.label}.`} />
 
       <div className="flex items-start justify-between gap-3 print:hidden">
-        <h1 className="m-0 mb-[3px] text-heading font-semibold">Balance Sheet</h1>
+        <h1 className="m-0 mb-[3px] font-serif text-report font-normal tracking-tight">Balance Sheet</h1>
         <div className="flex flex-none gap-2">
           <Button variant="secondary" size="sm" className="whitespace-nowrap text-meta font-medium" onClick={() => window.print()}>
             <Printer size={13} strokeWidth={2} aria-hidden="true" />
@@ -140,7 +140,7 @@ export function BalanceSheet() {
           return (
           <div key={group.title}>
             <div className="flex items-center gap-1.5 border-b border-border bg-surface-tint px-[13px] py-[7px] text-meta font-bold uppercase tracking-wide text-muted-70">
-              <span className="flex h-[17px] w-[17px] flex-none items-center justify-center rounded-[4px]" style={{ background: cat.bg, color: cat.color }}>
+              <span className="flex h-[17px] w-[17px] flex-none items-center justify-center rounded-data" style={{ background: cat.bg, color: cat.color }}>
                 <GroupIcon size={10} strokeWidth={2.4} aria-hidden="true" />
               </span>
               {group.title}
@@ -170,8 +170,11 @@ export function BalanceSheet() {
         </div>
       </Card>
 
-      <div className={`mt-3 flex items-center gap-2.5 rounded-[8px] border px-[13px] py-2.5 ${result.balanced ? 'border-positive-border bg-positive-bg' : 'border-negative-border bg-negative-bg'}`}>
-        <Badge variant={status.variant} className="bg-white">
+      <div className={`mt-3 flex items-center gap-2.5 rounded-panel border px-[13px] py-2.5 ${result.balanced ? 'border-positive-border bg-positive-bg' : 'border-negative-border bg-negative-bg'}`}>
+        {/* bg-surface, not a hardcoded bg-white: this badge sits on a positive/negative
+            tinted banner, and in dark mode a literal white chip was the one place in the
+            app where a raw color escaped the token system. */}
+        <Badge variant={status.variant} className="bg-surface">
           <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
           {result.balanced ? 'Balanced' : 'Out of balance'}
         </Badge>

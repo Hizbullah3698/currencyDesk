@@ -59,7 +59,7 @@ export function Journal() {
         <div className="flex items-start gap-2.5 border-b border-divider px-[13px] py-2.5">
           <div className="min-w-[70px] pt-2 text-meta font-semibold uppercase tracking-wide text-muted-60">Debit</div>
           <div className="flex-1">
-            <select value={debitAccount} onChange={(e) => setDebitAccount(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
+            <select value={debitAccount} onChange={(e) => setDebitAccount(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
               <option value="">Select account…</option>
               {options.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -76,7 +76,7 @@ export function Journal() {
         <div className="flex items-start gap-2.5 border-b border-border px-[13px] py-2.5">
           <div className="min-w-[70px] pt-2 text-meta font-semibold uppercase tracking-wide text-muted-60">Credit</div>
           <div className="flex-1">
-            <select value={creditAccount} onChange={(e) => setCreditAccount(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
+            <select value={creditAccount} onChange={(e) => setCreditAccount(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
               <option value="">Select account…</option>
               {options.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -107,7 +107,7 @@ export function Journal() {
             <label className="mb-1 block text-meta font-semibold text-muted-70">Narration</label>
             <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="What this entry records" className="h-[34px] text-body" />
           </div>
-          {error && <div className="rounded-[6px] border border-negative-border bg-negative-bg px-2.5 py-2 text-body font-normal leading-[1.5] text-negative-deep">{error}</div>}
+          {error && <div className="rounded-control border border-negative-border bg-negative-bg px-2.5 py-2 text-body font-normal leading-[1.5] text-negative-deep">{error}</div>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" disabled={posting} onClick={reset}>
               Clear
@@ -122,7 +122,7 @@ export function Journal() {
 
       <Card className="mt-5 max-w-[820px] overflow-hidden">
         <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Posted entries</div>
-        {state.journalEntries.length === 0 && <EmptyState icon={SquarePen} title="No journal entries posted yet" description="Free-form debit/credit postings you record will show up here." className="py-8" />}
+        {state.journalEntries.length === 0 && <EmptyState category="neutral" icon={SquarePen} title="No journal entries posted yet" description="Free-form debit/credit postings you record will show up here." className="py-8" />}
         {state.journalEntries.map((e) => (
           <div key={e.id} className="border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
             <div className="flex items-baseline gap-2.5">

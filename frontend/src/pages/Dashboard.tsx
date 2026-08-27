@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBootReady } from '@/lib/useBootReady'
+import { useCountUp } from '@/lib/useCountUp'
 
 export function Dashboard() {
   const { state } = useStore()
@@ -48,6 +49,8 @@ export function Dashboard() {
     return d.getTime()
   }, [])
   const stockDelta = useMemo(() => aed.available - stockAsOf('AED', state.stocks, state.activity, startOfTodayT - 1).available, [aed.available, state.stocks, state.activity, startOfTodayT])
+  // The app's one signature motion moment — see useCountUp's own note.
+  const netCountUp = useCountUp(Math.abs(stats.net))
 
   return (
     <div>
@@ -89,9 +92,11 @@ export function Dashboard() {
               <div className="tabular flex items-center gap-2 text-hero-lg font-semibold tracking-tight text-white">
                 {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
                 {stats.net >= 0 ? '+' : '−'}
-                {fmt(Math.abs(stats.net))}
+                {/* Magnitude counts up once on first load; the sign and icon above stay
+                    driven by the real value so direction never flickers mid-count. */}
+                {fmt(netCountUp)}
               </div>
-              <div className="mt-2.5 text-meta font-normal text-white/75">
+              <div className="tabular mt-2.5 text-meta font-normal text-white/75">
                 In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
               </div>
             </KpiCard>
@@ -128,7 +133,7 @@ export function Dashboard() {
               const StatusIcon = status.icon
               return (
                 <div key={row.id} onClick={() => row.customerId && navigate(`/customers/${row.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
-                  <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: meta.chipBg, color: meta.chipColor }}>
+                  <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: meta.chipBg, color: meta.chipColor }}>
                     <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                   </div>
                   <div className="w-[88px] flex-none text-body font-medium text-ink">{meta.label}</div>
@@ -178,7 +183,7 @@ export function Dashboard() {
           <Card variant="flat" className="p-[13px]">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-[5px]" style={{ background: CATEGORY_COLORS.fx.bg, color: CATEGORY_COLORS.fx.color }}>
+                <span className="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-data" style={{ background: CATEGORY_COLORS.fx.bg, color: CATEGORY_COLORS.fx.color }}>
                   <Coins size={11} strokeWidth={2.2} aria-hidden="true" />
                 </span>
                 <span className="text-body font-semibold tracking-tight">AED stock</span>
@@ -202,7 +207,7 @@ export function Dashboard() {
                     <div className="tabular text-body font-medium">{fmt(aed.available * aed.avgCost)}</div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1.5 rounded-[6px] bg-surface-sunken px-2.5 py-2 text-meta font-normal text-muted-70">
+                <div className="mt-3 flex items-center gap-1.5 rounded-control bg-surface-sunken px-2.5 py-2 text-meta font-normal text-muted-70">
                   {stockDelta === 0 ? (
                     <>
                       <Minus size={12} strokeWidth={2.4} className="flex-none text-muted-42" aria-hidden="true" />
@@ -251,7 +256,7 @@ function StatTileSkeleton() {
   return (
     <Card variant="flat" className="border border-border px-6 pb-6 pt-[22px] shadow-md">
       <div className="mb-2.5 flex items-center gap-1.5">
-        <Skeleton className="h-6 w-6 rounded-[6px]" />
+        <Skeleton className="h-6 w-6 rounded-control" />
         <Skeleton className="h-2.5 w-24" />
       </div>
       <Skeleton className="h-9 w-36" />
@@ -275,7 +280,7 @@ function SideCardSkeleton({ delta }: { delta?: boolean }) {
           <Skeleton className="h-3.5 w-16" />
         </div>
       </div>
-      {delta && <Skeleton className="mt-3 h-8 w-full rounded-[6px]" />}
+      {delta && <Skeleton className="mt-3 h-8 w-full rounded-control" />}
     </>
   )
 }

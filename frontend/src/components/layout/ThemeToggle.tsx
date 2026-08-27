@@ -11,7 +11,7 @@ const OPTIONS: { key: ThemePref; label: string; icon: typeof Sun }[] = [
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   return (
-    <div className="flex flex-none overflow-hidden rounded-[6px] border border-border-strong">
+    <div className="flex flex-none overflow-hidden rounded-control border border-border-strong">
       {OPTIONS.map((o, i) => {
         const active = theme === o.key
         return (

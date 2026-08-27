@@ -122,7 +122,7 @@ export function Transactions() {
             <div key={r.type + r.id} onClick={() => r.customerId && navigate(`/customers/${r.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
               <div className="tabular min-w-[64px] text-meta font-normal text-muted-60">{r.ref}</div>
               <div className="flex min-w-[102px] items-center gap-1.5">
-                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: r.meta.chipBg, color: r.meta.chipColor }}>
+                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: r.meta.chipBg, color: r.meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
                 <span className="text-body font-medium text-ink">{r.meta.label}</span>
@@ -143,7 +143,7 @@ export function Transactions() {
           )
         })}
       </Card>
-      {rows.length === 0 && <EmptyState icon={SearchX} title="No transactions match this filter." />}
+      {rows.length === 0 && <EmptyState category="neutral" icon={SearchX} title="No transactions match this filter." />}
     </div>
   )
 }

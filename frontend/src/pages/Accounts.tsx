@@ -132,7 +132,7 @@ export function Accounts() {
           )
         })}
       </Card>
-      {rows.length === 0 && <EmptyState icon={SearchX} title="No accounts match this filter." />}
+      {rows.length === 0 && <EmptyState category="neutral" icon={SearchX} title="No accounts match this filter." />}
 
       {open && <AccountFormModal mode={mode} editId={editId} defaultType={defaultType} onClose={close} />}
     </div>

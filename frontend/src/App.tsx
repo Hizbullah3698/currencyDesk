@@ -50,7 +50,7 @@ function StoreLoadFailed({ message, onRetry }: { message: string; onRetry: () =>
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-[6px] border border-border-strong bg-surface px-3 py-1.5 text-body font-semibold text-ink transition-colors duration-150 hover:bg-surface-tint"
+          className="rounded-control border border-border-strong bg-surface px-3 py-1.5 text-body font-semibold text-ink transition-colors duration-150 hover:bg-surface-tint"
         >
           Retry
         </button>

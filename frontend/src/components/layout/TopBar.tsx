@@ -33,7 +33,7 @@ function StripItem({
   const content = (
     <>
       <div className="flex items-center gap-1.5">
-        <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]" style={{ background: cat.bg, color: cat.color }}>
+        <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-data" style={{ background: cat.bg, color: cat.color }}>
           <Icon size={11} strokeWidth={2.2} aria-hidden="true" />
         </span>
         <span className="text-meta font-medium uppercase tracking-wide text-muted-70">{label}</span>
@@ -79,7 +79,7 @@ export function TopBar() {
   return (
     <div className="sticky top-0 z-20 print:hidden">
       <div className="flex h-[52px] items-center gap-3.5 border-b border-border-strong bg-surface px-[22px]">
-        <div className="flex h-8 max-w-[340px] flex-1 items-center gap-1.5 rounded-[6px] border border-border-strong bg-surface-sunken px-2.5 transition-colors duration-150 focus-within:border-accent-border">
+        <div className="flex h-8 max-w-[340px] flex-1 items-center gap-1.5 rounded-control border border-border-strong bg-surface-sunken px-2.5 transition-colors duration-150 focus-within:border-accent-border">
           <Search size={14} className="flex-none text-muted-60" aria-hidden="true" />
           <Input
             value={search}
@@ -92,7 +92,7 @@ export function TopBar() {
         </div>
         <div className="ml-auto flex flex-none items-center gap-3">
           <ThemeToggle />
-          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-border-strong bg-surface-sunken px-2.5 py-1.5 text-meta">
+          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-control border border-border-strong bg-surface-sunken px-2.5 py-1.5 text-meta">
             <span className="font-semibold text-ink">{actor}</span>
             <span className="text-muted-60">·</span>
             <span className="font-medium text-muted-70">{isAdmin ? 'Admin' : 'Operator'}</span>
@@ -125,7 +125,7 @@ export function TopBar() {
         <StripItem category="fx" icon={Coins} label="AED stock" value={fmtNum(aed.available)} sub={`@ ${fmtRate(aed.avgCost)}`} onClick={() => navigate('/stock')} />
         <div className="ml-auto flex flex-none items-center gap-2.5 whitespace-nowrap py-2 pl-[18px]">
           <div className="flex items-center gap-1.5">
-            <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]" style={{ background: CATEGORY_COLORS.reports.bg, color: CATEGORY_COLORS.reports.color }}>
+            <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-data" style={{ background: CATEGORY_COLORS.reports.bg, color: CATEGORY_COLORS.reports.color }}>
               <TrendingUp size={11} strokeWidth={2.2} aria-hidden="true" />
             </span>
             <span className="text-meta font-medium uppercase tracking-wide text-muted-70">Margin today</span>

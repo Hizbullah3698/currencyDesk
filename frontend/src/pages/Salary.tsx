@@ -134,7 +134,7 @@ export function Salary() {
                 <div className="text-body font-semibold">{emp.name}</div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-meta font-normal text-muted-70">{emp.designation}</span>
-                  <span className="cursor-help rounded-[5px] p-1.5 text-muted-38 transition-colors duration-150 hover:bg-surface-tint hover:text-accent" title={auditLine(emp)}>
+                  <span className="cursor-help rounded-control p-1.5 text-muted-38 transition-colors duration-150 hover:bg-surface-tint hover:text-accent" title={auditLine(emp)}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="block" aria-hidden="true">
                       <circle cx="12" cy="12" r="9" />
                       <path d="M12 7v5l3 2" />
@@ -161,7 +161,7 @@ export function Salary() {
             </div>
           )
         })}
-        {emps.length === 0 && <EmptyState icon={Users2} title="No employee accounts yet" description="Add one from Accounts with type Employee and a monthly salary." />}
+        {emps.length === 0 && <EmptyState category="salary" icon={Users2} title="No employee accounts yet" description="Add one from Accounts with type Employee and a monthly salary." />}
       </Card>
 
       <Card className="mt-5 overflow-hidden">
@@ -184,7 +184,7 @@ export function Salary() {
             <div className="tabular min-w-[130px] text-right text-body font-medium">{fmt(row.amount)}</div>
           </div>
         ))}
-        {postings.length === 0 && <EmptyState icon={Receipt} title="Nothing posted yet" description="Accruing a period writes real journal entries you can see in the Journal and on the Balance Sheet." />}
+        {postings.length === 0 && <EmptyState category="salary" icon={Receipt} title="Nothing posted yet" description="Accruing a period writes real journal entries you can see in the Journal and on the Balance Sheet." />}
       </Card>
     </div>
   )

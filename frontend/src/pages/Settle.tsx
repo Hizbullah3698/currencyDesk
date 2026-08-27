@@ -70,7 +70,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Customer</label>
             <Input value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="Type to filter customers…" className="mb-1.5 h-[30px] text-body" />
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
+            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
               <option value="">Select customer…</option>
               {filtered.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -80,7 +80,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
             </select>
           </div>
           {cust && (
-            <div className={`rounded-[6px] px-2.5 py-2.5 ${mode === 'receive' ? 'bg-positive-bg' : 'bg-negative-bg'}`}>
+            <div className={`rounded-control px-2.5 py-2.5 ${mode === 'receive' ? 'bg-positive-bg' : 'bg-negative-bg'}`}>
               <div className={`mb-0.5 text-body font-normal ${mode === 'receive' ? 'text-positive-text' : 'text-negative-deep'}`}>{mode === 'receive' ? 'Outstanding receivable' : 'Outstanding payable'}</div>
               <b className={`tabular text-body font-medium tracking-tight ${mode === 'receive' ? 'text-positive-text' : 'text-negative-deep'}`}>{fmt(outstanding)}</b>
             </div>
@@ -125,7 +125,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
             </div>
           )}
           {method === 'Cheque' && (
-            <div className="rounded-[6px] border border-border bg-surface-sunken p-2.5">
+            <div className="rounded-control border border-border bg-surface-sunken p-2.5">
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="mb-1 block text-meta font-semibold text-muted-70">Cheque no.</label>
@@ -179,7 +179,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               <span className="font-normal text-muted-70">Remaining</span>
               <b className="tabular text-body font-semibold">{fmt(method === 'Cheque' ? outstanding : remaining)}</b>
             </div>
-            {method === 'Cheque' && <div className="rounded-[6px] border border-border bg-surface-sunken px-2.5 py-2 text-meta font-normal leading-[1.45] text-muted-70">Held as a pending cheque — the balance won't move until it clears.</div>}
+            {method === 'Cheque' && <div className="rounded-control border border-border bg-surface-sunken px-2.5 py-2 text-meta font-normal leading-[1.45] text-muted-70">Held as a pending cheque — the balance won't move until it clears.</div>}
             <div className="flex justify-between">
               <span className="font-normal text-muted-70">Method</span>
               <b className="font-semibold">{method}</b>

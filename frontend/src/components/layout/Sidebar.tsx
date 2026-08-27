@@ -47,13 +47,13 @@ function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[
             to={item.to}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-body no-underline whitespace-nowrap transition-[background-color,box-shadow,color] duration-150 ease-out',
+                'flex items-center gap-2 rounded-control px-2 py-1.5 text-body no-underline whitespace-nowrap transition-[background-color,box-shadow,color] duration-150 ease-out',
                 isActive ? 'bg-sidebar-active-bg font-semibold text-sidebar-active-text shadow-xs' : 'font-normal text-sidebar-text hover:bg-sidebar-hover-bg',
                 locked && 'opacity-60',
               )
             }
           >
-            <span className="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-[5px]" style={{ background: cat.bg, color: cat.color }}>
+            <span className="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-data" style={{ background: cat.bg, color: cat.color }}>
               <item.icon size={13} strokeWidth={2} aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1 truncate">{item.label}</span>

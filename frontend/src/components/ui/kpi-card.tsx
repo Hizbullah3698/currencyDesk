@@ -69,11 +69,11 @@ export function KpiCard({
   const lg = size === 'lg'
   return (
     <div
-      className={`relative overflow-hidden rounded-[10px] shadow-lg transition-shadow duration-150 ${lg ? 'px-6 pb-6 pt-[22px]' : 'px-5 pb-[18px] pt-4'} ${className || ''}`}
+      className={`relative overflow-hidden rounded-panel shadow-lg transition-shadow duration-150 ${lg ? 'px-6 pb-6 pt-[22px]' : 'px-5 pb-[18px] pt-4'} ${className || ''}`}
       style={toneStyle(tone)}
     >
       <div className={`flex items-center gap-1.5 ${lg ? 'mb-2.5' : 'mb-2'}`}>
-        <span className={`flex flex-none items-center justify-center rounded-[6px] bg-white/22 text-white ${lg ? 'h-6 w-6' : 'h-5 w-5'}`}>
+        <span className={`flex flex-none items-center justify-center rounded-control bg-white/22 text-white ${lg ? 'h-6 w-6' : 'h-5 w-5'}`}>
           <Icon size={lg ? 12 : 11} strokeWidth={2.4} aria-hidden="true" />
         </span>
         <span className="text-meta font-medium uppercase tracking-wider text-white/85">{label}</span>
@@ -109,10 +109,10 @@ export function KpiBannerCard({
   className?: string
 }) {
   return (
-    <div className={`overflow-hidden rounded-[10px] shadow-lg print:shadow-none ${className || ''}`} style={{ border: '1px solid var(--color-border)' }}>
+    <div className={`overflow-hidden rounded-panel shadow-lg print:shadow-none ${className || ''}`} style={{ border: '1px solid var(--color-border)' }}>
       <div className="relative px-3.5 py-3" style={toneStyle(tone)}>
         <div className="mb-1.5 flex items-center gap-1.5">
-          <span className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px] bg-white/22 text-white">
+          <span className="flex h-5 w-5 flex-none items-center justify-center rounded-data bg-white/22 text-white">
             <Icon size={11} strokeWidth={2.4} aria-hidden="true" />
           </span>
           <span className="text-meta font-semibold uppercase tracking-wide text-white/85">{label}</span>

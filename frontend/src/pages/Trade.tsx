@@ -94,7 +94,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">{mode === 'buy' ? 'Customer / Supplier' : 'Customer'}</label>
             <Input value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="Type to filter customers…" className="mb-1.5 h-[30px] text-body" />
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
+            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
               <option value="">Select customer…</option>
               {filteredCustomers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -106,7 +106,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
           <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr] gap-2.5">
             <div>
               <label className="mb-1 block text-meta font-semibold text-muted-70">Currency</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="h-[34px] w-full rounded-[6px] border border-border-input bg-surface px-1.5 text-body font-semibold transition-colors duration-150">
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-1.5 text-body font-semibold transition-colors duration-150">
                 <option value="AED">AED</option>
               </select>
             </div>
@@ -122,12 +122,12 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             </div>
             <div>
               <label className="mb-1 block text-meta font-semibold text-muted-70">PKR value</label>
-              <div className="tabular flex h-[34px] items-center rounded-[6px] border border-border bg-app px-2.5 text-body font-medium">{fmtNum(value)}</div>
+              <div className="tabular flex h-[34px] items-center rounded-control border border-border bg-app px-2.5 text-body font-medium">{fmtNum(value)}</div>
             </div>
           </div>
 
           {mode === 'sell' && (
-            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[6px] border border-border bg-border">
+            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-control border border-border bg-border">
               <div className="bg-surface-sunken px-2.5 py-2">
                 <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Inventory cost</div>
                 <div className="tabular text-body font-medium">{fmtNum(cost || 0)}</div>
@@ -184,7 +184,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
           )}
 
           {method === 'Cheque' && (
-            <div className="rounded-[6px] border border-border bg-surface-sunken p-2.5">
+            <div className="rounded-control border border-border bg-surface-sunken p-2.5">
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="mb-1 block text-meta font-semibold text-muted-70">Cheque no.</label>
@@ -209,7 +209,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
           )}
 
           {calc.outstanding > 0 && (
-            <div className={`rounded-[6px] px-2.5 py-2 text-body font-normal ${mode === 'buy' ? 'bg-negative-bg text-negative-deep' : 'bg-positive-bg text-positive-text'}`}>
+            <div className={`rounded-control px-2.5 py-2 text-body font-normal ${mode === 'buy' ? 'bg-negative-bg text-negative-deep' : 'bg-positive-bg text-positive-text'}`}>
               Creates a <b className="font-semibold">{mode === 'buy' ? 'Payable' : 'Receivable'} of {fmt(calc.outstanding)}</b> {mode === 'buy' ? 'to' : 'from'} {cust?.name || 'this customer'}.
             </div>
           )}
@@ -245,7 +245,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             )}
             <Row label="Settlement" value={method} bold />
           </div>
-          <div className="mt-3 flex flex-col gap-1.5 rounded-[6px] border border-border bg-surface-sunken p-2.5">
+          <div className="mt-3 flex flex-col gap-1.5 rounded-control border border-border bg-surface-sunken p-2.5">
             <div className="text-meta font-semibold uppercase tracking-wide text-muted-60">What will happen</div>
             <Bullet color="var(--color-accent)">
               {mode === 'buy' ? `${currency} stock increases by ${fmtNum(parseFloat(amount) || 0)}.` : `${currency} stock decreases by ${fmtNum(parseFloat(amount) || 0)}.`}

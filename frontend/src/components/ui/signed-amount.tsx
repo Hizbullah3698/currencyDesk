@@ -27,7 +27,7 @@ export function SignedAmount({ value, format = fmt, className }: SignedAmountPro
   return (
     <span
       className={cn(
-        'tabular inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 font-semibold',
+        'tabular inline-flex items-center gap-1 rounded-data px-1.5 py-0.5 font-semibold',
         positive ? 'bg-positive-bg text-positive-text' : 'bg-negative-bg text-negative-deep',
         className,
       )}

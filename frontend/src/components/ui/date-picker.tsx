@@ -68,7 +68,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', class
         <button
           type="button"
           className={cn(
-            'inline-flex h-[30px] items-center gap-1.5 rounded-[6px] border border-border-strong bg-surface px-2.5 text-meta text-ink transition-colors duration-150 hover:bg-surface-tint',
+            'inline-flex h-[30px] items-center gap-1.5 rounded-control border border-border-strong bg-surface px-2.5 text-meta text-ink transition-colors duration-150 hover:bg-surface-tint',
             !selected && 'text-muted-60',
             className,
           )}
@@ -91,7 +91,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', class
                   onChange('')
                 }
               }}
-              className="ml-0.5 flex-none rounded-[4px] p-0.5 text-muted-42 transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
+              className="ml-0.5 flex-none rounded-control p-0.5 text-muted-42 transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
             >
               <X size={11} strokeWidth={2.4} aria-hidden="true" />
             </span>
@@ -104,7 +104,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', class
             type="button"
             aria-label="Previous month"
             onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
-            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-muted-70 transition-colors duration-150 hover:bg-surface-tint hover:text-ink"
+            className="flex h-6 w-6 items-center justify-center rounded-control text-muted-70 transition-colors duration-150 hover:bg-surface-tint hover:text-ink"
           >
             <ChevronLeft size={14} strokeWidth={2.2} aria-hidden="true" />
           </button>
@@ -113,7 +113,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', class
             type="button"
             aria-label="Next month"
             onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
-            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-muted-70 transition-colors duration-150 hover:bg-surface-tint hover:text-ink"
+            className="flex h-6 w-6 items-center justify-center rounded-control text-muted-70 transition-colors duration-150 hover:bg-surface-tint hover:text-ink"
           >
             <ChevronRight size={14} strokeWidth={2.2} aria-hidden="true" />
           </button>
@@ -133,7 +133,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', class
                 type="button"
                 onClick={() => pick(date)}
                 className={cn(
-                  'flex h-7 items-center justify-center rounded-[5px] text-meta font-medium transition-colors duration-150',
+                  'flex h-7 items-center justify-center rounded-data text-meta font-medium transition-colors duration-150',
                   inMonth ? 'text-ink' : 'text-muted-38',
                   !isSelected && 'hover:bg-surface-tint',
                   isSelected && 'bg-accent-solid font-semibold text-white hover:bg-accent-solid-hover',

@@ -39,7 +39,7 @@ export function Customers() {
   return (
     <div>
       {owe && (
-        <div className="mb-3 flex items-center justify-between gap-2.5 rounded-[6px] border border-border-strong bg-surface-tint px-3 py-2 text-body">
+        <div className="mb-3 flex items-center justify-between gap-2.5 rounded-control border border-border-strong bg-surface-tint px-3 py-2 text-body">
           <span>
             {owe === 'payable'
               ? `Showing customers you owe money to, largest balance first — open one and use "Make Payment" to pay it.`
@@ -97,7 +97,7 @@ export function Customers() {
         ))}
       </Card>
       {customers.length === 0 && (
-        <EmptyState
+        <EmptyState category="customers"
           icon={SearchX}
           title={
             owe === 'payable'

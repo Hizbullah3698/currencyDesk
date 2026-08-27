@@ -1,9 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Report-title face only — Balance Sheet / Income Statement / customer statement
+     headings and the print masthead, i.e. the pages that get filed or handed to
+     someone as paper. Deliberately NOT applied to body copy, interface chrome,
+     table content, buttons or nav: the sans stays the voice of the app, and the
+     serif marks "this is a document, not a screen". Instrument Serif is the
+     designed companion to Instrument Sans (shared skeleton and metrics), which is
+     why it pairs without looking like two unrelated fonts collided. Ships weight
+     400 only — never set a bold weight on it or the browser will synthesise a
+     smeared faux-bold. */
+  --font-serif: 'Instrument Serif', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
 
   /* Type scale — meta/labels, body copy, section/page headers, and the single most
      important number(s) on a screen. `text-hero-lg` is a dedicated top-of-range size
@@ -17,6 +27,12 @@
   --text-body--line-height: 1.45;
   --text-heading: 22px;
   --text-heading--line-height: 1.2;
+  /* Report-document titles only, paired with --font-serif. Larger than
+     --text-heading because Instrument Serif at weight 400 carries less optical
+     weight than the sans at 600 — matching the px would make the report title
+     read smaller than an ordinary page heading, which is backwards. */
+  --text-report: 27px;
+  --text-report--line-height: 1.15;
   --text-hero: 30px;
   --text-hero--line-height: 1.1;
   --text-hero-lg: 36px;
@@ -155,7 +171,23 @@
   --color-sidebar-cat-neutral-bg: rgba(255, 255, 255, 0.09);
   --color-sidebar-cat-neutral: rgba(255, 255, 255, 0.78);
 
-  --radius-app: 6px;
+  /* Radius scale — three deliberate tiers, not one value used everywhere.
+     The rule: the denser and more data-like a thing is, the sharper its corners.
+       data    (3px) — anything that reads as a figure or a record: status badges,
+                       in-row icon chips, signed-amount chips, ledger/table cells,
+                       progress bars. Sharp corners read as precise and tabular,
+                       which is what a ledger should feel like.
+       control (6px) — things a person clicks or types into: buttons, inputs,
+                       selects, nav items, menu items. Slightly softer, because a
+                       soft corner reads as pressable.
+       panel  (10px) — things that contain other things: cards, modals, popovers,
+                       KPI tiles. Softest, so containers recede and their contents
+                       carry the structure.
+     Add new UI to whichever tier it genuinely belongs to rather than picking a
+     px value by eye — that is how the old uniform-6px-everywhere look crept in. */
+  --radius-data: 3px;
+  --radius-control: 6px;
+  --radius-panel: 10px;
 
   --shadow-xs: 0 1px 2px 0 rgba(20, 22, 26, 0.04);
   --shadow-sm: 0 1px 2px 0 rgba(20, 22, 26, 0.05), 0 1px 1px -1px rgba(20, 22, 26, 0.045);
@@ -577,7 +609,36 @@ input, select, button, textarea {
     color: #14161a !important;
   }
 
+  /* Document typography: slightly tighter body copy than screen, and every figure
+     forced to the tabular face so financial columns line up digit-for-digit on
+     paper exactly as they do on screen. `.tabular` already sets this, but a
+     printed statement is the one context where a missed .tabular is genuinely
+     costly (a filed report with ragged columns), so the numeric column classes
+     are belt-and-braces here rather than relying on per-element classes alone. */
+  body {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  .tabular {
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  /* Keep a statement's structure intact across a page break — a group header
+     stranded at the foot of a page, or a total split from its own table, is the
+     clearest "this was printed from a webpage" tell. */
+  h1, h2, h3 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  table, thead, tbody tr {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
   @page {
-    margin: 14mm 12mm;
+    /* Wider foot margin leaves room for the browser's own page-number footer
+       without it colliding with the last table row. */
+    margin: 16mm 14mm 18mm 14mm;
   }
 }

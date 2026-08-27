@@ -13,7 +13,7 @@ export function Card({ className, variant = 'bordered', ...props }: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-[8px] shadow-xs transition-shadow duration-150',
+        'rounded-panel shadow-xs transition-shadow duration-150',
         variant === 'bordered' ? 'border border-border bg-surface' : 'border-0 bg-surface-tint',
         className,
       )}
