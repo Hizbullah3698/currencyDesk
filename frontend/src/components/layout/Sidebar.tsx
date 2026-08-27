@@ -48,7 +48,7 @@ function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-body no-underline whitespace-nowrap transition-[background-color,box-shadow,color] duration-150 ease-out',
-                isActive ? 'bg-sidebar-active-bg font-semibold text-sidebar-active-text shadow-xs' : 'font-normal text-sidebar-text-muted hover:bg-sidebar-hover-bg hover:text-sidebar-text',
+                isActive ? 'bg-sidebar-active-bg font-semibold text-sidebar-active-text shadow-xs' : 'font-normal text-sidebar-text hover:bg-sidebar-hover-bg',
                 locked && 'opacity-60',
               )
             }
