@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { SquarePen, CheckCircle2, Users2, Receipt } from 'lucide-react'
+import { SquarePen, CheckCircle2, Users2, Receipt, Banknote, WalletCards } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { auditLine } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
@@ -93,16 +94,14 @@ export function Salary() {
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-5">
-        <Card variant="flat" className="px-[15px] py-[13px]">
-          <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Accrued but unpaid</div>
-          <div className="tabular text-hero font-semibold tracking-tight text-negative-deep">{fmt(totalOutstanding)}</div>
-          <div className="mt-0.5 text-meta font-normal text-muted-60">Salary Payable balance</div>
-        </Card>
-        <Card variant="flat" className="px-[15px] py-[13px]">
-          <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Accrued to date</div>
-          <div className="tabular text-hero font-semibold tracking-tight">{fmt(totalAccrued)}</div>
-          <div className="mt-0.5 text-meta font-normal text-muted-60">{emps.length} employee{emps.length === 1 ? '' : 's'} on file</div>
-        </Card>
+        <KpiCard tone="negative" icon={Banknote} label="Accrued but unpaid">
+          <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(totalOutstanding)}</div>
+          <div className="mt-2 text-meta font-normal text-white/75">Salary Payable balance</div>
+        </KpiCard>
+        <KpiCard tone="accent" icon={WalletCards} label="Accrued to date">
+          <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(totalAccrued)}</div>
+          <div className="mt-2 text-meta font-normal text-white/75">{emps.length} employee{emps.length === 1 ? '' : 's'} on file</div>
+        </KpiCard>
       </div>
 
       <div className="mb-3 flex items-center gap-2">

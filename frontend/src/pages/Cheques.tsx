@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Banknote, Lock } from 'lucide-react'
+import { Banknote, Lock, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { fmt, fmtShortDate } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -33,16 +34,14 @@ export function Cheques() {
       <h1 className="m-0 mb-[3px] text-heading font-semibold">Cheques</h1>
       <div className="mb-[26px] text-body font-normal text-muted-60">Inward and outward cheques and where they sit in their lifecycle. A cheque only moves a balance when it clears.</div>
       <div className="mb-5 grid grid-cols-2 gap-5">
-        <Card variant="flat" className="border-l-[3px] border-l-positive px-3.5 py-2.5">
-          <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Inward uncleared</div>
-          <div className="tabular text-hero font-semibold tracking-tight text-positive">{fmt(inward.reduce((s, q) => s + q.amount, 0))}</div>
-          <div className="mt-0.5 text-meta font-normal text-muted-60">{inward.length} — still counted in receivables</div>
-        </Card>
-        <Card variant="flat" className="border-l-[3px] border-l-border-strong px-3.5 py-2.5">
-          <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Outward uncleared</div>
-          <div className="tabular text-hero font-semibold tracking-tight">{fmt(outward.reduce((s, q) => s + q.amount, 0))}</div>
-          <div className="mt-0.5 text-meta font-normal text-muted-60">{outward.length} — still counted in payables</div>
-        </Card>
+        <KpiCard tone="positive" icon={ArrowDownCircle} label="Inward uncleared">
+          <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(inward.reduce((s, q) => s + q.amount, 0))}</div>
+          <div className="mt-2 text-meta font-normal text-white/75">{inward.length} — still counted in receivables</div>
+        </KpiCard>
+        <KpiCard tone="negative" icon={ArrowUpCircle} label="Outward uncleared">
+          <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(outward.reduce((s, q) => s + q.amount, 0))}</div>
+          <div className="mt-2 text-meta font-normal text-white/75">{outward.length} — still counted in payables</div>
+        </KpiCard>
       </div>
 
       <Card className="overflow-hidden">

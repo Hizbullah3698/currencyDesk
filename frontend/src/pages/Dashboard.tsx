@@ -7,6 +7,7 @@ import { fmt, fmtNum, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { StockTrendChart } from '@/components/charts/StockTrendChart'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
@@ -220,63 +221,6 @@ export function Dashboard() {
           </Card>
         </div>
       </div>
-    </div>
-  )
-}
-
-/**
- * Identity for the Dashboard's 3 headline KPI tiles. 'inflow'/'outflow' are a
- * dedicated pair for routine, one-directional totals (a purchase isn't a
- * loss); 'positive'/'negative' reuse the app's genuine signed-value tokens,
- * for Net Cash Movement only, which really can land on either side of zero.
- */
-/**
- * Bold solid-fill identity for the Dashboard's 3 headline KPI tiles — a
- * deliberately louder treatment than the rest of the app's soft-tint
- * convention, by request, for a client who scans the dashboard visually
- * rather than reading it line by line. 'inflow'/'outflow' are a dedicated
- * pair for routine, one-directional totals (a purchase isn't a loss);
- * 'positive'/'negative' reuse the app's genuine signed-value tokens, for Net
- * Cash Movement only, which really can land on either side of zero. Every
- * *-solid value is checked at ≥4.5:1 for the white text/icons sitting on it
- * (see index.css) — the fill carries the color, not the numbers, which is
- * what actually keeps this readable instead of just loud.
- */
-const KPI_TONE = {
-  inflow: { solid: 'var(--color-inflow-solid)', glow: 'var(--color-inflow-glow)' },
-  outflow: { solid: 'var(--color-outflow-solid)', glow: 'var(--color-outflow-glow)' },
-  positive: { solid: 'var(--color-positive-solid)', glow: 'var(--color-positive-glow)' },
-  negative: { solid: 'var(--color-negative-solid)', glow: 'var(--color-negative-glow)' },
-} as const
-
-function KpiCard({
-  tone,
-  icon: Icon,
-  label,
-  children,
-}: {
-  tone: keyof typeof KPI_TONE
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
-  label: string
-  children: React.ReactNode
-}) {
-  const t = KPI_TONE[tone]
-  return (
-    <div
-      className="relative overflow-hidden rounded-[10px] px-6 pb-6 pt-[22px] shadow-lg transition-shadow duration-150"
-      style={{
-        background: `radial-gradient(120% 130% at 100% 115%, rgba(255,255,255,0.20), transparent 55%), linear-gradient(135deg, ${t.solid}, color-mix(in srgb, ${t.solid} 100%, black 26%))`,
-        boxShadow: `0 14px 30px -10px ${t.glow}, 0 2px 8px -2px rgba(0, 0, 0, 0.28)`,
-        border: '1px solid rgba(255, 255, 255, 0.16)',
-      }}
-    >
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-[6px] bg-white/22 text-white">
-          <Icon size={12} strokeWidth={2.4} aria-hidden="true" />
-        </span>
-        <span className="text-meta font-medium uppercase tracking-wider text-white/85">{label}</span>
-      </div>
-      {children}
     </div>
   )
 }

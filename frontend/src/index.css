@@ -48,6 +48,7 @@
      of it — see the dark-mode blocks below. */
   --color-accent-solid: #2563eb;
   --color-accent-solid-hover: #1d4ed8;
+  --color-accent-glow: rgba(37, 99, 235, 0.16);
 
   --color-positive: #10794f;
   --color-positive-text: #0f6b46;
@@ -170,6 +171,7 @@
     --color-accent-border: rgba(91, 157, 245, 0.35);
     --color-accent-solid: #2f66d6;
     --color-accent-solid-hover: #3f76e2;
+    --color-accent-glow: rgba(91, 157, 245, 0.24);
 
     --color-positive: #34c38f;
     --color-positive-text: #34c38f;
@@ -259,6 +261,7 @@
   --color-accent-border: rgba(91, 157, 245, 0.35);
   --color-accent-solid: #2f66d6;
   --color-accent-solid-hover: #3f76e2;
+  --color-accent-glow: rgba(91, 157, 245, 0.24);
 
   --color-positive: #34c38f;
   --color-positive-text: #34c38f;
@@ -444,6 +447,7 @@ a:hover {
     --color-accent-border: rgba(37, 99, 235, 0.28) !important;
     --color-accent-solid: #2563eb !important;
     --color-accent-solid-hover: #1d4ed8 !important;
+    --color-accent-glow: rgba(37, 99, 235, 0.16) !important;
 
     --color-positive: #10794f !important;
     --color-positive-text: #0f6b46 !important;

@@ -10,6 +10,7 @@ import { PrintHeader } from '@/components/PrintHeader'
 import { AccountFormModal } from '@/components/AccountFormModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { KpiBannerCard } from '@/components/ui/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
@@ -144,54 +145,50 @@ export function CustomerDetail() {
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <Card variant="flat" className="overflow-hidden border-l-[3px] border-l-positive print:shadow-none">
-          <div className="flex items-center gap-1.5 border-b border-divider px-3.5 py-2.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-positive" aria-hidden="true" />
-            <div className="text-meta font-semibold uppercase tracking-wide text-muted-70">Receivable — owed to you</div>
-          </div>
-          <div className="px-3.5 pb-3.5 pt-3">
-            <div className="flex items-baseline justify-between py-1">
-              <span className="text-meta font-normal text-muted-70">Original</span>
-              <span className="tabular text-body font-normal">{fmt(openingR)}</span>
-            </div>
-            <div className="flex items-baseline justify-between border-b border-divider py-1">
-              <span className="text-meta font-normal text-muted-70">Settled</span>
-              <span className="tabular text-body font-normal text-muted-60">− {fmt(settledR)}</span>
-            </div>
-            <div className="flex items-baseline justify-between pt-2">
-              <span className="text-meta font-medium uppercase tracking-wide text-muted-60">Remaining</span>
-              <span className="tabular text-hero font-semibold tracking-tight text-positive">{fmt(receivable)}</span>
-            </div>
-            <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
-              <div className="h-full bg-positive transition-[width] duration-300 ease-out" style={{ width: `${pctR}%` }} />
-            </div>
-            <div className="mt-1 text-meta font-normal text-muted-60">{pctR}% settled</div>
-          </div>
-        </Card>
-        <Card variant="flat" className="overflow-hidden border-l-[3px] border-l-negative print:shadow-none">
-          <div className="flex items-center gap-1.5 border-b border-divider px-3.5 py-2.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-negative" aria-hidden="true" />
-            <div className="text-meta font-semibold uppercase tracking-wide text-muted-70">Payable — you owe</div>
-          </div>
-          <div className="px-3.5 pb-3.5 pt-3">
-            <div className="flex items-baseline justify-between py-1">
-              <span className="text-meta font-normal text-muted-70">Original</span>
-              <span className="tabular text-body font-normal">{fmt(openingP)}</span>
-            </div>
-            <div className="flex items-baseline justify-between border-b border-divider py-1">
-              <span className="text-meta font-normal text-muted-70">Settled</span>
-              <span className="tabular text-body font-normal text-muted-60">− {fmt(settledP)}</span>
-            </div>
-            <div className="flex items-baseline justify-between pt-2">
-              <span className="text-meta font-medium uppercase tracking-wide text-muted-60">Remaining</span>
-              <span className="tabular text-hero font-semibold tracking-tight text-negative">{fmt(payable)}</span>
-            </div>
-            <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
-              <div className="h-full bg-negative transition-[width] duration-300 ease-out" style={{ width: `${pctP}%` }} />
-            </div>
-            <div className="mt-1 text-meta font-normal text-muted-60">{pctP}% settled</div>
-          </div>
-        </Card>
+        <KpiBannerCard
+          tone="positive"
+          icon={ArrowDownCircle}
+          label="Receivable — owed to you"
+          headline={fmt(receivable)}
+          footer={
+            <>
+              <div className="flex items-baseline justify-between py-1">
+                <span className="text-meta font-normal text-muted-70">Original</span>
+                <span className="tabular text-body font-normal">{fmt(openingR)}</span>
+              </div>
+              <div className="flex items-baseline justify-between border-b border-divider py-1">
+                <span className="text-meta font-normal text-muted-70">Settled</span>
+                <span className="tabular text-body font-normal text-muted-60">− {fmt(settledR)}</span>
+              </div>
+              <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
+                <div className="h-full bg-positive transition-[width] duration-300 ease-out" style={{ width: `${pctR}%` }} />
+              </div>
+              <div className="mt-1 text-meta font-normal text-muted-60">{pctR}% settled</div>
+            </>
+          }
+        />
+        <KpiBannerCard
+          tone="negative"
+          icon={ArrowUpCircle}
+          label="Payable — you owe"
+          headline={fmt(payable)}
+          footer={
+            <>
+              <div className="flex items-baseline justify-between py-1">
+                <span className="text-meta font-normal text-muted-70">Original</span>
+                <span className="tabular text-body font-normal">{fmt(openingP)}</span>
+              </div>
+              <div className="flex items-baseline justify-between border-b border-divider py-1">
+                <span className="text-meta font-normal text-muted-70">Settled</span>
+                <span className="tabular text-body font-normal text-muted-60">− {fmt(settledP)}</span>
+              </div>
+              <div className="mt-2.5 h-[3px] overflow-hidden rounded-[2px] bg-divider">
+                <div className="h-full bg-negative transition-[width] duration-300 ease-out" style={{ width: `${pctP}%` }} />
+              </div>
+              <div className="mt-1 text-meta font-normal text-muted-60">{pctP}% settled</div>
+            </>
+          }
+        />
       </div>
 
       <Card className="overflow-hidden print:shadow-none">
