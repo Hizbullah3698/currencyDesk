@@ -120,6 +120,41 @@
   --color-strip-border: #d3d8df;
   --color-scrollbar-thumb: #d6dae0;
 
+  /* Sidebar — a fixed dark-navy identity, deliberately NOT theme-reactive.
+     Defined once here and never redefined in the dark-mode blocks below, so
+     it stays constant whether the app is in light or dark mode — the same
+     permanent-dark-rail pattern used by Linear/Vercel/Notion, requested
+     specifically for visual impact. Every hue here is the same one already
+     verified against a dark surface for the app's dark theme (see the
+     --color-cat-* dark-mode values) — reused as fixed constants, not
+     duplicated with new, unverified picks. Contrast checked directly against
+     --color-sidebar-bg: text-sidebar-text 15.1:1, text-sidebar-text-muted
+     10.8:1, text-sidebar-text-faint 5.3:1. */
+  --color-sidebar-bg: #0e1a2e;
+  --color-sidebar-active-bg: #1b2c4a;
+  --color-sidebar-hover-bg: rgba(255, 255, 255, 0.05);
+  --color-sidebar-border: rgba(255, 255, 255, 0.09);
+  --color-sidebar-divider: rgba(255, 255, 255, 0.07);
+  --color-sidebar-text: rgba(255, 255, 255, 0.94);
+  --color-sidebar-text-muted: rgba(255, 255, 255, 0.70);
+  --color-sidebar-text-faint: rgba(255, 255, 255, 0.44);
+  --color-sidebar-active-text: #ffffff;
+
+  --color-sidebar-cat-fx-bg: rgba(91, 157, 245, 0.18);
+  --color-sidebar-cat-fx: #8cbdf8;
+  --color-sidebar-cat-bank-bg: rgba(77, 159, 214, 0.18);
+  --color-sidebar-cat-bank: #7fc1e8;
+  --color-sidebar-cat-customers-bg: rgba(63, 194, 199, 0.18);
+  --color-sidebar-cat-customers: #6ad7db;
+  --color-sidebar-cat-cheques-bg: rgba(226, 168, 63, 0.18);
+  --color-sidebar-cat-cheques: #edbf68;
+  --color-sidebar-cat-salary-bg: rgba(180, 142, 224, 0.18);
+  --color-sidebar-cat-salary: #cdaeee;
+  --color-sidebar-cat-reports-bg: rgba(168, 178, 189, 0.18);
+  --color-sidebar-cat-reports: #c7ced5;
+  --color-sidebar-cat-neutral-bg: rgba(255, 255, 255, 0.09);
+  --color-sidebar-cat-neutral: rgba(255, 255, 255, 0.78);
+
   --radius-app: 6px;
 
   --shadow-xs: 0 1px 2px 0 rgba(20, 22, 26, 0.04);

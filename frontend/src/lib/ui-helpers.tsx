@@ -79,3 +79,19 @@ export const CATEGORY_COLORS: Record<Category, CategoryColor> = {
   reports: { bg: 'var(--color-cat-slate-bg)', color: 'var(--color-cat-slate)' },
   neutral: { bg: 'var(--color-neutral-chip)', color: 'var(--color-muted-70)' },
 }
+
+/**
+ * Same category identity as CATEGORY_COLORS, but pinned to fixed tokens tuned
+ * for the Sidebar's permanent dark-navy background (see index.css) instead
+ * of the theme-reactive tokens above — those go nearly invisible on a fixed
+ * dark surface while the app is in light mode. Sidebar.tsx only.
+ */
+export const SIDEBAR_CATEGORY_COLORS: Record<Category, CategoryColor> = {
+  fx: { bg: 'var(--color-sidebar-cat-fx-bg)', color: 'var(--color-sidebar-cat-fx)' },
+  bank: { bg: 'var(--color-sidebar-cat-bank-bg)', color: 'var(--color-sidebar-cat-bank)' },
+  customers: { bg: 'var(--color-sidebar-cat-customers-bg)', color: 'var(--color-sidebar-cat-customers)' },
+  cheques: { bg: 'var(--color-sidebar-cat-cheques-bg)', color: 'var(--color-sidebar-cat-cheques)' },
+  salary: { bg: 'var(--color-sidebar-cat-salary-bg)', color: 'var(--color-sidebar-cat-salary)' },
+  reports: { bg: 'var(--color-sidebar-cat-reports-bg)', color: 'var(--color-sidebar-cat-reports)' },
+  neutral: { bg: 'var(--color-sidebar-cat-neutral-bg)', color: 'var(--color-sidebar-cat-neutral)' },
+}

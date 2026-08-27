@@ -1,14 +1,13 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { isToday, stk, stockTrend, txnIsOpen } from '@/lib/engine'
+import { isToday, stk, stockAsOf, txnIsOpen } from '@/lib/engine'
 import { fmt, fmtNum, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { KpiCard } from '@/components/ui/kpi-card'
-import { StockTrendChart } from '@/components/charts/StockTrendChart'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -43,7 +42,12 @@ export function Dashboard() {
   const unclearedIn = uncleared.filter((q) => q.direction === 'Inward').reduce((s, q) => s + q.amount, 0)
   const unclearedOut = uncleared.filter((q) => q.direction === 'Outward').reduce((s, q) => s + q.amount, 0)
   const aed = stk(state.stocks, 'AED')
-  const trend = stockTrend('AED', state.stocks, state.activity)
+  const startOfTodayT = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  }, [])
+  const stockDelta = useMemo(() => aed.available - stockAsOf('AED', state.stocks, state.activity, startOfTodayT - 1).available, [aed.available, state.stocks, state.activity, startOfTodayT])
 
   return (
     <div>
@@ -184,7 +188,7 @@ export function Dashboard() {
               </button>
             </div>
             {!ready ? (
-              <SideCardSkeleton chart />
+              <SideCardSkeleton delta />
             ) : (
               <>
                 <div className="tabular text-heading font-semibold tracking-tight">{fmtNum(aed.available)}</div>
@@ -198,8 +202,26 @@ export function Dashboard() {
                     <div className="tabular text-body font-medium">{fmt(aed.available * aed.avgCost)}</div>
                   </div>
                 </div>
-                <div className="mt-3">
-                  <StockTrendChart data={trend} seriesLabel="AED on hand" formatValue={(v) => fmtNum(v)} height={44} />
+                <div className="mt-3 flex items-center gap-1.5 rounded-[6px] bg-surface-sunken px-2.5 py-2 text-meta font-normal text-muted-70">
+                  {stockDelta === 0 ? (
+                    <>
+                      <Minus size={12} strokeWidth={2.4} className="flex-none text-muted-42" aria-hidden="true" />
+                      No change in stock today
+                    </>
+                  ) : (
+                    <>
+                      {stockDelta > 0 ? (
+                        <ArrowUp size={12} strokeWidth={2.6} className="flex-none text-accent" aria-hidden="true" />
+                      ) : (
+                        <ArrowDown size={12} strokeWidth={2.6} className="flex-none text-accent" aria-hidden="true" />
+                      )}
+                      <span className="tabular font-semibold text-ink">
+                        {stockDelta > 0 ? '+' : '−'}
+                        {fmtNum(Math.abs(stockDelta))} AED
+                      </span>
+                      {stockDelta > 0 ? 'purchased today' : 'sold today'}
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -238,7 +260,7 @@ function StatTileSkeleton() {
   )
 }
 
-function SideCardSkeleton({ chart }: { chart?: boolean }) {
+function SideCardSkeleton({ delta }: { delta?: boolean }) {
   return (
     <>
       <Skeleton className="h-6 w-28" />
@@ -253,13 +275,7 @@ function SideCardSkeleton({ chart }: { chart?: boolean }) {
           <Skeleton className="h-3.5 w-16" />
         </div>
       </div>
-      {chart && (
-        <div className="mt-3 flex h-11 items-end gap-1">
-          {[40, 65, 50, 80, 60, 95].map((h, i) => (
-            <Skeleton key={i} className="flex-1 rounded-t-[2px] rounded-b-none" style={{ height: `${h}%` }} />
-          ))}
-        </div>
-      )}
+      {delta && <Skeleton className="mt-3 h-8 w-full rounded-[6px]" />}
     </>
   )
 }
