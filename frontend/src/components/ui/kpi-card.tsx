@@ -39,25 +39,42 @@ function toneStyle(tone: KpiTone) {
   }
 }
 
-/** Whole-card solid fill — for a card whose entire content is the one headline stat (Dashboard's 3 KPI tiles, a simple two-up stat pair). */
+/**
+ * Whole-card solid fill — for a card whose entire content is the one
+ * headline stat (Dashboard's 3 KPI tiles, a simple two-up stat pair).
+ *
+ * `size="lg"` (default) is reserved for the Dashboard's 3 headline KPI
+ * cards specifically, matching this project's own type-scale rule for
+ * `text-hero-lg` (see index.css). Every other use — a secondary stat pair
+ * on Cheques or Salary, not the single most important number on the whole
+ * app — should pass `size="md"`, which uses `text-hero` instead and a
+ * tighter padding/icon size to match. Using "lg" outside the Dashboard is
+ * the exact mistake that made Salary's two cards look oversized.
+ */
 export function KpiCard({
   tone,
   icon: Icon,
   label,
+  size = 'lg',
   className,
   children,
 }: {
   tone: KpiTone
   icon: ComponentType<{ size?: number; strokeWidth?: number }>
   label: string
+  size?: 'lg' | 'md'
   className?: string
   children: ReactNode
 }) {
+  const lg = size === 'lg'
   return (
-    <div className={`relative overflow-hidden rounded-[10px] px-6 pb-6 pt-[22px] shadow-lg transition-shadow duration-150 ${className || ''}`} style={toneStyle(tone)}>
-      <div className="mb-2.5 flex items-center gap-1.5">
-        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-[6px] bg-white/22 text-white">
-          <Icon size={12} strokeWidth={2.4} aria-hidden="true" />
+    <div
+      className={`relative overflow-hidden rounded-[10px] shadow-lg transition-shadow duration-150 ${lg ? 'px-6 pb-6 pt-[22px]' : 'px-5 pb-[18px] pt-4'} ${className || ''}`}
+      style={toneStyle(tone)}
+    >
+      <div className={`flex items-center gap-1.5 ${lg ? 'mb-2.5' : 'mb-2'}`}>
+        <span className={`flex flex-none items-center justify-center rounded-[6px] bg-white/22 text-white ${lg ? 'h-6 w-6' : 'h-5 w-5'}`}>
+          <Icon size={lg ? 12 : 11} strokeWidth={2.4} aria-hidden="true" />
         </span>
         <span className="text-meta font-medium uppercase tracking-wider text-white/85">{label}</span>
       </div>

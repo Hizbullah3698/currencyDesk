@@ -394,9 +394,22 @@ input, select, button, textarea {
   background: var(--color-accent-border);
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+/*
+ * Layered for the same reason as the `a` rule below: several components
+ * (Popover content, DropdownMenuItem, Select item, TopBar's search input)
+ * deliberately override this default with their own `outline-none` /
+ * `focus-visible:outline-none` Tailwind utility — e.g. Radix menu items get
+ * real keyboard focus while arrow-navigating and rely on outline-none so
+ * only their own highlighted-background state shows, not a stray outline
+ * box. Left unlayered, this rule silently won anyway, since an unlayered
+ * rule beats every layered utility regardless of specificity — so those
+ * components could never actually suppress it.
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
 }
 
 /*
