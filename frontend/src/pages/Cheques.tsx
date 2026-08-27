@@ -34,13 +34,11 @@ export function Cheques() {
       <h1 className="m-0 mb-[3px] text-heading font-semibold">Cheques</h1>
       <div className="mb-[26px] text-body font-normal text-muted-60">Inward and outward cheques and where they sit in their lifecycle. A cheque only moves a balance when it clears.</div>
       <div className="mb-5 grid grid-cols-2 gap-5">
-        <KpiCard tone="positive" icon={ArrowDownCircle} label="Inward uncleared" size="md">
+        <KpiCard tone="positive" icon={ArrowDownCircle} label="Inward uncleared" size="md" caption={`${inward.length} — still counted in receivables`}>
           <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(inward.reduce((s, q) => s + q.amount, 0))}</div>
-          <div className="mt-1.5 text-meta font-normal text-white/75">{inward.length} — still counted in receivables</div>
         </KpiCard>
-        <KpiCard tone="negative" icon={ArrowUpCircle} label="Outward uncleared" size="md">
+        <KpiCard tone="negative" icon={ArrowUpCircle} label="Outward uncleared" size="md" caption={`${outward.length} — still counted in payables`}>
           <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(outward.reduce((s, q) => s + q.amount, 0))}</div>
-          <div className="mt-1.5 text-meta font-normal text-white/75">{outward.length} — still counted in payables</div>
         </KpiCard>
       </div>
 

@@ -94,13 +94,11 @@ export function Salary() {
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-5">
-        <KpiCard tone="negative" icon={Banknote} label="Accrued but unpaid" size="md">
+        <KpiCard tone="negative" icon={Banknote} label="Accrued but unpaid" size="md" caption="Salary Payable balance">
           <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(totalOutstanding)}</div>
-          <div className="mt-1.5 text-meta font-normal text-white/75">Salary Payable balance</div>
         </KpiCard>
-        <KpiCard tone="accent" icon={WalletCards} label="Accrued to date" size="md">
+        <KpiCard tone="accent" icon={WalletCards} label="Accrued to date" size="md" caption={`${emps.length} employee${emps.length === 1 ? '' : 's'} on file`}>
           <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(totalAccrued)}</div>
-          <div className="mt-1.5 text-meta font-normal text-white/75">{emps.length} employee{emps.length === 1 ? '' : 's'} on file</div>
         </KpiCard>
       </div>
 

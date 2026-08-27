@@ -50,11 +50,27 @@ function toneStyle(tone: KpiTone) {
  * app — should pass `size="md"`, which uses `text-hero` instead and a
  * tighter padding/icon size to match. Using "lg" outside the Dashboard is
  * the exact mistake that made Salary's two cards look oversized.
+ *
+ * Height is entirely content-driven — there is no min-height here and never
+ * should be. The card previously *looked* like it had one because the
+ * padding was generous and, more importantly, asymmetric: the caption's own
+ * line-leading stacked on top of the bottom padding, so the band of colour
+ * under the last line read noticeably deeper than the gap above the label.
+ * The bottom padding is therefore intentionally a couple of px SHORTER than
+ * the top, which lands them optically equal once that leading is accounted
+ * for. Adjust the two together if you change them at all.
+ *
+ * The caption is a prop rather than something each page appends to
+ * `children`, because when pages owned it they drifted apart (Dashboard was
+ * on mt-2.5, Cheques and Salary on mt-1.5) and the spacing could only be
+ * fixed screen-by-screen. Owning it here makes the rhythm identical
+ * everywhere by construction.
  */
 export function KpiCard({
   tone,
   icon: Icon,
   label,
+  caption,
   size = 'lg',
   className,
   children,
@@ -62,6 +78,8 @@ export function KpiCard({
   tone: KpiTone
   icon: ComponentType<{ size?: number; strokeWidth?: number }>
   label: string
+  /** One supporting line under the figure. Keep it to a single line. */
+  caption?: ReactNode
   size?: 'lg' | 'md'
   className?: string
   children: ReactNode
@@ -69,16 +87,17 @@ export function KpiCard({
   const lg = size === 'lg'
   return (
     <div
-      className={`relative overflow-hidden rounded-panel shadow-lg transition-shadow duration-150 ${lg ? 'px-6 pb-6 pt-[22px]' : 'px-5 pb-[18px] pt-4'} ${className || ''}`}
+      className={`relative overflow-hidden rounded-panel shadow-lg transition-shadow duration-150 ${lg ? 'px-6 pb-[17px] pt-[19px]' : 'px-5 pb-[11px] pt-[13px]'} ${className || ''}`}
       style={toneStyle(tone)}
     >
-      <div className={`flex items-center gap-1.5 ${lg ? 'mb-2.5' : 'mb-2'}`}>
+      <div className={`flex items-center gap-1.5 ${lg ? 'mb-2' : 'mb-1.5'}`}>
         <span className={`flex flex-none items-center justify-center rounded-control bg-white/22 text-white ${lg ? 'h-6 w-6' : 'h-5 w-5'}`}>
           <Icon size={lg ? 12 : 11} strokeWidth={2.4} aria-hidden="true" />
         </span>
         <span className="text-meta font-medium uppercase tracking-wider text-white/85">{label}</span>
       </div>
       {children}
+      {caption && <div className={`text-meta font-normal text-white/75 ${lg ? 'mt-2' : 'mt-1'}`}>{caption}</div>}
     </div>
   )
 }

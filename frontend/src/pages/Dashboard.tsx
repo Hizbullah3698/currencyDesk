@@ -80,24 +80,28 @@ export function Dashboard() {
           </>
         ) : (
           <>
-            <KpiCard tone="inflow" icon={ArrowUpFromLine} label="Sales today">
+            <KpiCard tone="inflow" icon={ArrowUpFromLine} label="Sales today" caption={`${stats.salesCount} sales booked`}>
               <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.salesValue)}</div>
-              <div className="mt-2.5 text-meta font-normal text-white/75">{stats.salesCount} sales booked</div>
             </KpiCard>
-            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today">
+            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today" caption="Cost of AED taken in today">
               <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.purchasesValue)}</div>
-              <div className="mt-2.5 text-meta font-normal text-white/75">Cost of AED taken in today</div>
             </KpiCard>
-            <KpiCard tone={stats.net >= 0 ? 'positive' : 'negative'} icon={Wallet} label="Net cash movement">
+            <KpiCard
+              tone={stats.net >= 0 ? 'positive' : 'negative'}
+              icon={Wallet}
+              label="Net cash movement"
+              caption={
+                <span className="tabular">
+                  In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
+                </span>
+              }
+            >
               <div className="tabular flex items-center gap-2 text-hero-lg font-semibold tracking-tight text-white">
                 {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
                 {stats.net >= 0 ? '+' : '−'}
                 {/* Magnitude counts up once on first load; the sign and icon above stay
                     driven by the real value so direction never flickers mid-count. */}
                 {fmt(netCountUp)}
-              </div>
-              <div className="tabular mt-2.5 text-meta font-normal text-white/75">
-                In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
               </div>
             </KpiCard>
           </>
@@ -252,15 +256,17 @@ export function Dashboard() {
   )
 }
 
+// Padding/margins mirror KpiCard's `lg` size exactly, so the tiles don't change
+// height when real data replaces the skeleton.
 function StatTileSkeleton() {
   return (
-    <Card variant="flat" className="border border-border px-6 pb-6 pt-[22px] shadow-md">
-      <div className="mb-2.5 flex items-center gap-1.5">
+    <Card variant="flat" className="border border-border px-6 pb-[17px] pt-[19px] shadow-md">
+      <div className="mb-2 flex items-center gap-1.5">
         <Skeleton className="h-6 w-6 rounded-control" />
         <Skeleton className="h-2.5 w-24" />
       </div>
       <Skeleton className="h-9 w-36" />
-      <Skeleton className="mt-2.5 h-2.5 w-28" />
+      <Skeleton className="mt-2 h-2.5 w-28" />
     </Card>
   )
 }
