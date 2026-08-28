@@ -10,6 +10,7 @@
     "migrate": "cross-env NODE_OPTIONS=--conditions=development tsx src/db/migrate.ts",
     "seed:demo": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/seedDemo.ts",
     "create-user": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/createUser.ts",
+    "set-username": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/setUsername.ts",
     "pretest": "cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test NODE_OPTIONS=--conditions=development tsx src/scripts/setupTestDb.ts && cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test NODE_OPTIONS=--conditions=development tsx src/db/migrate.ts",
     "test": "cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test vitest run"
   },
