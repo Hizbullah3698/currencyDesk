@@ -22,14 +22,18 @@ const loginLimiter = rateLimit({
 })
 
 authRouter.post('/login', loginLimiter, async (req, res) => {
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : ''
+  // Accepts `identifier` (email or username). `email` is still read as a fallback so an
+  // older cached frontend bundle keeps working against a newly deployed backend — the two
+  // are deployed separately, so they are briefly out of step on every release.
+  const raw = typeof req.body?.identifier === 'string' ? req.body.identifier : typeof req.body?.email === 'string' ? req.body.email : ''
+  const identifier = raw.trim()
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
-  if (!email || !password) {
-    res.status(400).json({ error: 'Email and password are required.' })
+  if (!identifier || !password) {
+    res.status(400).json({ error: 'Username and password are required.' })
     return
   }
 
-  const result = await attemptLogin(email, password)
+  const result = await attemptLogin(identifier, password)
   if (!result.ok) {
     res.status(result.status).json({ error: result.error })
     return

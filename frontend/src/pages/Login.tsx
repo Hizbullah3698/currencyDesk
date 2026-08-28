@@ -7,7 +7,8 @@ import { Logo } from '@/components/layout/Logo'
 
 export function Login() {
   const { login } = useAuth()
-  const [email, setEmail] = useState('')
+  // Either a username or an email address — the backend resolves whichever it is.
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -16,7 +17,7 @@ export function Login() {
     e.preventDefault()
     setSubmitting(true)
     setError('')
-    const result = await login(email, password)
+    const result = await login(identifier, password)
     if (!result.ok) setError(result.error || 'Sign in failed.')
     setSubmitting(false)
   }
@@ -34,12 +35,15 @@ export function Login() {
           <div className="mb-[18px] text-body font-normal text-muted-60">Use your desk account to continue.</div>
 
           <form onSubmit={onSubmit}>
-            <label className="mb-[5px] block text-meta font-semibold uppercase tracking-wide text-muted-60">Email or username</label>
+            <label className="mb-[5px] block text-meta font-semibold uppercase tracking-wide text-muted-60">Username or email</label>
             <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@currencydesk.pk"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="admin"
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               className="mb-[13px] h-[34px] text-body"
             />
 
