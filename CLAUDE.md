@@ -297,13 +297,12 @@ These are load-bearing and regression-tested; don't relax them.
   written into the session.
 - **`requireAdmin` trusts the role cached in the session at login time** and never re-queries
   `users`. A role change or deactivation takes effect on that user's *next* login.
-- **CSRF is not implemented, and its original justification no longer holds.** It was: routes are
-  POST-only and `SameSite=Lax` blocks the cookie cross-site. Production now runs `SameSite=None`
-  (it has to — two origins), which does *not* block cross-site sends. What actually protects the
-  app today is the CORS allowlist plus the fact that a JSON `Content-Type` forces a preflight.
-  That is incidental, not designed. **This is the highest-priority open item in the codebase** —
-  read "Known Limitations" → CSRF before adding any route, relaxing `express.json()`, or widening
-  `FRONTEND_ORIGIN`.
+- **CSRF protection is mid-rollout — currently at stage 1 of 3.** A session-bound synchroniser
+  token exists (`middleware/csrf.ts`): it is minted at login and lazily on `/me`, returned in the
+  response body, and validated when a request sends it as `X-CSRF-Token`. **A missing token is
+  still allowed and logged** until `CSRF_ENFORCE=true`. See "Known Limitations" → CSRF for the
+  remaining stages and why they must not be collapsed. Read that before adding any route,
+  relaxing `express.json()`, or widening `FRONTEND_ORIGIN`.
 - `config/env.ts` throws on startup if `DATABASE_URL` or `SESSION_SECRET` is missing. Keep it
   failing fast; don't add a silent fallback for either.
 
@@ -726,50 +725,67 @@ per-deal margin served to the Operator role — **have since been fixed**; both 
 that were confirmed to fail against the old code before the fix went in. What follows is what is
 genuinely still open.
 
-### CSRF is the one that actually matters
+### CSRF — mid-rollout, stage 1 of 3 shipped
 
-**Assessment: the CORS allowlist alone is not sufficient, and this should be fixed before the app
-handles real customer money.** Concretely:
+**Why it was needed.** In production the session cookie is `SameSite=None; Secure`, because the
+two tiers are on separate origins. `SameSite=None` means the browser *does* attach the session
+cookie to cross-site requests, so the codebase's original justification ("routes are POST-only and
+`SameSite=Lax` blocks cross-site POSTs") — sound when written — no longer describes the deployed
+configuration.
 
-- In production the session cookie is `SameSite=None; Secure`, because the frontend and backend
-  are separate Vercel projects on different origins. `SameSite=None` means **the browser attaches
-  the session cookie to cross-site requests**. The original CSRF justification in this codebase —
-  "`SameSite=Lax` blocks the cookie on cross-site POSTs" — was sound when it was written and is
-  simply no longer true of the deployed configuration.
-- What still stands between a hostile page and an authenticated request is CORS. That is real but
-  narrower than it looks. CORS reliably stops an attacker **reading** a cross-origin response.
-  Whether it stops the request being **made and committed** depends on the request being
-  preflighted. Every mutating route here is `POST` with `Content-Type: application/json`, which is
-  not a CORS-simple content type, so browsers do send a preflight, the allowlist rejects the
-  origin, and the request never lands. So today the app is *probably* not exploitable.
-- "Probably not exploitable, for a reason nobody wrote down" is a bad place for a financial ledger
-  to sit. The protection is incidental to a `Content-Type` choice rather than deliberate. It
-  breaks the moment anyone adds a route that accepts form-encoded or `text/plain` bodies, relaxes
-  `express.json()`, adds a `GET` that mutates, widens `FRONTEND_ORIGIN` to something pattern-like,
-  or introduces a subdomain an XSS could speak from. None of those are exotic changes, and none
-  would produce a failing test or an obvious review flag — the app would just quietly become
-  vulnerable.
-- Impact if it does break: an authenticated Admin visiting a hostile page could have journal
-  entries posted, salaries paid, or accounts deleted under their own session. Those are real,
-  hard-to-reverse money movements, and the activity log would attribute every one of them to the
-  Admin, so it would not even read as an attack afterward.
+What had been holding the line since was incidental rather than designed: every mutating route
+takes `Content-Type: application/json`, which is not CORS-simple, so browsers preflight and the
+origin allowlist rejects it. That breaks the moment anyone adds a form-encoded or `text/plain`
+route, relaxes `express.json()`, adds a mutating `GET`, widens `FRONTEND_ORIGIN` to something
+pattern-like, or introduces a subdomain an XSS could speak from — none of which would fail a test
+or look wrong in review. The impact if it broke: an authenticated Admin visiting a hostile page
+could have journal entries posted, salaries paid or accounts deleted under their own session, with
+the activity log attributing every one to them.
 
-**Recommendation: implement double-submit cookie CSRF protection.** It suits this stack better
-than synchroniser tokens — the session store stays untouched, it survives the serverless model
-where no instance holds per-session state in memory, and it is roughly: issue a random value in a
-readable (non-httpOnly) cookie at login, have the frontend's fetch helper echo it in an
-`X-CSRF-Token` header (one change, in `store.tsx`'s `apiCall` and `authClient.ts`), and reject any
-mutating request where the two don't match. The cross-origin setup needs the cookie readable by
-the frontend origin, so in this two-Vercel-project topology the token is better returned in the
-login *response body* and held in memory by the SPA, with the header compared against a
-server-side session field — which is a synchroniser token in practice and avoids the readable-
-cookie problem entirely. Either way it is a contained change, well under a day, and it removes the
-dependency on a `Content-Type` side effect.
+**The design.** A session-bound synchroniser token, not a double-submit cookie. Double-submit
+needs a token in a JS-readable cookie, which across two origins means a readable cross-site
+cookie — the exact awkwardness this deployment has. Instead the token is returned in the
+`/api/auth/login` and `/api/auth/me` response bodies, held in SPA memory, echoed as
+`X-CSRF-Token`, and compared against `req.session.csrfToken` with `crypto.timingSafeEqual`. Binding
+to the server-side session is strictly stronger than double-submit: a subdomain that could write
+cookies still cannot forge it.
 
-I have not implemented it in this pass because it changes the auth contract between two separately
-deployed tiers, and shipping a token check to the backend before the frontend sends the header
-would lock every user out — it needs a deliberate two-step rollout (accept-and-ignore, then
-enforce), which is a decision about deploy sequencing, not a code change I should make unilaterally.
+`issueCsrfToken()` mints lazily, and **`/me` returns it too, not just `/login`**. That is
+load-bearing: `/me` is the only call a returning user makes on boot, so it is how a session created
+before this middleware shipped acquires a token. Without it, stage 3 would sign out every such user.
+
+**The rollout — three deploys, deliberately not collapsed:**
+
+| Stage | Change | Status |
+|---|---|---|
+| 1 | Backend issues the token and validates it *when sent*; a missing token is allowed and logged | **Shipped** |
+| 2 | Frontend sends `X-CSRF-Token` on every mutating request | Not started |
+| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | Not started |
+
+Each stage must be confirmed live in production before the next begins. Collapsing 1+3, or running
+3 before 2 has fully propagated, locks out every user whose browser still holds a cached
+pre-stage-2 bundle — they would be unable to trade, settle, or post anything.
+
+**Stage 3 is an env flag, not a code change**, specifically so the one step that can cause a
+lockout is reverted by flipping a variable rather than shipping a rollback. Only the exact string
+`"true"` enables it, so a typo fails safe (open).
+
+**The gate on starting stage 3** is the stage-1 log line: `[csrf] mutating request with no token:
+METHOD /path`. It must go quiet in production — accounting for cached bundles and any non-browser
+caller — before enforcement is turned on. Without that signal, stage 3 is a guess.
+
+**Current behaviour, and what is already strict.** A *wrong* token is rejected with `403` even at
+stage 1, since nothing legitimate sends the header yet and a mismatch is either a bug or an attack.
+An unauthenticated mutating request is left to `requireAuth` to answer with `401` rather than a
+confusing `403` about a token it could not have had. `/api/auth/login` is exempt because there is
+no session yet to bind a token to — which leaves *login CSRF* (forcing a victim to log in as the
+attacker) open; mitigating that needs a pre-session token for anonymous visitors, noted rather
+than silently ignored.
+
+`csrf.stage1.test.ts` has 11 tests. The load-bearing one is **"STILL ACCEPTS a mutating request
+with no token at all"** — if that starts failing while `CSRF_ENFORCE` is unset, stage 1 has
+silently become stage 3. The flag itself was verified by running that file with
+`CSRF_ENFORCE=true` and confirming exactly one test flips.
 
 ### Everything else
 

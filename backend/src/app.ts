@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler } from 'express'
 import cors from 'cors'
 import { env } from './config/env.js'
 import { sessionMiddleware } from './middleware/session.js'
+import { csrfProtection } from './middleware/csrf.js'
 import { authRouter } from './routes/auth.js'
 import { healthRouter } from './routes/health.js'
 import { stateRouter } from './routes/state.js'
@@ -34,6 +35,11 @@ export function createApp() {
 
   app.use(express.json())
   app.use(sessionMiddleware)
+
+  // After the session (it reads req.session) and before every route, so no route can be added
+  // that forgets it. Stage 1 of a three-stage rollout: validates a token when one is sent, does
+  // not yet require one. See middleware/csrf.ts for the full reasoning and the remaining stages.
+  app.use(csrfProtection)
 
   app.use('/api', healthRouter)
   app.use('/api/auth', authRouter)

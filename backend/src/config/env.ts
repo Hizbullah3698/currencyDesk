@@ -35,4 +35,11 @@ export const env = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  // Stage 3 of the CSRF rollout (see middleware/csrf.ts). While false, a mutating request with no
+  // token is allowed through and logged; while true, it is rejected. Deliberately an env flag
+  // rather than a code change, so enabling it — the one step that can lock every user out if the
+  // frontend rollout is incomplete — can be reverted by flipping one variable rather than by
+  // shipping a rollback. Anything other than the exact string "true" is treated as false, so a
+  // typo fails safe (open) rather than locking the desk out.
+  csrfEnforce: clean(process.env.CSRF_ENFORCE) === 'true',
 }
