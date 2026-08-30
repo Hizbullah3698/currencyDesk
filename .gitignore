@@ -32,3 +32,5 @@ PROJECT_BRIEFING.md
 *.njsproj
 *.sln
 *.sw?
+
+.vercel

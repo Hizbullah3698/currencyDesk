@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '@/lib/store'
-import { fmt } from '@/lib/format'
+import { fmt, fmtLongDate, todayISO } from '@/lib/format'
 import type { SettlementMethod } from '@/lib/types'
 import { BackButton } from '@/components/BackButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 
 const METHODS: SettlementMethod[] = ['Cash', 'Bank', 'Cheque']
@@ -19,6 +20,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
 
   const [step, setStep] = useState<'form' | 'review' | 'done'>('form')
   const [customerId, setCustomerId] = useState(presetCustomerId)
+  const [txnDate, setTxnDate] = useState(todayISO())
   const [custSearch, setCustSearch] = useState('')
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<SettlementMethod>('Bank')
@@ -41,12 +43,16 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   function review() {
     if (!cust) return setError('Select a customer.')
     if (amt <= 0 || amt > outstanding) return setError(`Enter an amount between 1 and the outstanding ${mode === 'receive' ? 'receivable' : 'payable'}.`)
+    // Mirrors Trade.tsx's own pre-check. The server validates this too (routes/txnDate.ts) — this
+    // just catches it before the review step rather than after a round trip.
+    if (!txnDate) return setError('Enter the date this payment was made.')
+    if (txnDate > todayISO()) return setError('The transaction date cannot be in the future — a payment can only be recorded on or after the day it was made.')
     setError('')
     setStep('review')
   }
 
   async function confirm() {
-    const input = { customerId, amount: amt, method, bankId, chqNo, chqBank }
+    const input = { customerId, txnDate, amount: amt, method, bankId, chqNo, chqBank }
     setSubmitting(true)
     const res = mode === 'receive' ? await confirmReceive(input) : await confirmPay(input)
     setSubmitting(false)
@@ -85,6 +91,11 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               <b className={`tabular text-body font-medium tracking-tight ${mode === 'receive' ? 'text-positive-text' : 'text-negative-deep'}`}>{fmt(outstanding)}</b>
             </div>
           )}
+          <div>
+            <label className="mb-1 block text-meta font-semibold text-muted-70">Transaction date</label>
+            <DatePicker value={txnDate} onChange={setTxnDate} placeholder="Payment date" className="h-[34px] w-full justify-start border-border-input text-body" />
+            <div className="mt-0.5 text-meta font-normal text-muted-60">The day the payment was made, not the day it was keyed in.</div>
+          </div>
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Amount {mode === 'receive' ? 'received' : 'paid'} (PKR)</label>
             <Input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" placeholder="0" className="tabular h-[34px] text-body" />
@@ -166,6 +177,10 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
             <div className="flex justify-between">
               <span className="font-normal text-muted-70">Customer</span>
               <b className="font-semibold">{cust.name}</b>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-normal text-muted-70">Transaction date</span>
+              <b className="tabular font-semibold">{fmtLongDate(txnDate)}</b>
             </div>
             <div className="flex justify-between">
               <span className="font-normal text-muted-70">{mode === 'receive' ? 'Receivable' : 'Payable'} (original)</span>

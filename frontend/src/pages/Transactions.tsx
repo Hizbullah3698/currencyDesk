@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { auditLine, relLabel, txnIsOpen } from '@/lib/engine'
-import { fmt } from '@/lib/format'
+import { activityDate, auditLine, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtAmount, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -22,7 +22,12 @@ interface Row {
   detail: string
   status: string
   amount: number
+  /** What the Date column shows: the date the deal was struck for a trade (activityDate), the
+   *  row's own timestamp for a cheque or journal entry, which have no separate deal date. */
   date: string
+  /** What the list is ORDERED by — always the posting timestamp, so the list reads as the order
+   *  things were actually keyed in and a backdated deal doesn't silently jump the queue. */
+  sortT: number
   audit: string
   customerId: string | null
 }
@@ -37,8 +42,25 @@ export function Transactions() {
       const meta = ACTIVITY_META[t.type]
       const cheque = t.chequeId ? state.cheques.find((q) => q.id === t.chequeId) : undefined
       const status = cheque ? cheque.status : txnIsOpen(t, state.accounts) ? 'Open' : 'Settled'
-      const detail = t.type === 'sale' || t.type === 'purchase' ? `${t.amount?.toLocaleString('en-US')} ${t.currency} @ ${t.rate} · ${t.method}` : `via ${t.method}`
-      return { id: t.id, ref: t.id.toUpperCase(), type: t.type === 'sale' || t.type === 'purchase' ? t.type : 'payment', meta, who: t.customerName, detail, status, amount: t.pkrValue, date: t.createdAt, audit: auditLine(t), customerId: t.customerId }
+      const code = t.currency || 'AED'
+      // Rates print in the traded currency's own quote convention (PKR per 1 AED, but IRR per 1
+      // PKR) — never as a bare stored number, which is meaningless without the convention.
+      const detail =
+        t.type === 'sale' || t.type === 'purchase' ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)} · ${t.method}` : `via ${t.method}`
+      return {
+        id: t.id,
+        ref: t.id.toUpperCase(),
+        type: t.type === 'sale' || t.type === 'purchase' ? t.type : 'payment',
+        meta,
+        who: t.customerName,
+        detail,
+        status,
+        amount: t.pkrValue,
+        date: activityDate(t),
+        sortT: stampTime(t.createdAt),
+        audit: auditLine(t),
+        customerId: t.customerId,
+      }
     })
     const chequeRows: Row[] = state.cheques.map((q) => ({
       id: q.id,
@@ -50,6 +72,7 @@ export function Transactions() {
       status: q.status,
       amount: q.amount,
       date: q.createdAt,
+      sortT: stampTime(q.createdAt),
       audit: auditLine(q),
       customerId: q.customerId,
     }))
@@ -63,17 +86,18 @@ export function Transactions() {
       status: 'Posted',
       amount: e.amount,
       date: e.createdAt,
+      sortT: stampTime(e.createdAt),
       audit: auditLine(e),
       customerId: null,
     }))
-    const all = [...txnRows, ...chequeRows, ...journalRows].sort((a, b) => +new Date(b.date) - +new Date(a.date))
+    const all = [...txnRows, ...chequeRows, ...journalRows].sort((a, b) => b.sortT - a.sortT)
     if (filter === 'all') return all
     if (filter === 'sale') return all.filter((r) => r.type === 'sale')
     if (filter === 'purchase') return all.filter((r) => r.type === 'purchase')
     if (filter === 'payment') return all.filter((r) => r.type === 'payment')
     if (filter === 'cheque') return all.filter((r) => r.type === 'cheque')
     return all.filter((r) => r.type === 'journal')
-  }, [state.activity, state.cheques, state.journalEntries, filter])
+  }, [state.activity, state.accounts, state.cheques, state.journalEntries, filter])
 
   const chips: { key: Filter; label: string }[] = [
     { key: 'all', label: 'All' },

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer, Pencil, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { auditLine, relLabel, txnIsOpen } from '@/lib/engine'
-import { fmt } from '@/lib/format'
+import { activityDate, auditLine, relLabel, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtAmount, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, statusMeta } from '@/lib/ui-helpers'
 import { BackButton } from '@/components/BackButton'
 import { PrintHeader } from '@/components/PrintHeader'
@@ -210,7 +210,9 @@ export function CustomerDetail() {
           const statusLabel = cheque ? cheque.status : txnIsOpen(t, state.accounts) ? 'Open' : 'Settled'
           const status = statusMeta(statusLabel)
           const StatusIcon = status.icon
-          const detail = t.type === 'sale' || t.type === 'purchase' ? `${t.amount?.toLocaleString('en-US')} ${t.currency} @ ${t.rate}` : `via ${t.method}`
+          const code = t.currency || 'AED'
+          // Which currency, how much, and the rate in that currency's own quote convention.
+          const detail = t.type === 'sale' || t.type === 'purchase' ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)}` : `via ${t.method}`
           return (
             <div key={t.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex min-w-[102px] items-center gap-1.5">
@@ -227,7 +229,11 @@ export function CustomerDetail() {
                 </Badge>
               </div>
               <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(t.pkrValue)}</div>
-              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60">{relLabel(t.createdAt)}</div>
+              {/* The deal date, not the keyed-in date — a backdated purchase reads as the day it
+                  was actually struck on the customer's own statement. */}
+              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60" title={auditLine(t)}>
+                {relLabel(activityDate(t))}
+              </div>
             </div>
           )
         })}

@@ -94,6 +94,8 @@ interface StoreCtx {
   confirmPurchase: (input: {
     customerId: string
     currency: string
+    /** 'YYYY-MM-DD' — the date the deal was struck (see Activity.txnDate in the engine types). */
+    txnDate: string
     amount: number
     rate: number
     method: SettlementMethod
@@ -105,6 +107,8 @@ interface StoreCtx {
   confirmSale: (input: {
     customerId: string
     currency: string
+    /** 'YYYY-MM-DD' — the date the deal was struck (see Activity.txnDate in the engine types). */
+    txnDate: string
     amount: number
     rate: number
     method: SettlementMethod
@@ -113,8 +117,26 @@ interface StoreCtx {
     chqNo: string
     chqBank: string
   }) => Promise<{ ok: boolean; error?: string }>
-  confirmReceive: (input: { customerId: string; amount: number; method: SettlementMethod; bankId: string; chqNo: string; chqBank: string }) => Promise<{ ok: boolean; error?: string }>
-  confirmPay: (input: { customerId: string; amount: number; method: SettlementMethod; bankId: string; chqNo: string; chqBank: string }) => Promise<{ ok: boolean; error?: string }>
+  confirmReceive: (input: {
+    customerId: string
+    /** 'YYYY-MM-DD' — the day the payment was actually made (see Activity.txnDate in the engine types). */
+    txnDate: string
+    amount: number
+    method: SettlementMethod
+    bankId: string
+    chqNo: string
+    chqBank: string
+  }) => Promise<{ ok: boolean; error?: string }>
+  confirmPay: (input: {
+    customerId: string
+    /** 'YYYY-MM-DD' — the day the payment was actually made (see Activity.txnDate in the engine types). */
+    txnDate: string
+    amount: number
+    method: SettlementMethod
+    bankId: string
+    chqNo: string
+    chqBank: string
+  }) => Promise<{ ok: boolean; error?: string }>
 
   postJournal: (input: { debitAccount: string; debitAmount: number; creditAccount: string; creditAmount: number; narration: string }) => Promise<string>
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, AlertTriangle, Printer, TrendingUp, TrendingDown } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { rangeBounds, isToday } from '@/lib/engine'
+import { rangeBounds, currencyName } from '@/lib/engine'
 import { computeIncomeStatement } from '@/lib/reports'
 import { fmt } from '@/lib/format'
 import type { ReportPreset } from '@/lib/types'
@@ -30,11 +30,6 @@ export function IncomeStatement() {
   const result = useMemo(
     () => computeIncomeStatement(state.accounts, state.activity, state.journalEntries, state.stocks, bounds.fromT, bounds.toT),
     [state.accounts, state.activity, state.journalEntries, state.stocks, bounds.fromT, bounds.toT],
-  )
-
-  const todayMargin = useMemo(
-    () => state.activity.filter((t) => t.type === 'sale' && isToday(t.createdAt)).reduce((s, t) => s + (t.margin || 0), 0),
-    [state.activity],
   )
 
   function pick(key: ReportPreset) {
@@ -143,7 +138,9 @@ export function IncomeStatement() {
         {result.currencyRows.map((cur) => (
           <div key={cur.code} className="flex items-center gap-2.5 border-b border-divider bg-surface-sunken py-2 pl-[26px] pr-[13px] transition-colors duration-150 hover:bg-surface-hover">
             <div className="flex-1">
-              <div className="text-body font-medium">{cur.code} desk</div>
+              <div className="text-body font-medium">
+                {currencyName(cur.code)} ({cur.code}) desk
+              </div>
               <div className="text-meta font-normal text-muted-60">{cur.sub}</div>
             </div>
             <div className="flex min-w-[150px] justify-end">
@@ -232,10 +229,11 @@ export function IncomeStatement() {
       )}
 
       <div className="mt-2 text-meta font-normal leading-relaxed text-muted-60">
-        PKR and AED are never blended into one figure — each currency desk's margin is computed and shown separately above.
+        Every traded currency is kept on its own desk line above and never blended into another — each desk's margin is computed separately, from that currency's own quantities and its own
+        weighted-average cost. Only the PKR results are added together, on the Gross Profit line.
       </div>
       <div className="mt-2 text-meta font-normal leading-relaxed text-muted-60">
-        Overview's "Margin today" shows {fmt(todayMargin)} — the same margin data filtered to today only, so it is a subset of Gross Profit above, not a different figure.
+        Deals are counted by their transaction date, not the date they were keyed in — a backdated purchase or sale falls in the period it was actually struck in.
       </div>
     </div>
   )

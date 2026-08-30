@@ -1,7 +1,9 @@
 import type { Pool } from 'pg'
 import { hashPassword } from '../services/authService.js'
 
-/** Wipes the five business tables back to exactly migration 008's seed state — the same
+/** Wipes the five business tables back to exactly the seed state migrations 008 + 012 leave
+ * behind (eight system accounts, plus the two extra Currency Stock accounts and the AFN/IRR
+ * stock rows 012 adds) — the same
  * TRUNCATE + reseed used to reset the real dev database after a manual verification pass (see
  * CLAUDE.md's "Business-data migration" section), just run before every concurrency test
  * instead of by hand. `users`/`session` are untouched. */
@@ -25,7 +27,23 @@ export async function resetBusinessData(pool: Pool): Promise<void> {
       ('capital', 'Capital', 'Opening Balance / Capital', true, NULL, '')
   `)
   await pool.query("UPDATE accounts SET code = 'AED' WHERE id = 'currency'")
-  await pool.query("INSERT INTO stock_positions (code, available, avg_cost) VALUES ('AED', 0, 0)")
+  // Migration 012 — one Currency Stock account and one stock position per traded currency.
+  await pool.query(`
+    INSERT INTO accounts (id, type, name, is_system, code, notes) VALUES
+      ('currencyAFN', 'Currency Stock', 'Currency stock (AFN)', true, 'AFN',
+         'Quantity and weighted-average cost are derived from the currency ledger.'),
+      ('currencyIRR', 'Currency Stock', 'Currency stock (IRR)', true, 'IRR',
+         'Quantity and weighted-average cost are derived from the currency ledger.')
+  `)
+  await pool.query("INSERT INTO stock_positions (code, available, avg_cost) VALUES ('AED', 0, 0), ('AFN', 0, 0), ('IRR', 0, 0)")
+
+  // Not a business table, but it has to be cleared here for the same reason: the login limiter
+  // (20 attempts / 15 min per IP) is backed by a real Postgres table (migration 010), so its
+  // counts SURVIVE between test runs. Every test file logs in once in its own beforeAll, so a
+  // few consecutive `npm run test` invocations inside one 15-minute window would otherwise start
+  // returning 429 from login and fail every file — an environmental failure that looks exactly
+  // like a real regression. Test database only; see guardTestDatabase.ts.
+  await pool.query('DELETE FROM rate_limit_hits')
 }
 
 /** Idempotent — safe to call once per test file even though `users` is never truncated. */

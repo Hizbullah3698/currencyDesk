@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { relLabel } from '@/lib/engine'
+import { activityDate, relLabel } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { ACTIVITY_META } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
@@ -50,7 +50,7 @@ export function Payments() {
               <div className="min-w-0 flex-1 truncate text-body font-semibold">{t.customerName}</div>
               <div className="min-w-[70px] text-body font-normal text-muted-70">{t.method}</div>
               <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(t.pkrValue)}</div>
-              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60">{relLabel(t.createdAt)}</div>
+              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60">{relLabel(activityDate(t))}</div>
             </div>
           )
         })}

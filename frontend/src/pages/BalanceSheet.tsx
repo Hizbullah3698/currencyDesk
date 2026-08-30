@@ -179,13 +179,19 @@ export function BalanceSheet() {
           {result.balanced ? 'Balanced' : 'Out of balance'}
         </Badge>
         <span className={`text-body font-normal ${result.balanced ? 'text-positive' : 'text-negative'}`}>
-          {result.balanced ? 'Debits and credits agree across the full dataset.' : `Debits and credits differ by ${fmt(Math.abs(result.totalDr - result.totalCr))}.`}
+          {/* Reports `unexplained`, NOT totalDr - totalCr: the totals carry the presentation plug
+              and therefore always agree, which is exactly what made this indicator meaningless. */}
+          {result.balanced
+            ? result.openingStockEquity > 0.5
+              ? 'Debits and credits agree, once opening currency stock is accounted for.'
+              : 'Debits and credits agree across the full dataset.'
+            : `Debits and credits differ by ${fmt(Math.abs(result.unexplained))} that opening currency stock does not explain.`}
         </span>
       </div>
 
       {result.diags.length > 0 && (
         <Card className="mt-3 overflow-hidden">
-          <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Reconciliation — what the equity plug absorbed</div>
+          <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Reconciliation — what the equity plug absorbed, and why</div>
           {result.diags.map((d, i) => (
             <div key={i} className="flex items-start gap-3 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex-1">

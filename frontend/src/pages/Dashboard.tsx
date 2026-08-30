@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { isToday, stk, stockAsOf, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtNum, fmtRate } from '@/lib/format'
+import { activeCurrencies, activityDate, isToday, stk, stockAsOf, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtAmount, fmtQuote, fmtShortDate } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -19,14 +19,16 @@ export function Dashboard() {
   const navigate = useNavigate()
   const ready = useBootReady()
 
+  // "Today" here is a REPORTING cutoff, so it is cut on the date the deal was struck
+  // (activityDate) rather than the date the row happened to be keyed in.
   const stats = useMemo(() => {
-    const todaySales = state.activity.filter((t) => t.type === 'sale' && isToday(t.createdAt))
-    const todayPurchases = state.activity.filter((t) => t.type === 'purchase' && isToday(t.createdAt))
+    const todaySales = state.activity.filter((t) => t.type === 'sale' && isToday(activityDate(t)))
+    const todayPurchases = state.activity.filter((t) => t.type === 'purchase' && isToday(activityDate(t)))
     const inflow = state.activity
-      .filter((t) => isToday(t.createdAt) && (t.type === 'sale' || t.type === 'receive') && t.method !== 'Cheque' && t.method !== 'Credit')
+      .filter((t) => isToday(activityDate(t)) && (t.type === 'sale' || t.type === 'receive') && t.method !== 'Cheque' && t.method !== 'Credit')
       .reduce((s, t) => s + (t.type === 'sale' ? t.paidNow || 0 : t.amount), 0)
     const outflow = state.activity
-      .filter((t) => isToday(t.createdAt) && (t.type === 'purchase' || t.type === 'pay') && t.method !== 'Cheque' && t.method !== 'Credit')
+      .filter((t) => isToday(activityDate(t)) && (t.type === 'purchase' || t.type === 'pay') && t.method !== 'Cheque' && t.method !== 'Credit')
       .reduce((s, t) => s + (t.type === 'purchase' ? t.paidNow || 0 : t.amount), 0)
     return {
       salesValue: todaySales.reduce((s, t) => s + t.pkrValue, 0),
@@ -42,13 +44,23 @@ export function Dashboard() {
   const uncleared = state.cheques.filter((q) => q.status === 'Pending' || q.status === 'Deposited')
   const unclearedIn = uncleared.filter((q) => q.direction === 'Inward').reduce((s, q) => s + q.amount, 0)
   const unclearedOut = uncleared.filter((q) => q.direction === 'Outward').reduce((s, q) => s + q.amount, 0)
-  const aed = stk(state.stocks, 'AED')
   const startOfTodayT = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
     return d.getTime()
   }, [])
-  const stockDelta = useMemo(() => aed.available - stockAsOf('AED', state.stocks, state.activity, startOfTodayT - 1).available, [aed.available, state.stocks, state.activity, startOfTodayT])
+  // One row per currency the desk actually trades — nothing here is AED-specific any more.
+  const codes = useMemo(() => activeCurrencies(state.stocks, state.activity), [state.stocks, state.activity])
+  const stockRows = useMemo(
+    () =>
+      codes.map((code) => {
+        const pos = stk(state.stocks, code)
+        const opening = stockAsOf(code, state.stocks, state.activity, startOfTodayT - 1).available
+        return { code, available: pos.available, avgCost: pos.avgCost, delta: pos.available - opening }
+      }),
+    [codes, state.stocks, state.activity, startOfTodayT],
+  )
+  const movedToday = stockRows.filter((r) => r.delta !== 0)
   // The app's one signature motion moment — see useCountUp's own note.
   const netCountUp = useCountUp(Math.abs(stats.net))
 
@@ -83,7 +95,7 @@ export function Dashboard() {
             <KpiCard tone="inflow" icon={ArrowUpFromLine} label="Sales today" caption={`${stats.salesCount} sales booked`}>
               <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.salesValue)}</div>
             </KpiCard>
-            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today" caption="Cost of AED taken in today">
+            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today" caption="Cost of currency taken in today">
               <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.purchasesValue)}</div>
             </KpiCard>
             <KpiCard
@@ -143,7 +155,10 @@ export function Dashboard() {
                   <div className="w-[88px] flex-none text-body font-medium text-ink">{meta.label}</div>
                   <div className="min-w-[66px] flex-1 overflow-hidden">
                     <div className="truncate text-body font-semibold">{row.customerName}</div>
-                    <div className="text-meta font-normal text-muted-60">{new Date(row.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                    <div className="text-meta font-normal text-muted-60">
+                      {row.type === 'purchase' || row.type === 'sale' ? `${fmtAmount(row.amount || 0, row.currency || 'AED')} ${row.currency || 'AED'} · ` : ''}
+                      {fmtShortDate(activityDate(row))}
+                    </div>
                   </div>
                   <div className="min-w-[66px] flex-none">
                     <Badge variant={status.variant}>
@@ -190,7 +205,7 @@ export function Dashboard() {
                 <span className="flex h-[19px] w-[19px] flex-none items-center justify-center rounded-data" style={{ background: CATEGORY_COLORS.fx.bg, color: CATEGORY_COLORS.fx.color }}>
                   <Coins size={11} strokeWidth={2.2} aria-hidden="true" />
                 </span>
-                <span className="text-body font-semibold tracking-tight">AED stock</span>
+                <span className="text-body font-semibold tracking-tight">Currency stock</span>
               </div>
               <button onClick={() => navigate('/stock')} className="cursor-pointer text-meta font-medium text-accent transition-colors duration-150 hover:text-accent-hover">
                 Details →
@@ -200,36 +215,45 @@ export function Dashboard() {
               <SideCardSkeleton delta />
             ) : (
               <>
-                <div className="tabular text-heading font-semibold tracking-tight">{fmtNum(aed.available)}</div>
-                <div className="mt-2 flex gap-4 border-t border-divider pt-2">
-                  <div>
-                    <div className="text-meta font-medium uppercase tracking-wide text-muted-60">Avg cost</div>
-                    <div className="tabular text-body font-medium">{fmtRate(aed.avgCost)}</div>
-                  </div>
-                  <div>
-                    <div className="text-meta font-medium uppercase tracking-wide text-muted-60">Inventory value</div>
-                    <div className="tabular text-body font-medium">{fmt(aed.available * aed.avgCost)}</div>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 rounded-control bg-surface-sunken px-2.5 py-2 text-meta font-normal text-muted-70">
-                  {stockDelta === 0 ? (
-                    <>
+                {stockRows.length === 0 ? (
+                  <div className="text-body font-normal text-muted-60">No currency positions yet.</div>
+                ) : (
+                  stockRows.map((r, i) => (
+                    <div key={r.code} className={`flex items-baseline justify-between gap-2 py-1.5 ${i > 0 ? 'border-t border-divider' : ''}`}>
+                      <div>
+                        <div className="text-body font-semibold">{r.code}</div>
+                        {/* Avg cost is stored canonically as PKR-per-unit; fmtQuote puts it back
+                            into this currency's own convention (IRR per 1 PKR for IRR). */}
+                        <div className="text-meta font-normal text-muted-60">@ {fmtQuote(r.code, r.avgCost)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="tabular text-body font-semibold">{fmtAmount(r.available, r.code)}</div>
+                        <div className="tabular text-meta font-normal text-muted-60">{fmt(r.available * r.avgCost)}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div className="mt-3 flex flex-col gap-1 rounded-control bg-surface-sunken px-2.5 py-2 text-meta font-normal text-muted-70">
+                  {movedToday.length === 0 ? (
+                    <div className="flex items-center gap-1.5">
                       <Minus size={12} strokeWidth={2.4} className="flex-none text-muted-42" aria-hidden="true" />
                       No change in stock today
-                    </>
+                    </div>
                   ) : (
-                    <>
-                      {stockDelta > 0 ? (
-                        <ArrowUp size={12} strokeWidth={2.6} className="flex-none text-accent" aria-hidden="true" />
-                      ) : (
-                        <ArrowDown size={12} strokeWidth={2.6} className="flex-none text-accent" aria-hidden="true" />
-                      )}
-                      <span className="tabular font-semibold text-ink">
-                        {stockDelta > 0 ? '+' : '−'}
-                        {fmtNum(Math.abs(stockDelta))} AED
-                      </span>
-                      {stockDelta > 0 ? 'purchased today' : 'sold today'}
-                    </>
+                    movedToday.map((r) => (
+                      <div key={r.code} className="flex items-center gap-1.5">
+                        {r.delta > 0 ? (
+                          <ArrowUp size={12} strokeWidth={2.6} className="flex-none text-accent" aria-hidden="true" />
+                        ) : (
+                          <ArrowDown size={12} strokeWidth={2.6} className="flex-none text-accent" aria-hidden="true" />
+                        )}
+                        <span className="tabular font-semibold text-ink">
+                          {r.delta > 0 ? '+' : '−'}
+                          {fmtAmount(Math.abs(r.delta), r.code)} {r.code}
+                        </span>
+                        {r.delta > 0 ? 'purchased today' : 'sold today'}
+                      </div>
+                    ))
                   )}
                 </div>
               </>

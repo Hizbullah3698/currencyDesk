@@ -79,6 +79,13 @@ export interface Activity {
   id: string
   type: ActivityType
   currency?: string
+  /**
+   * The date the deal was actually struck, 'YYYY-MM-DD', as entered by the dealer (defaults to
+   * today). Distinct from `createdAt`, which is when the row was keyed in. Read it through
+   * `activityDate()` rather than directly — that helper handles both the timezone pinning and
+   * the fallback for rows posted before this field existed.
+   */
+  txnDate?: string
   customerId: string | null
   customerName: string
   amount: number

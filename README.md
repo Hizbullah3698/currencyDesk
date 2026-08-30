@@ -1,71 +1,152 @@
 # Currency Desk
 
-A front-end for running a currency exchange counter — buying and selling foreign currency, tracking customer receivables/payables, managing cheques, running payroll, and closing the books with a balance sheet and income statement.
+Software for running a currency-exchange counter: buying and selling foreign currency against a
+customer, tracking who owes what, moving cheques through their lifecycle, running payroll, posting
+journal entries, and closing the books with a balance sheet and income statement.
 
-This repo is the UI only. It currently runs entirely in the browser (no server, no database yet) and keeps its data in `localStorage`, which makes it fast to try out but not meant for production use as-is.
+It is a full application, not a UI mock — a React front end, an Express/PostgreSQL API, and a
+shared accounting engine both sides compute with. Sign-in is real, and the database is the ledger
+of record.
 
 ## What it does
 
-- **Currency purchase / sale** — buy and sell foreign currency against a customer, with rate, PKR value, and margin calculated automatically. Currency stock is tracked at weighted-average cost, so margin on a sale reflects the real cost of the stock sold, not just the day's rate.
-- **Customer ledger** — every customer carries a running receivable/payable balance, built up from trades, receipts, payments, and cleared cheques. You can view any customer's full statement, or the balance as of a past date.
-- **Cheques** — inward and outward cheques go through Pending → Deposited → Cleared/Returned. The customer's balance only actually moves once a cheque clears, not when it's received.
-- **Accounts / chart of accounts** — customers, banks, cash, currency stock, income, expenses, employees, and payables all live in one accounts list, each with type-appropriate fields. An account's type locks once it's been used in a transaction, so books can't quietly get reclassified after the fact — an admin can still override it if a mistake was made at entry.
-- **Journal entries** — manual double-entry postings for anything that doesn't fit a standard trade or payment.
-- **Salary** — accrue salary per employee per pay period, then settle it out of a bank account. Accrual and payment are always separate entries so you can see what's owed vs. what's been paid.
-- **Reports** — a transaction log with filters, a balance sheet, and an income statement (trading margin by currency plus anything posted through the journal).
-- **Roles** — an Admin role with full access, and an Operator role that's blocked from the journal, salary, and financial reports.
+- **Currency purchase / sale** — buy and sell foreign currency against a customer, with the rate,
+  PKR value and margin worked out as you type. Stock is carried at weighted-average cost, so the
+  margin on a sale reflects what that stock actually cost, not just the day's rate.
+- **Three currencies, quoted the way dealers quote them** — AED, AFN and IRR against PKR. AED and
+  AFN are quoted "PKR per 1 unit" and multiplied; IRR is worth far less than a rupee, so it is
+  quoted "IRR per 1 PKR" and divided, exactly as a dealer would write it. The rate box tells you
+  which convention it wants, and every figure downstream is held in one canonical unit so the two
+  can never be mixed up.
+- **Real transaction dates** — every trade and every payment records the day the deal was actually
+  struck, separately from when it was keyed in. Backdate an entry and it lands in the right
+  reporting period; a future date is refused.
+- **Customer ledger** — each customer carries a running receivable/payable built from trades,
+  receipts, payments and cleared cheques. View a full statement, or the balance as of any past
+  date.
+- **Cheques** — inward and outward cheques run Pending → Deposited → Cleared/Returned. A
+  customer's balance only moves when a cheque actually clears, not when it is received.
+- **Chart of accounts** — customers, banks, cash, currency stock, income, expenses, employees and
+  payables in one list, each with the fields its type needs. An account's type locks once it has
+  been used in a transaction so the books can't be quietly reclassified afterwards; an admin can
+  override that if it was miskeyed at entry. Seven core system accounts can never be retyped or
+  deleted by anyone — that rule is enforced by the database itself, not just the app.
+- **Journal entries** — manual double-entry postings for anything that isn't a standard trade or
+  payment.
+- **Salary** — accrue per employee per period, then pay it out of a bank account. Accrual and
+  payment are always separate entries, so what is owed and what has been paid stay distinguishable.
+- **Reports** — a filterable transaction log, a balance sheet, and an income statement showing
+  trading margin per currency plus anything journalled to income. All of them print properly:
+  fixed light colours regardless of screen theme, tabular figures, and page breaks that don't
+  strand a header or split a total.
+- **Roles** — Admin has full access; Operator can trade, take payments and deposit cheques, but is
+  kept out of the journal, salary, financial reports, and the desk's own cost and profit figures.
+  That split is enforced by the server, not just hidden in the UI.
 
 ## Tech stack
 
-- [React 19](https://react.dev/) + TypeScript
-- [Vite](https://vitejs.dev/) for the dev server and build
-- [Tailwind CSS v4](https://tailwindcss.com/) for styling
-- [React Router](https://reactrouter.com/) for routing
-- [Radix UI](https://www.radix-ui.com/) primitives for dialogs, selects, tabs, tooltips, etc.
-- [Recharts](https://recharts.org/) for the dashboard charts
-- [Lucide](https://lucide.dev/) for icons
+Three packages in one npm workspaces repo.
+
+| | |
+|---|---|
+| **Front end** (`frontend/`) | React 19, TypeScript, Vite 8, Tailwind CSS v4, React Router 7, Radix UI primitives, Recharts, Lucide icons |
+| **Back end** (`backend/`) | Node + Express, PostgreSQL 16 (`pg`, no ORM), `express-session` with a Postgres-backed store, bcryptjs |
+| **Shared** (`packages/engine/`) | `@currencydesk/engine` — the accounting math and domain types, imported by both sides so the client and server can never disagree about how a number is worked out |
+| **Tests** | Vitest — engine unit tests, backend integration tests against a real throwaway Postgres database, and frontend report-math tests |
 
 ## Getting started
 
+You'll need Node and Docker (for Postgres).
+
 ```bash
+# 1. Install — MUST be from the repo root, so the workspaces link up
 npm install
-npm run dev
+
+# 2. Database + backend, from inside backend/
+cd backend
+docker compose up -d          # local Postgres 16
+cp .env.example .env          # first time only
+npm run migrate               # create the schema; safe to re-run
+npm run seed:demo             # creates two logins and prints their passwords
+
+# 3. Run both servers, from the repo root
+cd ..
+npm run dev:all
 ```
 
-The app runs at `http://localhost:5173`. Sign in with anything — it's a demo login, and there are "Continue as Admin" / "Continue as User" buttons to try both roles.
+The app is then at **http://localhost:5173** and the API at **http://localhost:3001**.
 
-Other scripts:
+`npm run seed:demo` prints the credentials it created — an admin and an operator account. There is
+no sign-up screen by design; accounts are created from the command line:
 
 ```bash
-npm run build     # type-check and build for production
-npm run preview   # preview the production build locally
-npm run lint       # lint with oxlint
+npm run create-user -- --email you@example.com --password '…' --role admin --name "Your Name"
+npm run set-username          # give an existing account a username to log in with
+npm run set-password          # reset an existing account's password
 ```
+
+You can sign in with either a username or an email address.
+
+## Other commands
+
+```bash
+npm run test                  # from the repo root — runs all three suites
+npm run dev:all               # frontend + backend together
+
+# inside frontend/
+npm run dev                   # Vite dev server alone
+npm run build                 # type-check and build for production
+npm run preview               # preview the production build
+npm run lint                  # oxlint
+npm run test                  # frontend unit tests
+
+# inside backend/
+npm run dev                   # Express with reload
+npm run build && npm start    # production build and run
+npm run migrate               # apply pending migrations
+npm run test                  # integration tests (creates its own test database)
+```
+
+The backend's tests create and use a **separate** `currencydesk_test` database and refuse to run
+against anything whose connection string doesn't say `_test`. Always run them via `npm run test`
+rather than invoking `vitest` directly.
 
 ## Project layout
 
 ```
-src/
-├── App.tsx              # routes and the admin-only route guard
-├── index.css             # design tokens (colors, light/dark) and Tailwind entry
-├── components/
-│   ├── layout/            # app shell, sidebar, top bar
-│   └── ui/                 # button, dialog, select, tabs, etc.
-├── lib/
-│   ├── store.tsx           # app state + every state-changing action
-│   ├── engine.ts            # the actual accounting logic — pure functions
-│   ├── reports.ts            # report helpers
-│   ├── seed.ts                # demo data
-│   └── types.ts                # shared TypeScript types
-└── pages/                # one file per screen
+├── packages/engine/     @currencydesk/engine — accounting math + domain types, shared
+│   └── src/               engine.ts, currencies.ts, types.ts
+├── frontend/
+│   └── src/
+│       ├── App.tsx          routes and the admin-only guard
+│       ├── index.css         design tokens (light/dark/print), Tailwind entry
+│       ├── components/       layout, Radix-based ui primitives, charts
+│       ├── lib/              store.tsx (API client + app state), auth, reports, formatting
+│       └── pages/            one file per screen
+└── backend/
+    └── src/
+        ├── routes/           /api/auth, /api/state, trades, settlements, cheques,
+        │                     journal, salary, accounts
+        ├── services/         business logic — one file per route group
+        ├── db/migrations/    schema, applied by a small idempotent runner
+        └── test/             integration tests
 ```
 
-`store.tsx` is the center of the app — it holds all the data (accounts, activity, cheques, journal entries, currency stock) and exposes functions like `confirmSale`, `confirmPurchase`, `postJournal`, `depositCheque`, and `accrueSalary` that validate input and update state. `engine.ts` is where the actual math and rules live (weighted-average cost, margin calculation, balance-as-of-date, cheque numbering) — kept separate from the store so it doesn't depend on React at all.
+## Deployment
 
-## Known limitations
+Both halves deploy to Vercel as two separate projects — the front end as a static SPA, the back
+end as a serverless function — with a managed Postgres behind it. They run on different origins,
+so the API needs `FRONTEND_ORIGIN` set to the front end's URL and the front end needs
+`VITE_API_BASE_URL` set to the API's. Migrations are not applied automatically on deploy; run
+`npm run migrate` against the production database yourself.
 
-- Data is stored in the browser's `localStorage`, not a real database. Clearing site data wipes the books.
-- Login doesn't check a password — it's there to demonstrate the Admin/Operator role split, not to gate real access.
-- No automated tests yet.
+**Before putting real customer money through this, read the "Known Limitations" section of
+`CLAUDE.md`** — most relevantly, CSRF protection is not yet implemented, and the production cookie
+configuration means that gap is worth closing first.
 
-A proper backend (real auth, a database, and an API) is the natural next step before this could be used for real trading.
+## Notes
+
+`CLAUDE.md` in the repo root is the detailed engineering document: architecture, the API surface
+and its guards, transaction and concurrency rules, the currency quote convention, theming rules,
+testing practice, and the current list of known limitations. It is kept current and is the better
+reference if you are changing the code rather than running it.

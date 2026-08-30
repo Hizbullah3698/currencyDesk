@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Lock, X } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { CORE_ACCOUNT_IDS } from '@/lib/engine'
+import { CORE_ACCOUNT_IDS, CURRENCY_LIST } from '@/lib/engine'
 import { ACCOUNT_TYPES } from '@/lib/types'
 import type { Account, AccountType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -166,9 +166,23 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
             </div>
           )}
           {form.type === 'Currency Stock' && (
-            <Field label="Currency code">
-              <Input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="AED" className="tabular h-[34px] text-body" />
-              <div className="mt-1.5 text-meta font-normal text-muted-60">Quantity and weighted-average cost come from the currency ledger.</div>
+            <Field label="Currency">
+              {/* A picker, not free text: this code is what joins the account to a stock_positions
+                  row, so a typo silently values the account against the wrong position and two
+                  accounts sharing a code double-count that stock on the Balance Sheet. The server
+                  rejects both cases too — this just stops them being reachable by hand. */}
+              <select
+                value={form.code}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150"
+              >
+                {CURRENCY_LIST.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} — {c.name}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-1.5 text-meta font-normal text-muted-60">One stock account per traded currency. Quantity and weighted-average cost come from the currency ledger.</div>
             </Field>
           )}
           {mode === 'new' && (form.type === 'Customer' || form.type === 'Payable' || form.type === 'Bank' || form.type === 'Cash') && (

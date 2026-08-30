@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ArrowDownCircle, ArrowUpCircle, Coins, TrendingUp } from 'lucide-react'
+import { Search, ArrowDownCircle, ArrowUpCircle, Coins } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
-import { isToday, stk } from '@/lib/engine'
-import { fmt, fmtNum, fmtRate } from '@/lib/format'
+import { CURRENCIES, activeCurrencies, stk } from '@/lib/engine'
+import { fmt, fmtAmount, fmtQuote } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { CATEGORY_COLORS } from '@/lib/ui-helpers'
@@ -66,14 +66,24 @@ export function TopBar() {
       receivableCount: customers.filter((c) => (c.receivable || 0) > 0).length,
       payable: customers.reduce((s, c) => s + (c.payable || 0), 0),
       payableCount: customers.filter((c) => (c.payable || 0) > 0).length,
-      marginToday: state.activity.filter((t) => t.type === 'sale' && isToday(t.createdAt)).reduce((s, t) => s + (t.margin || 0), 0),
     }
-  }, [state.accounts, state.activity])
-  const aed = stk(state.stocks, 'AED')
+  }, [state.accounts])
 
+  // One strip item per currency the desk actually trades, instead of a hardcoded AED tile. The
+  // strip already scrolls horizontally (overflow-x-auto below), so three desks widen it rather
+  // than wrapping or squeezing the two balance tiles.
+  // On a brand-new desk nothing is "active" yet, so fall back to the full registry rather than
+  // dropping the stock tiles (and their link to /stock) off the strip entirely.
+  const codes = useMemo(() => {
+    const active = activeCurrencies(state.stocks, state.activity)
+    return active.length ? active : CURRENCIES
+  }, [state.stocks, state.activity])
+
+  // The Customers page is search-first now, so hand it the typed query rather than dropping the
+  // user on an empty search box (it reads ?q=).
   function onSearchEnter(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter' || !search.trim()) return
-    navigate('/customers')
+    navigate(`/customers?q=${encodeURIComponent(search.trim())}`)
   }
 
   return (
@@ -122,16 +132,23 @@ export function TopBar() {
           sub={`${totals.payableCount} customers`}
           onClick={() => navigate('/customers?owe=payable')}
         />
-        <StripItem category="fx" icon={Coins} label="AED stock" value={fmtNum(aed.available)} sub={`@ ${fmtRate(aed.avgCost)}`} onClick={() => navigate('/stock')} />
-        <div className="ml-auto flex flex-none items-center gap-2.5 whitespace-nowrap py-2 pl-[18px]">
-          <div className="flex items-center gap-1.5">
-            <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-data" style={{ background: CATEGORY_COLORS.reports.bg, color: CATEGORY_COLORS.reports.color }}>
-              <TrendingUp size={11} strokeWidth={2.2} aria-hidden="true" />
-            </span>
-            <span className="text-meta font-medium uppercase tracking-wide text-muted-70">Margin today</span>
-          </div>
-          <span className="tabular text-body font-semibold text-positive-text">{fmt(totals.marginToday)}</span>
-        </div>
+        {codes.map((code, i) => {
+          const pos = stk(state.stocks, code)
+          return (
+            <StripItem
+              key={code}
+              category="fx"
+              icon={Coins}
+              label={`${code} stock`}
+              value={fmtAmount(pos.available, code)}
+              // The average cost is stored as canonical PKR-per-unit; fmtQuote puts it back into
+              // this currency's own convention so IRR reads as a real rate, not "0.00".
+              sub={`@ ${fmtQuote(code, pos.avgCost)}`}
+              bordered={i < codes.length - 1}
+              onClick={() => navigate('/stock')}
+            />
+          )
+        })}
       </div>
     </div>
   )

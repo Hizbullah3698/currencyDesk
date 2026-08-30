@@ -103,13 +103,23 @@ export interface ActivityRow {
   cheque_held: boolean
   cheque_id: string | null
   settlement_account_id: string | null
+  /** A Postgres `date`, delivered as the literal 'YYYY-MM-DD' text by the DATE type parser
+   *  registered in db/pool.ts — the same mechanism `cheques.due_date` already relies on. No
+   *  Date object is ever constructed from it, so no timezone shift can occur here. */
+  txn_date: string
   created_at: Date
   created_by: string | null
   updated_at: Date
   updated_by: string | null
 }
 
-export function mapActivityRow(row: ActivityRow, names: UserNameMap): Activity {
+/**
+ * `includeMargin: false` omits the per-deal cost basis and realised margin entirely (the keys are
+ * absent, not zeroed — a zero would read as "this sale made nothing", which is a different and
+ * wrong claim). Both fields are already optional on the engine's `Activity` type, so every
+ * existing `(t.margin || 0)` read degrades correctly. See stateService.ts's `viewForRole`.
+ */
+export function mapActivityRow(row: ActivityRow, names: UserNameMap, includeMargin: boolean): Activity {
   return {
     id: row.id,
     type: row.type,
@@ -119,14 +129,15 @@ export function mapActivityRow(row: ActivityRow, names: UserNameMap): Activity {
     amount: row.amount,
     rate: row.rate ?? undefined,
     pkrValue: row.pkr_value,
-    cost: row.cost ?? undefined,
-    margin: row.margin ?? undefined,
+    cost: includeMargin ? row.cost ?? undefined : undefined,
+    margin: includeMargin ? row.margin ?? undefined : undefined,
     method: row.method,
     paidNow: row.paid_now ?? undefined,
     outstanding: row.outstanding ?? undefined,
     chequeHeld: row.cheque_held,
     chequeId: row.cheque_id ?? undefined,
     settlementAccountId: row.settlement_account_id ?? undefined,
+    txnDate: row.txn_date,
     createdAt: new Date(row.created_at).toISOString(),
     createdBy: resolveActor(row.created_by, names),
     updatedAt: new Date(row.updated_at).toISOString(),

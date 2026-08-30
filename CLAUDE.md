@@ -14,8 +14,8 @@ verbatim between client and server rather than duplicated.
 
 It began as a browser-only demo that kept everything in `localStorage` with a fake login. None
 of that remains: `localStorage` now holds exactly one key, the theme preference. If you find a
-document, comment, or README claiming otherwise, that document is stale — the README at the repo
-root is, as of this writing (see "Known stale documentation").
+comment or document claiming otherwise, it is stale — this file and `README.md` are both current
+as of this writing, and this one is the detailed reference.
 
 ## Repo layout: npm workspaces, three packages
 
@@ -144,8 +144,10 @@ Settings that exist only because of this topology:
   request through `loginLimiter` on Vercel.
 - **`FRONTEND_ORIGIN`** (comma-separated list) enables `cors({ origin, credentials: true })`.
   Unset in local dev, where the Vite proxy makes CORS unnecessary. Never a wildcard — a wildcard
-  can't be combined with `credentials: true` anyway. **Note: `FRONTEND_ORIGIN` is not listed in
-  `backend/.env.example`** even though `env.ts` reads it.
+  can't be combined with `credentials: true` anyway. It is documented (commented out, since it
+  must stay unset locally) in `backend/.env.example`. **It is also the only thing currently
+  standing between a hostile page and a cross-site authenticated request** — see "Known
+  Limitations" → CSRF.
 - **Cookie flags flip on `NODE_ENV=production`**: `secure: true` and `sameSite: 'none'` together,
   because a cross-origin fetch only carries the cookie when it's `SameSite=None`, and browsers
   refuse `SameSite=None` without `secure`. Local dev is plain `http://localhost`, where
@@ -207,12 +209,29 @@ Every mutating endpoint, and `GET /api/state`, returns the identical shape:
 { accounts, activity, cheques, journalEntries, stocks }
 ```
 
-a full, freshly-queried snapshot read with the **same** database client that performed the
-mutation, inside the still-open transaction, immediately before `COMMIT`
+**filtered to the caller's role** (see below), a full, freshly-queried snapshot read with the
+**same** database client that performed the mutation, inside the still-open transaction,
+immediately before `COMMIT`
 (`services/stateService.ts`'s `getSnapshot()`, invoked by `services/transact.ts`'s
 `runMutation()`/`handleMutation()`). This is deliberate: the mutation response *is* the refetch,
 so "the server response is the source of truth" and "refetch after every mutation" collapse into
 one mechanism with no extra round-trip.
+
+**Role filtering is part of the contract, not just a `GET /api/state` concern.** `getSnapshot()`
+takes a required `SnapshotView`; `viewForRole(role)` builds it, and `includeMargin` is true only
+for `'admin'`. Non-admins get every activity row with `cost` and `margin` **omitted** — absent
+keys, not zeros, since a zero would assert "this sale made nothing." Because a mutation response
+*is* a snapshot, filtering only the `GET` would have left the same data flowing straight back out
+of every Operator trade; `handleMutation(res, req, fn)` therefore takes the request and reads the
+role itself, so a route physically cannot forget to pass it and an un-updated call site fails to
+compile. `SnapshotView` is deliberately required rather than defaulted — the original leak came
+from a permissive default nobody had to think about.
+
+What this achieves and what it doesn't is written out on `SnapshotView` in `stateService.ts`:
+purchase/sale rates and current weighted-average cost are still served to every role because the
+trade screens and stock replay genuinely need them, so per-deal profit remains *approximable*.
+This closes the gap between what the UI says is restricted and what the API hands over; it is not
+a cryptographic boundary.
 
 ### Transaction discipline
 
@@ -278,11 +297,13 @@ These are load-bearing and regression-tested; don't relax them.
   written into the session.
 - **`requireAdmin` trusts the role cached in the session at login time** and never re-queries
   `users`. A role change or deactivation takes effect on that user's *next* login.
-- **CSRF is deliberately not implemented.** The justification was: state-changing routes are
-  POST-only and `SameSite=Lax` blocks the cookie on cross-site POSTs. **That justification is now
-  weaker than it was** — production runs `SameSite=None` (see "Deployment"), which does *not*
-  block cross-site sends. The remaining protection is the strict CORS origin allowlist. Treat
-  this as an open item, not a settled decision.
+- **CSRF is not implemented, and its original justification no longer holds.** It was: routes are
+  POST-only and `SameSite=Lax` blocks the cookie cross-site. Production now runs `SameSite=None`
+  (it has to — two origins), which does *not* block cross-site sends. What actually protects the
+  app today is the CORS allowlist plus the fact that a JSON `Content-Type` forces a preflight.
+  That is incidental, not designed. **This is the highest-priority open item in the codebase** —
+  read "Known Limitations" → CSRF before adding any route, relaxing `express.json()`, or widening
+  `FRONTEND_ORIGIN`.
 - `config/env.ts` throws on startup if `DATABASE_URL` or `SESSION_SECRET` is missing. Keep it
   failing fast; don't add a silent fallback for either.
 
@@ -383,11 +404,12 @@ on `txn_date`.
   resolves a bare `'YYYY-MM-DD'` as UTC, which in a negative-offset zone is the previous local
   day. It rejects malformed, roll-over (`2026-02-30`), future, and pre-2000 dates with a clean
   `400`.
-- **The UI currently offers a date picker on trades only, not on settlements.** The
-  `/api/settlements/*` endpoints accept and validate `txnDate` exactly as trades do, and there is
-  an integration test proving it — but `store.tsx`'s `confirmReceive`/`confirmPay` signatures
-  don't include the field, so `Settle.tsx` can't send one and receipts/payments always land on
-  today. Wiring it up is frontend-only work.
+- **All four transaction screens carry a date.** `Trade.tsx` (purchase/sale) and `Settle.tsx`
+  (receive/pay) each render a `DatePicker`, pre-filled with today, and pre-validate "not blank,
+  not in the future" before the review step; the server re-validates regardless. `txnDate` is a
+  required field on `confirmPurchase`/`confirmSale`/`confirmReceive`/`confirmPay` in `store.tsx`,
+  so TypeScript will not let a caller omit it — that is deliberate, since the field going missing
+  is silent (the column just defaults to `CURRENT_DATE`) rather than an error.
 
 ## Frontend
 
@@ -468,6 +490,29 @@ actual boundary**; the UI is the presentation of it.
 There is no client-side role switch. To view the other role, sign out and sign in as the other
 account. Don't reintroduce a "declare yourself admin" affordance — that is exactly what was
 removed when auth became real.
+
+### Balance sheet reconciliation
+
+`computeBalanceSheet()` in `lib/reports.ts` returns `balanced`, `openingStockEquity`, and
+`unexplained`. The distinction matters and is easy to reintroduce a bug into:
+
+- `totalDr`/`totalCr` **include a presentation-only equity plug** on Capital, so they always
+  agree. Never derive "do the books balance?" from them — that was the original defect: the plug
+  was added into the totals and `balanced` was then computed from those same totals, making it a
+  tautology that could essentially never be false, so a real posting error was indistinguishable
+  from the expected opening-stock residual.
+- `openingStockEquity` is the **one** legitimately unjournalled figure: currency stock held before
+  the recorded ledger begins, recovered by unwinding all activity via `openingStock()`. It has no
+  originating purchase to credit against. Opening balances for customers, banks, cash and payables
+  are *not* in this category — `accountsService.createAccount` posts each as a real journal entry
+  against Capital (`opening_for`), so they carry their own credit.
+- `unexplained = (pre-plug difference) − openingStockEquity`, and **`balanced` is judged on that
+  alone.** Anything non-zero is a genuine imbalance, surfaced as an "Unexplained difference" row
+  in the Reconciliation panel and reported in the status banner.
+
+Currency stock is valued with `stockAsOf(code, stocks, activity, asOfT)`, not the live `stk()`
+position. Every other row on the sheet is cut at `asOfT`; valuing stock at today mixed two dates
+and guaranteed a residual on any historical sheet, which the plug then silently absorbed.
 
 ### Key frontend modules
 
@@ -576,9 +621,9 @@ printable report.
 
 ## Testing and Verification
 
-`npm run test` from the repo root fans out to both suites. **54 tests currently pass: 33 engine
-unit tests + 21 backend integration tests across 6 files.** There are **no frontend tests** and
-no CI — `npm run test` is a manual step.
+`npm run test` from the repo root fans out to all three workspaces. **65 tests currently pass: 33
+engine unit tests, 26 backend integration tests across 7 files, and 6 frontend unit tests.** There
+is no CI — `npm run test` is a manual step.
 
 ### `packages/engine` — 33 unit tests, pure functions, no I/O
 
@@ -592,7 +637,7 @@ earlier period), and a **pinned `CORE_ACCOUNT_IDS` regression guard** — that a
 migration `009`'s trigger is generated from, so a silent change here silently changes what the
 database protects.
 
-### `backend` — 21 integration tests, real HTTP against real Postgres
+### `backend` — 26 integration tests, real HTTP against real Postgres
 
 Each file boots a real `http.createServer(createApp())` on an ephemeral port and uses plain
 `fetch` (no supertest).
@@ -605,6 +650,19 @@ Each file boots a real `http.createServer(createApp())` on an ephemeral port and
 | `salaryBulk.concurrency.test.ts` | 6 tests — `accrue-all` batch tolerance, clean `400` when nothing is left, no double-accrual under concurrency, `pay-all` skipping zero balances, and the deterministic serialization the fixed lock order guarantees |
 | `trades.currency.test.ts` | 8 tests — divide-quote valuation and costing, re-weighting against stored PKR-per-unit rather than the typed rate, `txnDate` storage/defaulting/validation on both trades and settlements, unknown-currency rejection, and AED behaving exactly as before the multi-currency change |
 | `accountsAndCheque.regression.test.ts` | 4 tests — blank `bankId` on a Cheque-method purchase resolving the default bank, and the three Currency Stock account validations (duplicate code, untraded currency, case normalization) |
+| `stateMargin.authorization.test.ts` | 5 tests — `cost`/`margin` present for an Admin with the real figures, absent (not zeroed) for an Operator on `GET /api/state`, absent on an Operator's own **mutation response** too, and the fields an Operator still needs (amount/rate/pkrValue/stocks) untouched. Asserts the JSON that crossed the wire, since `undefined` survives on an object but vanishes through `JSON.stringify` |
+
+### `frontend` — 6 unit tests
+
+`src/lib/reports.test.ts`, run via `npm run test` inside `frontend/` (node environment, no jsdom —
+what is under test is pure report math). Covers balance-sheet reconciliation: a freshly-seeded desk
+needing no plug at all; genuine pre-ledger currency stock attributed to opening equity and still
+reporting balanced; a one-legged posting correctly reporting **not** balanced; both conditions
+present at once being reported separately; currency stock valued as of the reporting date rather
+than today; and opening balances for customers/banks *not* being counted as unexplained, because
+`createAccount` journals each one against Capital.
+
+This is the only frontend test file — there is no component, page, or hook coverage.
 
 ### Test database safety
 
@@ -625,8 +683,16 @@ Each file boots a real `http.createServer(createApp())` on an ephemeral port and
 
 ### What automated tests do *not* cover
 
-Every React component, every report page, cheque lifecycle transitions end-to-end, the auth
-routes, and `deleteAccount`'s success path (only the blocked-by-activity path is exercised).
+Every React component and page (including the report pages' rendering — only `reports.ts`'s math is
+covered), cheque lifecycle transitions end-to-end, the auth routes, and `deleteAccount`'s success
+path (only the blocked-by-activity path is exercised).
+
+A useful technique when fixing a bug here, used for both defects closed in this pass: **write the
+test, revert the fix, and confirm the test actually fails** before calling it done. Both the
+margin-leak and balance-sheet tests were checked that way — the margin test failed with `expected
+[…] to not include 'cost'` against the old mapper, and the reconciliation test failed with
+`expected true to be false` against the old tautological `balanced`. A regression test that has
+never been seen to fail is not yet known to test anything.
 
 Correctness there is verified by `tsc -b` (frontend) / `tsc -p tsconfig.json` (backend), `oxlint`,
 and **manual verification in the running app against a real local Postgres**:
@@ -645,82 +711,90 @@ and **manual verification in the running app against a real local Postgres**:
 
 ### Current lint/build status
 
-Verified in this pass: frontend `npm run build` clean, backend `npm run build` clean, `npm run
-test` 54/54 passing. `npm run lint` reports **6 warnings, 0 errors** — four
+Verified in this pass: frontend `npm run build` clean, backend `npm run build` clean (and no test
+files leaking into either `dist/`), `npm run test` 65/65 passing. `npm run lint` reports
+**6 warnings, 0 errors** — four
 `react(only-export-components)` (files exporting both a component and a hook or constant:
 `auth.tsx`, `theme.tsx`, `store.tsx`, `ui/kpi-card.tsx`) and two `react(set-state-in-effect)`
 (`useCountUp.ts`, `store.tsx`). These are pre-existing and accepted, not regressions.
 
 ## Known Limitations and Open Issues
 
-Two of these are known bugs with a real accounting/security consequence, not just missing polish.
+Two defects found in the documentation audit — the self-verifying balance-sheet indicator and the
+per-deal margin served to the Operator role — **have since been fixed**; both are described under
+"Balance sheet reconciliation" and "Response contract" above, and both now have regression tests
+that were confirmed to fail against the old code before the fix went in. What follows is what is
+genuinely still open.
 
-### 1. The balance sheet's "balanced" indicator is self-verifying (open)
+### CSRF is the one that actually matters
 
-`frontend/src/lib/reports.ts` computes a residual (`totalDr - totalCr`), plugs it into the Capital
-row, adds it to the running totals, **and only then** returns
-`balanced: Math.abs(totalDr - totalCr) < 0.5`. Because the plug is applied to the same totals the
-check reads, `balanced` is a tautology — it can essentially never be `false`, so the "Debits and
-credits agree across the full dataset" line on `BalanceSheet.tsx` attests to nothing.
+**Assessment: the CORS allowlist alone is not sufficient, and this should be fixed before the app
+handles real customer money.** Concretely:
 
-The plug itself is legitimate in intent (seeded opening currency stock genuinely predates the
-ledger and carries no originating journal entry), and the page *does* surface what was absorbed in
-its "Reconciliation — what the equity plug absorbed" panel. The bug is that a real imbalance from
-an actual posting error is indistinguishable from the expected opening-stock residual, and the
-headline indicator reports success either way. A fix needs to compare against the *pre-plug*
-totals, or bound the plug to the known opening-stock figure and report anything beyond it as a
-genuine imbalance.
+- In production the session cookie is `SameSite=None; Secure`, because the frontend and backend
+  are separate Vercel projects on different origins. `SameSite=None` means **the browser attaches
+  the session cookie to cross-site requests**. The original CSRF justification in this codebase —
+  "`SameSite=Lax` blocks the cookie on cross-site POSTs" — was sound when it was written and is
+  simply no longer true of the deployed configuration.
+- What still stands between a hostile page and an authenticated request is CORS. That is real but
+  narrower than it looks. CORS reliably stops an attacker **reading** a cross-origin response.
+  Whether it stops the request being **made and committed** depends on the request being
+  preflighted. Every mutating route here is `POST` with `Content-Type: application/json`, which is
+  not a CORS-simple content type, so browsers do send a preflight, the allowlist rejects the
+  origin, and the request never lands. So today the app is *probably* not exploitable.
+- "Probably not exploitable, for a reason nobody wrote down" is a bad place for a financial ledger
+  to sit. The protection is incidental to a `Content-Type` choice rather than deliberate. It
+  breaks the moment anyone adds a route that accepts form-encoded or `text/plain` bodies, relaxes
+  `express.json()`, adds a `GET` that mutates, widens `FRONTEND_ORIGIN` to something pattern-like,
+  or introduces a subdomain an XSS could speak from. None of those are exotic changes, and none
+  would produce a failing test or an obvious review flag — the app would just quietly become
+  vulnerable.
+- Impact if it does break: an authenticated Admin visiting a hostile page could have journal
+  entries posted, salaries paid, or accounts deleted under their own session. Those are real,
+  hard-to-reverse money movements, and the activity log would attribute every one of them to the
+  Admin, so it would not even read as an attack afterward.
 
-### 2. `GET /api/state` leaks trading margin to the Operator role (open)
+**Recommendation: implement double-submit cookie CSRF protection.** It suits this stack better
+than synchroniser tokens — the session store stays untouched, it survives the serverless model
+where no instance holds per-session state in memory, and it is roughly: issue a random value in a
+readable (non-httpOnly) cookie at login, have the frontend's fetch helper echo it in an
+`X-CSRF-Token` header (one change, in `store.tsx`'s `apiCall` and `authClient.ts`), and reject any
+mutating request where the two don't match. The cross-origin setup needs the cookie readable by
+the frontend origin, so in this two-Vercel-project topology the token is better returned in the
+login *response body* and held in memory by the SPA, with the header compared against a
+server-side session field — which is a synchroniser token in practice and avoids the readable-
+cookie problem entirely. Either way it is a contained change, well under a day, and it removes the
+dependency on a `Content-Type` side effect.
 
-`services/stateService.ts`'s `getSnapshot()` takes no role parameter, `mapActivityRow()` emits
-`cost` and `margin` on every activity row unconditionally, and `routes/state.ts` guards the
-endpoint with `requireAuth` only.
+I have not implemented it in this pass because it changes the auth contract between two separately
+deployed tiers, and shipping a token check to the backend before the frontend sends the header
+would lock every user out — it needs a deliberate two-step rollout (accept-and-ignore, then
+enforce), which is a decision about deploy sequencing, not a code change I should make unilaterally.
 
-Meanwhile the UI treats exactly that data as Admin-only: `/income-statement` is behind
-`RequireAdmin`, and `Stock.tsx` replaces the per-movement currency ledger with a "Movement-by-
-movement cost history is restricted to Admin" card for non-admins. So an Operator is shown a
-permission boundary that their own `GET /api/state` response already carries straight past — the
-desk's per-trade cost and realised margin are in the JSON payload the browser has in hand.
+### Everything else
 
-Verified in this pass: an Operator login gets `403` from `/api/journal`, `/api/salary/accrue`, and
-`/api/accounts`, but `200` from `/api/state`. (The dev database currently holds zero activity
-rows, so there were no live margin values to display — the exposure is established from the route
-guard and the unconditional mapper, both unambiguous.)
-
-A fix means either filtering the snapshot by role server-side or accepting and documenting that
-the role split is about *actions*, not data — but the current UI actively claims the latter isn't
-true.
-
-### 3. Everything else
-
-- **CSRF protection is absent**, and its original justification (`SameSite=Lax`) no longer holds
-  in production, which runs `SameSite=None`. The CORS origin allowlist is the only remaining
-  protection. See "Authentication".
 - **`requireAdmin` trusts a session-cached role** — a role change or deactivation takes effect on
   that user's next login, not immediately.
 - **Fixed two-role split** (`admin`/`user`) with no finer-grained permissions and no per-resource
   scoping.
 - **Single-tenant schema.** `role` lives directly on `users`; there is no desk/org concept. A
   genuinely multi-desk future needs more than new tables.
-- **`FRONTEND_ORIGIN` is missing from `backend/.env.example`** despite being read by `env.ts`.
 - **Migrations are not run automatically on deploy.** `userService.ts` carries a
   `hasUsernameColumn` fallback specifically to survive the window where code lands before its
   migration; that fallback is meant to be deleted once production is known to be migrated.
-- **Settlements can't be backdated from the UI** even though the API supports it — see
-  "Transaction dates".
-- **No frontend tests, no CI**, and `deleteAccount`'s success path has no automated coverage.
-- **The production build emits a single ~869 kB JS chunk** (253 kB gzipped) with no code
+- **Frontend test coverage is one file.** `lib/reports.test.ts` covers balance-sheet
+  reconciliation only. No component, page, or hook has a test, and there is no jsdom setup.
+- **No CI.** `npm run test` is still a manual step.
+- **`deleteAccount`'s success path** has no automated coverage (only the blocked-by-activity path
+  does).
+- **The production build emits a single ~870 kB JS chunk** (254 kB gzipped) with no code
   splitting; Vite warns about it on every build.
-
-### Known stale documentation
-
-**`README.md` is substantially wrong** and was not updated as part of this pass. It still claims
-the repo is "the UI only," that it "currently runs entirely in the browser (no server, no database
-yet)," that data lives in `localStorage`, that you can "sign in with anything," that there are
-"Continue as Admin / Continue as User" buttons, and it documents a `src/lib/seed.ts` that no longer
-exists and a flat single-package layout that no longer matches the workspaces structure. Do not
-use it as a source of truth; treat this file as canonical until the README is rewritten.
+- **Margin is stripped, not made unknowable.** The Operator no longer receives `cost`/`margin`,
+  but purchase and sale rates are still served to every role (the trade screens and the stock
+  replay need them) and current weighted-average cost is still on `stocks` (an Operator cannot
+  price a sale without it). A determined Operator could approximate per-deal profit from those.
+  The fix closes the gap between what the UI claims is restricted and what the API hands over; it
+  is not a cryptographic boundary.
 
 ## Important Rules for Coding Agents
 

@@ -33,7 +33,7 @@ accountsRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const form = parseAccountForm(req.body)
-    await handleMutation(res, (client) => createAccount(client, form, req.session.userId ?? null).then(() => undefined))
+    await handleMutation(res, req, (client) => createAccount(client, form, req.session.userId ?? null).then(() => undefined))
   }),
 )
 
@@ -42,7 +42,7 @@ accountsRouter.patch(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const form = parseAccountForm(req.body)
-    await handleMutation(res, (client) => updateAccount(client, req.params.id, form, req.session.userId ?? null))
+    await handleMutation(res, req, (client) => updateAccount(client, req.params.id, form, req.session.userId ?? null))
   }),
 )
 
@@ -50,7 +50,7 @@ accountsRouter.delete(
   '/:id',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await handleMutation(res, (client) => deleteAccount(client, req.params.id))
+    await handleMutation(res, req, (client) => deleteAccount(client, req.params.id))
   }),
 )
 
@@ -58,7 +58,7 @@ accountsRouter.post(
   '/:id/archive',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await handleMutation(res, (client) => archiveAccount(client, req.params.id, req.session.userId ?? null))
+    await handleMutation(res, req, (client) => archiveAccount(client, req.params.id, req.session.userId ?? null))
   }),
 )
 
@@ -66,6 +66,6 @@ accountsRouter.post(
   '/:id/unarchive',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await handleMutation(res, (client) => unarchiveAccount(client, req.params.id))
+    await handleMutation(res, req, (client) => unarchiveAccount(client, req.params.id))
   }),
 )
