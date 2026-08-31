@@ -148,7 +148,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ❌ **Not started** | Reports print cleanly, with correct formatting and page breaks. There is no export to a file — no spreadsheet, CSV or PDF download. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | 🟡 **Partial** | *Balances are correct, and as of today genuinely checkable.* The balance sheet groups every account into debits and credits, and now honestly reports whether they agree — previously it silently forced agreement and always claimed success (fixed today; see Part 3). Salary, manual entries and opening balances each create true paired debit-and-credit records. **However, trades and payments do not.** They are stored as transaction records, and each account's debit/credit position is reconstructed at report time from those transactions plus the cheque and journal records. The figures come out right, but there is no ledger entry to point at for an individual purchase — an auditor asking "show me the journal entry for this trade" would find a transaction record instead of a matched pair. Whether that satisfies the client depends on whether they mean *correct balances* (met) or *a conventional double-entry journal for every movement* (not met). **Needs a decision before this can be called done.** |
+| 7 | **Correct Dr/Cr accounting throughout** | ❌ **In scope — not started** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*What is missing:* trades and payments create no paired entries. They are stored as transaction records, and each account's debit/credit position is reconstructed at report time. Under the client's decision this does not meet the requirement — there is no journal entry to point at for an individual purchase. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** (stages 2 and 3, enforcement on). Not to be started while that security work is half-finished. <br><br>*Before any code:* a written scoping plan is required and must be reviewed — see the next-steps list. This is the largest remaining piece of work in the project. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** | A customer's statement shows each trade in the currency actually transacted — e.g. "1,000 AED @ 77.00" — with the rate in that currency's own convention, alongside the rupee value in a separate column. The client's stated failure case (buying AED but the record reading PKR) does not occur. Note for clarity: the customer's **overall balance** is shown in rupees, which is correct — the customer owes or is owed rupees, not dirhams. It is the individual transactions that must name their real currency, and they do. |
 
 ### Delivered alongside, not on the recorded list
@@ -240,7 +240,7 @@ described the app as a browser-only demo with no server and a fake login, was re
 | Every server error is reported to the user as "Something went wrong", including ordinary faults that should say what was actually wrong | Misleading. Cost real time today: a malformed test command looked exactly like a broken production sign-in | **Open** — small fix, needs a release |
 | Preview copies of the software are wired to the **live** database | Real risk — test work writes to the real books | **Open** — needs a decision |
 | Sign-in appeared broken in production | **Not a fault.** The test command was malformed by the Windows shell and never reached the server intact. Sign-in verified working. | Closed, no action |
-| Trades and payments create no paired ledger entries — the balance sheet reconstructs each account's debit/credit position from transaction records instead | Depends entirely on what the client means by requirement 7. Figures are correct either way | **Open** — needs a decision from the client, not a fix |
+| Trades and payments create no paired ledger entries — the balance sheet reconstructs each account's debit/credit position from transaction records instead | Figures are correct, but there is no auditable entry per transaction | **Open — confirmed in scope.** Client has since decided they want full traceability, so this is real work, not a question. Gated behind the CSRF rollout; scoping plan required first |
 
 ### Client requirements
 
@@ -254,8 +254,14 @@ hiding how a customer was paid on the buy flow (requirement 6) — was found not
 reversibly, with the controls retained in place and a written restore procedure, which is what the
 client asked for.
 
-The one genuinely unresolved point is requirement 7, and it is unresolved as a *question* rather
-than as missing work; see the next-steps list.
+Requirement 7 was raised as a question — whether "correct Dr/Cr" meant correct figures or a
+conventional journal per movement — and **the client answered it the same day: they want
+traceable, auditable records per transaction, a real double-entry journal entry for every trade
+and payment, not just correct report totals.**
+
+That settles it as confirmed work rather than an open question, and makes it the largest remaining
+item in the project. It is deliberately sequenced *after* the CSRF rollout completes, and requires
+a reviewed scoping plan before any code. **This decision is recorded so it is not re-asked.**
 
 ### Next — in priority order
 
@@ -263,19 +269,30 @@ than as missing work; see the next-steps list.
    tab that holds a session but no token, so a user is never left unable to act.
 2. **CSRF stage 3** — server requires the token. Only after stage 2 is live *and* the server log
    confirms nothing is still sending requests without one.
-3. **Auto-logout after inactivity** *(requirement 3)* — not started. Relevant to a shared counter
+3. **Double-entry journal for every trade and payment** *(requirement 7)* — **the largest remaining
+   piece of work in the project.** The client has decided they want full traceability, not just
+   correct totals, so this is confirmed in scope.
+   - **Hard prerequisite: do not begin until CSRF stage 3 is live and enforcement is on.** The
+     security rollout must not be left half-finished while a change of this size is in progress.
+   - **A written scoping plan comes first, reviewed before any code is written.** It must cover:
+     what changes in the trade and settlement posting logic to write real paired entries instead
+     of bare transaction records; whether a database change is needed; how the existing balance
+     sheet and report logic is affected, given it currently reconstructs debit/credit positions
+     from transaction records rather than reading posted entries; and an honest sizing of the
+     change.
+   - Note the migration risk this carries: existing trades have no journal entries, so the plan
+     must say what happens to historical records — backfilled, left as-is with reports handling
+     both shapes, or something else. That decision affects whether past reports stay reproducible.
+4. **Auto-logout after inactivity** *(requirement 3)* — not started. Relevant to a shared counter
    where a terminal may be left unattended, and the only client requirement with nothing built yet.
-4. **Add USD, EUR and JPY** *(requirement 2)* — takes the desk from 3 of 6 currencies to all six.
+5. **Add USD, EUR and JPY** *(requirement 2)* — takes the desk from 3 of 6 currencies to all six.
    All three are quoted the straightforward way, so this is a repeat of work already done rather
    than new ground: a registry entry and a one-off database addition each.
-5. **Settle requirement 7 — what "correct Dr/Cr" means to the client.** Balances are correct and
-   now verifiable, but trades don't create paired ledger entries; the balance sheet reconstructs
-   them. If the client means correct figures, this is already done. If they mean a conventional
-   journal with a matched pair per movement, it is a substantial change to how trades are recorded.
-   **This is a question to ask, not work to start** — and the answer decides whether item 7 is
-   finished or is the largest remaining piece of work in the project.
 6. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
    Worth confirming the wanted format (spreadsheet vs PDF) before building.
+
+   *Items 4 and 5 are small and fully independent of item 3. If the scoping plan for the
+   double-entry work is under review, either can be picked up without conflicting with it.*
 7. **Fix the misleading error message** — report the actual fault instead of "Something went
    wrong". Small, and it will mislead again if left.
 8. **Decide on the preview-writes-to-live-database risk** — either a separate database for
