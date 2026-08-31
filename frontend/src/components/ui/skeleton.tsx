@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 
 export function Skeleton({ className, style }: { className?: string; style?: CSSProperties }) {
-  return <div className={cn('animate-pulse rounded-[4px] bg-surface-tint', className)} style={style} aria-hidden="true" />
+  return <div className={cn('animate-pulse rounded-data bg-surface-tint', className)} style={style} aria-hidden="true" />
 }
 
 /** Matches the icon-chip + two-line-text + badge + amount shape used across the

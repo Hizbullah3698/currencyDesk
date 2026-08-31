@@ -21,6 +21,11 @@ export class ApiClient {
     return { status: res.status, json: await res.json().catch(() => null) }
   }
 
+  async get<T = any>(path: string): Promise<ApiResult<T>> {
+    const res = await fetch(`${this.baseUrl}${path}`, { headers: { Cookie: this.cookie } })
+    return { status: res.status, json: await res.json().catch(() => null) }
+  }
+
   async post<T = any>(path: string, body?: unknown): Promise<ApiResult<T>> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',

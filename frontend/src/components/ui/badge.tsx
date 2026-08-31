@@ -3,7 +3,11 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-normal whitespace-nowrap',
+  // rounded-data, not rounded-full: a status badge sits inside dense table rows and
+  // reads as part of the record, so it takes the sharp data-tier radius (see the
+  // radius scale in index.css). Pills were the single biggest source of the old
+  // "generic dashboard" softness.
+  'inline-flex items-center gap-1 rounded-data px-2 py-0.5 text-meta font-semibold leading-normal whitespace-nowrap',
   {
     variants: {
       variant: {

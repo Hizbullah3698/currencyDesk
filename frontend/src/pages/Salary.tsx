@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { SquarePen, CheckCircle2, Users2, Receipt } from 'lucide-react'
+import { SquarePen, CheckCircle2, Users2, Receipt, Banknote, WalletCards } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { auditLine } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
@@ -48,14 +49,14 @@ export function Salary() {
 
   return (
     <div>
-      <div className="mb-[18px]">
-        <h1 className="m-0 mb-1 text-[22px] font-semibold tracking-tight">Salary</h1>
-        <div className="text-[12px] font-normal text-muted-70">Accrual posts Dr Salary Expense / Cr Salary Payable. Payment posts Dr Salary Payable / Cr the account you pick.</div>
+      <div className="mb-[26px]">
+        <h1 className="m-0 mb-1 text-heading font-semibold tracking-tight">Salary</h1>
+        <div className="text-body font-normal text-muted-70">Accrual posts Dr Salary Expense / Cr Salary Payable. Payment posts Dr Salary Payable / Cr the account you pick.</div>
       </div>
 
       <div className="mb-5 flex flex-wrap items-end gap-5">
         <div>
-          <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Pay period</div>
+          <div className="mb-1.5 text-meta font-medium uppercase tracking-wide text-muted-60">Pay period</div>
           <div className="flex flex-wrap gap-1.5">
             {periods.map((p) => (
               <Button
@@ -65,7 +66,7 @@ export function Salary() {
                 size="sm"
                 aria-pressed={period === p}
                 onClick={() => setPeriod(p)}
-                className={cn('text-[11.5px]', period === p && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                className={cn('text-meta', period === p && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
               >
                 {p}
               </Button>
@@ -73,7 +74,7 @@ export function Salary() {
           </div>
         </div>
         <div>
-          <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Pay salaries from</div>
+          <div className="mb-1.5 text-meta font-medium uppercase tracking-wide text-muted-60">Pay salaries from</div>
           <div className="flex flex-wrap gap-1.5">
             {banks.map((b) => (
               <Button
@@ -83,7 +84,7 @@ export function Salary() {
                 size="sm"
                 aria-pressed={bankId === b.id}
                 onClick={() => setBankId(b.id)}
-                className={cn('text-[11.5px]', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                className={cn('text-meta', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
               >
                 {b.name}
               </Button>
@@ -92,17 +93,13 @@ export function Salary() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3">
-        <Card className="px-[15px] py-[13px]">
-          <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Accrued but unpaid</div>
-          <div className="tabular text-[24px] font-semibold tracking-tight text-negative-deep">{fmt(totalOutstanding)}</div>
-          <div className="mt-0.5 text-[11px] font-normal text-muted-60">Salary Payable balance</div>
-        </Card>
-        <Card className="px-[15px] py-[13px]">
-          <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-60">Accrued to date</div>
-          <div className="tabular text-[24px] font-semibold tracking-tight">{fmt(totalAccrued)}</div>
-          <div className="mt-0.5 text-[11px] font-normal text-muted-60">{emps.length} employee{emps.length === 1 ? '' : 's'} on file</div>
-        </Card>
+      <div className="mb-5 grid grid-cols-2 gap-5">
+        <KpiCard tone="negative" icon={Banknote} label="Accrued but unpaid" size="md" caption="Salary Payable balance">
+          <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(totalOutstanding)}</div>
+        </KpiCard>
+        <KpiCard tone="accent" icon={WalletCards} label="Accrued to date" size="md" caption={`${emps.length} employee${emps.length === 1 ? '' : 's'} on file`}>
+          <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(totalAccrued)}</div>
+        </KpiCard>
       </div>
 
       <div className="mb-3 flex items-center gap-2">
@@ -115,10 +112,10 @@ export function Salary() {
           {busy ? 'Working…' : `Pay everything outstanding from ${banks.find((b) => b.id === bankId)?.name || '—'}`}
         </Button>
       </div>
-      {error && <div className="mb-3 text-[12px] font-semibold text-negative-deep">{error}</div>}
+      {error && <div className="mb-3 text-body font-semibold text-negative-deep">{error}</div>}
 
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-0 flex-1">Employee</div>
           <div className="min-w-[96px]">This period</div>
           <div className="min-w-[120px] text-right">Monthly</div>
@@ -130,12 +127,12 @@ export function Salary() {
           const status = statusMeta(accruedThisPeriod ? 'Accrued' : 'Not accrued')
           const StatusIcon = status.icon
           return (
-            <div key={emp.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2.5">
+            <div key={emp.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
               <div className="min-w-0 flex-1">
-                <div className="text-[12.5px] font-semibold">{emp.name}</div>
+                <div className="text-body font-semibold">{emp.name}</div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-normal text-muted-70">{emp.designation}</span>
-                  <span className="cursor-help rounded-[5px] p-1.5 text-muted-38 transition-colors duration-150 hover:bg-surface-tint hover:text-accent" title={auditLine(emp)}>
+                  <span className="text-meta font-normal text-muted-70">{emp.designation}</span>
+                  <span className="cursor-help rounded-control p-1.5 text-muted-38 transition-colors duration-150 hover:bg-surface-tint hover:text-accent" title={auditLine(emp)}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="block" aria-hidden="true">
                       <circle cx="12" cy="12" r="9" />
                       <path d="M12 7v5l3 2" />
@@ -149,43 +146,43 @@ export function Salary() {
                   {accruedThisPeriod ? 'Accrued' : 'Not accrued'}
                 </Badge>
               </div>
-              <div className="tabular min-w-[120px] text-right text-[12.5px] font-normal text-muted-70">{fmt(emp.monthlySalary || 0)}</div>
-              <div className={`tabular min-w-[120px] text-right text-[12.5px] font-medium ${s.outstanding > 0 ? 'text-negative-deep' : ''}`}>{fmt(s.outstanding)}</div>
+              <div className="tabular min-w-[120px] text-right text-body font-normal text-muted-70">{fmt(emp.monthlySalary || 0)}</div>
+              <div className={`tabular min-w-[120px] text-right text-body font-medium ${s.outstanding > 0 ? 'text-negative-deep' : ''}`}>{fmt(s.outstanding)}</div>
               <div className="flex min-w-[168px] justify-end gap-1.5">
-                <Button variant="secondary" size="sm" className="text-[11.5px]" disabled={!isAdmin || busy || accruedThisPeriod} onClick={() => run(() => accrueSalary(emp.id, period))}>
+                <Button variant="secondary" size="sm" className="text-meta" disabled={!isAdmin || busy || accruedThisPeriod} onClick={() => run(() => accrueSalary(emp.id, period))}>
                   Accrue
                 </Button>
-                <Button variant="primary" size="sm" className="text-[11.5px]" disabled={!isAdmin || busy || s.outstanding <= 0} onClick={() => run(() => paySalary(emp.id, bankId))}>
+                <Button variant="primary" size="sm" className="text-meta" disabled={!isAdmin || busy || s.outstanding <= 0} onClick={() => run(() => paySalary(emp.id, bankId))}>
                   Mark paid
                 </Button>
               </div>
             </div>
           )
         })}
-        {emps.length === 0 && <EmptyState icon={Users2} title="No employee accounts yet" description="Add one from Accounts with type Employee and a monthly salary." />}
+        {emps.length === 0 && <EmptyState category="salary" icon={Users2} title="No employee accounts yet" description="Add one from Accounts with type Employee and a monthly salary." />}
       </Card>
 
       <Card className="mt-5 overflow-hidden">
-        <div className="border-b border-border px-[13px] py-2.5 text-[12.5px] font-semibold">Salary postings</div>
+        <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Salary postings</div>
         {postings.map((row) => (
-          <div key={row.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2.5">
-            <div className="tabular min-w-[64px] text-[11.5px] font-normal text-muted-60">{row.ref}</div>
+          <div key={row.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
+            <div className="tabular min-w-[64px] text-meta font-normal text-muted-60">{row.ref}</div>
             <div className="min-w-[78px]">
               <Badge variant={row.salary?.kind === 'accrual' ? 'pending' : 'positive'}>{row.salary?.kind === 'accrual' ? 'Accrual' : 'Payment'}</Badge>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-medium">{row.narration}</div>
-              <div className="text-[11px] font-normal text-muted-70">
+              <div className="text-body font-medium">{row.narration}</div>
+              <div className="text-meta font-normal text-muted-70">
                 Dr {row.debitLabel} · Cr {row.creditLabel}
               </div>
-              <div className="mt-0.5 text-[10.5px] font-normal text-muted-60">
+              <div className="mt-0.5 text-meta font-normal text-muted-60">
                 Posted by {row.createdBy} on {new Date(row.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>
             </div>
-            <div className="tabular min-w-[130px] text-right text-[12.5px] font-medium">{fmt(row.amount)}</div>
+            <div className="tabular min-w-[130px] text-right text-body font-medium">{fmt(row.amount)}</div>
           </div>
         ))}
-        {postings.length === 0 && <EmptyState icon={Receipt} title="Nothing posted yet" description="Accruing a period writes real journal entries you can see in the Journal and on the Balance Sheet." />}
+        {postings.length === 0 && <EmptyState category="salary" icon={Receipt} title="Nothing posted yet" description="Accruing a period writes real journal entries you can see in the Journal and on the Balance Sheet." />}
       </Card>
     </div>
   )

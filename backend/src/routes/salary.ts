@@ -11,7 +11,7 @@ salaryRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const b = (req.body ?? {}) as Record<string, unknown>
-    await handleMutation(res, (client) => accrueSalary(client, String(b.employeeId ?? ''), String(b.period ?? ''), req.session.userId ?? null))
+    await handleMutation(res, req, (client) => accrueSalary(client, String(b.employeeId ?? ''), String(b.period ?? ''), req.session.userId ?? null))
   }),
 )
 
@@ -20,7 +20,7 @@ salaryRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const b = (req.body ?? {}) as Record<string, unknown>
-    await handleMutation(res, (client) => accrueAllSalaries(client, String(b.period ?? ''), req.session.userId ?? null))
+    await handleMutation(res, req, (client) => accrueAllSalaries(client, String(b.period ?? ''), req.session.userId ?? null))
   }),
 )
 
@@ -29,7 +29,7 @@ salaryRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const b = (req.body ?? {}) as Record<string, unknown>
-    await handleMutation(res, (client) => paySalary(client, String(b.employeeId ?? ''), String(b.bankId ?? ''), req.session.userId ?? null))
+    await handleMutation(res, req, (client) => paySalary(client, String(b.employeeId ?? ''), String(b.bankId ?? ''), req.session.userId ?? null))
   }),
 )
 
@@ -38,6 +38,6 @@ salaryRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const b = (req.body ?? {}) as Record<string, unknown>
-    await handleMutation(res, (client) => payAllSalaries(client, String(b.bankId ?? ''), req.session.userId ?? null))
+    await handleMutation(res, req, (client) => payAllSalaries(client, String(b.bankId ?? ''), req.session.userId ?? null))
   }),
 )

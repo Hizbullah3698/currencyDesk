@@ -3,6 +3,7 @@ import { rateLimit } from 'express-rate-limit'
 import { attemptLogin } from '../services/authService.js'
 import { findUserById, toPublicUser } from '../services/userService.js'
 import { requireAuth } from '../middleware/requireAuth.js'
+import { issueCsrfToken } from '../middleware/csrf.js'
 import { env } from '../config/env.js'
 import { pool } from '../db/pool.js'
 import { PostgresRateLimitStore } from '../services/rateLimitStore.js'
@@ -48,7 +49,11 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
     }
     req.session.userId = result.user.id
     req.session.role = result.user.role
-    res.json({ user: result.user })
+    // Minted after regenerate(), so the token belongs to the post-login session id and a
+    // pre-login token can never carry over. Returned in the body rather than a cookie: the SPA
+    // holds it in memory and echoes it as X-CSRF-Token — see middleware/csrf.ts for why a
+    // readable double-submit cookie is the wrong shape for this two-origin deployment.
+    res.json({ user: result.user, csrfToken: issueCsrfToken(req) })
   })
 })
 
@@ -65,5 +70,8 @@ authRouter.get('/me', requireAuth, async (req, res) => {
     res.status(401).json({ error: 'Not authenticated.' })
     return
   }
-  res.json({ user: toPublicUser(user) })
+  // The token comes back here too, not only from /login. This is the call a returning user makes
+  // on every boot without re-authenticating, so it is the only way a session created before this
+  // middleware shipped can acquire a token — which is what stops stage 3 signing those users out.
+  res.json({ user: toPublicUser(user), csrfToken: issueCsrfToken(req) })
 })

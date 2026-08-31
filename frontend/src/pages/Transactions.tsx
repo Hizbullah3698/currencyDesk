@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { auditLine, relLabel, txnIsOpen } from '@/lib/engine'
-import { fmt } from '@/lib/format'
+import { activityDate, auditLine, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtAmount, fmtRate } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -22,7 +22,12 @@ interface Row {
   detail: string
   status: string
   amount: number
+  /** What the Date column shows: the date the deal was struck for a trade (activityDate), the
+   *  row's own timestamp for a cheque or journal entry, which have no separate deal date. */
   date: string
+  /** What the list is ORDERED by — always the posting timestamp, so the list reads as the order
+   *  things were actually keyed in and a backdated deal doesn't silently jump the queue. */
+  sortT: number
   audit: string
   customerId: string | null
 }
@@ -37,8 +42,25 @@ export function Transactions() {
       const meta = ACTIVITY_META[t.type]
       const cheque = t.chequeId ? state.cheques.find((q) => q.id === t.chequeId) : undefined
       const status = cheque ? cheque.status : txnIsOpen(t, state.accounts) ? 'Open' : 'Settled'
-      const detail = t.type === 'sale' || t.type === 'purchase' ? `${t.amount?.toLocaleString('en-US')} ${t.currency} @ ${t.rate} · ${t.method}` : `via ${t.method}`
-      return { id: t.id, ref: t.id.toUpperCase(), type: t.type === 'sale' || t.type === 'purchase' ? t.type : 'payment', meta, who: t.customerName, detail, status, amount: t.pkrValue, date: t.createdAt, audit: auditLine(t), customerId: t.customerId }
+      const code = t.currency || 'AED'
+      // Rates print in the traded currency's own quote convention (PKR per 1 AED, but IRR per 1
+      // PKR) — never as a bare stored number, which is meaningless without the convention.
+      const detail =
+        t.type === 'sale' || t.type === 'purchase' ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)} · ${t.method}` : `via ${t.method}`
+      return {
+        id: t.id,
+        ref: t.id.toUpperCase(),
+        type: t.type === 'sale' || t.type === 'purchase' ? t.type : 'payment',
+        meta,
+        who: t.customerName,
+        detail,
+        status,
+        amount: t.pkrValue,
+        date: activityDate(t),
+        sortT: stampTime(t.createdAt),
+        audit: auditLine(t),
+        customerId: t.customerId,
+      }
     })
     const chequeRows: Row[] = state.cheques.map((q) => ({
       id: q.id,
@@ -50,6 +72,7 @@ export function Transactions() {
       status: q.status,
       amount: q.amount,
       date: q.createdAt,
+      sortT: stampTime(q.createdAt),
       audit: auditLine(q),
       customerId: q.customerId,
     }))
@@ -63,17 +86,18 @@ export function Transactions() {
       status: 'Posted',
       amount: e.amount,
       date: e.createdAt,
+      sortT: stampTime(e.createdAt),
       audit: auditLine(e),
       customerId: null,
     }))
-    const all = [...txnRows, ...chequeRows, ...journalRows].sort((a, b) => +new Date(b.date) - +new Date(a.date))
+    const all = [...txnRows, ...chequeRows, ...journalRows].sort((a, b) => b.sortT - a.sortT)
     if (filter === 'all') return all
     if (filter === 'sale') return all.filter((r) => r.type === 'sale')
     if (filter === 'purchase') return all.filter((r) => r.type === 'purchase')
     if (filter === 'payment') return all.filter((r) => r.type === 'payment')
     if (filter === 'cheque') return all.filter((r) => r.type === 'cheque')
     return all.filter((r) => r.type === 'journal')
-  }, [state.activity, state.cheques, state.journalEntries, filter])
+  }, [state.activity, state.accounts, state.cheques, state.journalEntries, filter])
 
   const chips: { key: Filter; label: string }[] = [
     { key: 'all', label: 'All' },
@@ -86,8 +110,8 @@ export function Transactions() {
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2.5">
-        <h1 className="m-0 text-[17px] font-semibold">Transactions</h1>
+      <div className="mb-[26px] flex flex-wrap items-center justify-between gap-2.5">
+        <h1 className="m-0 text-heading font-semibold">Transactions</h1>
         <div className="inline-flex gap-1.5">
           {chips.map((c) => (
             <Button
@@ -105,7 +129,7 @@ export function Transactions() {
         </div>
       </div>
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-[64px]">Ref</div>
           <div className="min-w-[86px]">Type</div>
           <div className="flex-1">Party</div>
@@ -120,30 +144,30 @@ export function Transactions() {
           const StatusIcon = status.icon
           return (
             <div key={r.type + r.id} onClick={() => r.customerId && navigate(`/customers/${r.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
-              <div className="tabular min-w-[64px] text-[11.5px] font-normal text-muted-60">{r.ref}</div>
+              <div className="tabular min-w-[64px] text-meta font-normal text-muted-60">{r.ref}</div>
               <div className="flex min-w-[102px] items-center gap-1.5">
-                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: r.meta.chipBg, color: r.meta.chipColor }}>
+                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: r.meta.chipBg, color: r.meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
-                <span className="text-[12px] font-medium text-ink">{r.meta.label}</span>
+                <span className="text-body font-medium text-ink">{r.meta.label}</span>
               </div>
-              <div className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{r.who}</div>
-              <div className="min-w-[200px] truncate text-[12px] font-normal text-muted-70">{r.detail}</div>
+              <div className="min-w-0 flex-1 truncate text-body font-semibold">{r.who}</div>
+              <div className="min-w-[200px] truncate text-body font-normal text-muted-70">{r.detail}</div>
               <div className="min-w-[100px]">
                 <Badge variant={status.variant}>
                   <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
                   {r.status}
                 </Badge>
               </div>
-              <div className="tabular min-w-[110px] text-right text-[12.5px] font-medium">{fmt(r.amount)}</div>
-              <div className="flex min-w-[78px] items-center justify-end gap-1 text-[11px] font-normal text-muted-60" title={r.audit}>
+              <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(r.amount)}</div>
+              <div className="flex min-w-[78px] items-center justify-end gap-1 text-meta font-normal text-muted-60" title={r.audit}>
                 {relLabel(r.date)}
               </div>
             </div>
           )
         })}
       </Card>
-      {rows.length === 0 && <EmptyState icon={SearchX} title="No transactions match this filter." />}
+      {rows.length === 0 && <EmptyState category="neutral" icon={SearchX} title="No transactions match this filter." />}
     </div>
   )
 }

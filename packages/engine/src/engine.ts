@@ -7,8 +7,9 @@ import type {
   RangeBounds,
   Stocks,
 } from './types.js'
+import { CURRENCY_LIST, pkrPerUnit, pkrValueOf } from './currencies.js'
 
-export const CURRENCIES = ['AED']
+export const CURRENCIES = CURRENCY_LIST.map((c) => c.code)
 
 // Ids that other parts of the app resolve directly by id rather than by looking the account up
 // fresh — accruing/paying salary posts against 'salaryExpense'/'salaryPayable', opening balances
@@ -55,6 +56,34 @@ export function isToday(iso?: string): boolean {
 
 export function stampTime(iso?: string): number {
   return (iso && new Date(iso).getTime()) || 0
+}
+
+/**
+ * The date a transaction ECONOMICALLY happened, as an ISO string `stampTime` can read.
+ *
+ * `createdAt` is when the row was keyed into the system; `txnDate` is the date the dealer says
+ * the deal was actually struck, which is what a customer statement, a balance sheet "as of",
+ * and an income statement period all have to be cut on — a purchase entered this morning for a
+ * deal done last Thursday belongs in last Thursday's numbers. `txnDate` is a bare 'YYYY-MM-DD'
+ * from Postgres, so it is pinned to LOCAL noon: far enough from either midnight boundary that
+ * no timezone offset can slide it into the neighbouring day, which a bare `new Date('...')`
+ * (parsed as UTC) would do in any negative-offset zone.
+ *
+ * Ordering is a separate question and deliberately still keyed on `createdAt` — see
+ * `openingStock`.
+ */
+export function activityDate(t: { txnDate?: string; createdAt: string }): string {
+  return t.txnDate ? t.txnDate + 'T12:00:00' : t.createdAt
+}
+
+/**
+ * The PKR cost/value of one unit of the currency this movement traded, from the rate as the
+ * dealer typed it. Every weighted-average-cost calculation goes through here rather than
+ * reading `t.rate` directly, because `t.rate` is in the currency's own quote convention (see
+ * currencies.ts) and is NOT a PKR figure for a 'divide'-quoted currency like IRR.
+ */
+export function unitPkr(t: Activity): number {
+  return pkrPerUnit(t.currency, t.rate || 0)
 }
 
 export function fmtDateTime(iso?: string): string {
@@ -134,7 +163,7 @@ export function rangeBounds(preset: ReportPreset, from: string, to: string): Ran
 
 export function custEffects(customerId: string, activity: Activity[], cheques: Cheque[], keep: (iso: string) => boolean) {
   const owed = (t: Activity) => (t.pkrValue || 0) - (t.chequeHeld ? 0 : t.paidNow || 0)
-  const act = activity.filter((t) => t.customerId === customerId && keep(t.createdAt))
+  const act = activity.filter((t) => t.customerId === customerId && keep(activityDate(t)))
   const chq = cheques.filter((q) => q.customerId === customerId && q.status === 'Cleared' && keep(q.updatedAt || q.createdAt))
   return {
     receivable:
@@ -187,6 +216,13 @@ export function activeCurrencies(stocks: Stocks, activity: Activity[]): string[]
   )
 }
 
+// Movements are ordered by `createdAt` (the order they were POSTED), not by `txnDate` (the
+// date the deal was struck) — deliberately. The stored weighted-average cost in
+// `stock_positions` was built up by the server one posting at a time in exactly that order, and
+// `openingStock` works by unwinding that same stored figure backwards. Replaying in a different
+// order than it was built in would not reconstruct the number it started from. Backdating
+// therefore moves a trade between REPORTING PERIODS (see `activityDate`) without rewriting the
+// cost history, which is the same document-date/posting-date split any real ledger runs.
 export function openingStock(code: string, stocks: Stocks, activity: Activity[]) {
   const moves = activity
     .filter((t) => (t.type === 'purchase' || t.type === 'sale') && (t.currency || 'AED') === code)
@@ -198,7 +234,7 @@ export function openingStock(code: string, stocks: Stocks, activity: Activity[])
     const t = moves[i]
     if (t.type === 'purchase') {
       const prev = qty - (t.amount || 0)
-      avg = prev > 0 ? (qty * avg - (t.amount || 0) * (t.rate || 0)) / prev : avg
+      avg = prev > 0 ? (qty * avg - (t.amount || 0) * unitPkr(t)) / prev : avg
       qty = prev
     } else {
       qty = qty + (t.amount || 0)
@@ -212,11 +248,11 @@ export function stockAsOf(code: string, stocks: Stocks, activity: Activity[], to
   let qty = open.qty
   let avg = open.avg
   open.moves.forEach((t) => {
-    if (stampTime(t.createdAt) > toT) return
+    if (stampTime(activityDate(t)) > toT) return
     const amt = t.amount || 0
     if (t.type === 'purchase') {
       const nq = qty + amt
-      avg = nq > 0 ? (qty * avg + amt * (t.rate || 0)) / nq : avg
+      avg = nq > 0 ? (qty * avg + amt * unitPkr(t)) / nq : avg
       qty = nq
     } else {
       qty = qty - amt
@@ -227,6 +263,7 @@ export function stockAsOf(code: string, stocks: Stocks, activity: Activity[], to
 
 export interface TrendBar {
   heightPct: number
+  value: number
   label: string
   color: string
   labelColor: string
@@ -249,6 +286,7 @@ export function stockTrend(code: string, stocks: Stocks, activity: Activity[], c
   const max = Math.max(...points.map((p) => p.qty), 1)
   return points.map((p, i) => ({
     heightPct: Math.max(10, Math.round((p.qty / max) * 100)),
+    value: p.qty,
     label: p.kind ? p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
     color: i === points.length - 1 ? 'var(--color-accent)' : 'var(--color-accent-border)',
     labelColor: 'var(--color-muted-60)',
@@ -259,15 +297,23 @@ export function stockTrend(code: string, stocks: Stocks, activity: Activity[], c
 // Buy / Sell math
 // ---------------------------------------------------------------------------
 
-export function buyCalc(amount: number, rate: number, method: string, paidNowRaw: number) {
-  const pkrValue = amount * rate
+// `rate` is in the traded currency's own quote convention (see currencies.ts); `code` is what
+// tells these two how to read it. It is the LAST parameter and defaults to 'AED' — a
+// 'multiply'-quoted currency — so every pre-existing 3-and-4-argument call site keeps its exact
+// previous behaviour (`pkrValue = amount * rate`) rather than silently changing meaning.
+//
+// `avgCost` in sellCalc is the opposite: it is always canonical PKR-per-unit, never a quote
+// rate, because it is a derived weighted average rather than something a dealer typed. That is
+// why `cost` multiplies unconditionally while `saleValue` goes through the conversion.
+export function buyCalc(amount: number, rate: number, method: string, paidNowRaw: number, code = 'AED') {
+  const pkrValue = pkrValueOf(code, amount, rate)
   const paidNow = method === 'Credit' ? 0 : Math.min(paidNowRaw || 0, pkrValue)
   const outstanding = Math.max(pkrValue - paidNow, 0)
   return { amount, rate, pkrValue, paidNow, outstanding }
 }
 
-export function sellCalc(amount: number, rate: number, avgCost: number, method: string, paidNowRaw: number) {
-  const saleValue = amount * rate
+export function sellCalc(amount: number, rate: number, avgCost: number, method: string, paidNowRaw: number, code = 'AED') {
+  const saleValue = pkrValueOf(code, amount, rate)
   const cost = amount * avgCost
   const margin = saleValue - cost
   const paidNow = method === 'Credit' ? 0 : Math.min(paidNowRaw || 0, saleValue)
@@ -296,7 +342,7 @@ export interface MarginAdjRow {
 }
 
 export function marginLedger(accounts: Account[], activity: Activity[], journalEntries: JournalEntry[], stocks: Stocks, keep: (iso: string) => boolean) {
-  const sales = activity.filter((t) => t.type === 'sale' && keep(t.createdAt))
+  const sales = activity.filter((t) => t.type === 'sale' && keep(activityDate(t)))
   const byCurrency: MarginCurrencyRow[] = currencyCodes(stocks).map((code) => {
     const rows = sales.filter((t) => (t.currency || 'AED') === code)
     return {

@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import { CORE_ACCOUNT_IDS, type AccountType } from '@currencydesk/engine'
+import { CORE_ACCOUNT_IDS, CURRENCIES, type AccountType } from '@currencydesk/engine'
 import { appError } from './transact.js'
 import { accountHasActivity, getAccount } from './accountHelpers.js'
 
@@ -26,10 +26,34 @@ async function assertNameFree(client: PoolClient, name: string, excludeId?: stri
   if (rows.length > 0) throw appError(409, `${name} already exists.`)
 }
 
+// A Currency Stock account is nothing but the Balance Sheet's view of ONE stock_positions row,
+// matched to it by `code`. Two accounts carrying the same code therefore both value the same
+// position, the sheet double-counts that stock as an asset, and the capital plug silently
+// absorbs the difference so it still reports balanced=true. Free text here was survivable while
+// AED was the only currency and only one such account existed; now that one account per traded
+// currency is the normal shape, an admin adding a fourth and leaving the code at its default is
+// a realistic way to book phantom assets. So: it must be a currency this desk actually trades,
+// and it must not already be taken.
+async function resolveCurrencyCode(client: PoolClient, raw: string, excludeId?: string): Promise<string> {
+  const typed = raw.trim()
+  if (!typed) throw appError(400, 'Choose which currency this stock account tracks.')
+  const code = typed.toUpperCase()
+  if (!CURRENCIES.includes(code)) {
+    throw appError(400, `Unknown currency "${typed}" — this desk trades ${CURRENCIES.join(', ')}.`)
+  }
+  const { rows } = excludeId
+    ? await client.query("SELECT 1 FROM accounts WHERE id <> $1 AND type = 'Currency Stock' AND upper(code) = $2", [excludeId, code])
+    : await client.query("SELECT 1 FROM accounts WHERE type = 'Currency Stock' AND upper(code) = $1", [code])
+  if (rows.length > 0) throw appError(409, `A ${code} stock account already exists — there is one per traded currency.`)
+  return code
+}
+
 export async function createAccount(client: PoolClient, form: AccountForm, actorId: string | null): Promise<string> {
   const name = form.name.trim()
   if (!name) throw appError(400, 'Enter an account name.')
   await assertNameFree(client, name)
+
+  const currencyCode = form.type === 'Currency Stock' ? await resolveCurrencyCode(client, form.code) : null
 
   const opening =
     form.type === 'Customer' || form.type === 'Payable' || form.type === 'Bank' || form.type === 'Cash' ? parseFloat(form.opening) || 0 : 0
@@ -53,7 +77,7 @@ export async function createAccount(client: PoolClient, form: AccountForm, actor
       form.type === 'Expense' ? form.category.trim() : null,
       form.type === 'Employee' ? form.designation.trim() || null : null,
       form.type === 'Employee' ? parseFloat(form.monthlySalary) || 0 : null,
-      form.type === 'Currency Stock' ? form.code.trim() || 'AED' : null,
+      currencyCode,
       receivable,
       payable,
       receivable,
@@ -114,7 +138,7 @@ export async function updateAccount(client: PoolClient, id: string, form: Accoun
   const category = form.category.trim()
   const designation = form.designation.trim()
   const monthlySalary = parseFloat(form.monthlySalary) || 0
-  const code = form.code.trim() || 'AED'
+  const code = form.type === 'Currency Stock' ? await resolveCurrencyCode(client, form.code, id) : form.code.trim() || 'AED'
 
   if (typeChanged) {
     await client.query(

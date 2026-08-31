@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { relLabel } from '@/lib/engine'
+import { activityDate, relLabel } from '@/lib/engine'
 import { fmt } from '@/lib/format'
 import { ACTIVITY_META } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
@@ -15,8 +15,8 @@ export function Payments() {
 
   return (
     <div>
-      <div className="mb-3.5 flex items-center justify-between gap-2.5">
-        <h1 className="m-0 text-[17px] font-semibold">Payments</h1>
+      <div className="mb-[26px] flex items-center justify-between gap-2.5">
+        <h1 className="m-0 text-heading font-semibold">Payments</h1>
         <div className="flex gap-2">
           <Button variant="primary" onClick={() => navigate('/receive')}>
             <ArrowDownCircle size={14} strokeWidth={2} aria-hidden="true" />
@@ -29,7 +29,7 @@ export function Payments() {
         </div>
       </div>
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-[10.5px] font-semibold uppercase tracking-wide text-muted-60">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-[108px]">Direction</div>
           <div className="flex-1">Customer</div>
           <div className="min-w-[70px]">Method</div>
@@ -42,21 +42,21 @@ export function Payments() {
           return (
             <div key={t.id} onClick={() => t.customerId && navigate(`/customers/${t.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex min-w-[108px] items-center gap-1.5">
-                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-[5px]" style={{ background: meta.chipBg, color: meta.chipColor }}>
+                <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: meta.chipBg, color: meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
-                <span className="text-[12px] font-medium">{meta.label}</span>
+                <span className="text-body font-medium">{meta.label}</span>
               </div>
-              <div className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{t.customerName}</div>
-              <div className="min-w-[70px] text-[12px] font-normal text-muted-70">{t.method}</div>
-              <div className="tabular min-w-[110px] text-right text-[12.5px] font-medium">{fmt(t.pkrValue)}</div>
-              <div className="min-w-[62px] text-right text-[11px] font-normal text-muted-60">{relLabel(t.createdAt)}</div>
+              <div className="min-w-0 flex-1 truncate text-body font-semibold">{t.customerName}</div>
+              <div className="min-w-[70px] text-body font-normal text-muted-70">{t.method}</div>
+              <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(t.pkrValue)}</div>
+              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60">{relLabel(activityDate(t))}</div>
             </div>
           )
         })}
       </Card>
       {rows.length === 0 && (
-        <EmptyState
+        <EmptyState category="customers"
           icon={ArrowDownCircle}
           title="No payments recorded yet"
           description="Payments settle a specific receivable or payable. Record the first one to see it here."

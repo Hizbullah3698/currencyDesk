@@ -1,5 +1,6 @@
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
-import { currencyCodes, marginLedger, stampTime, stk } from './engine'
+import { activityDate, currencyCodes, currencyMeta, marginLedger, openingStock, stampTime, stockAsOf } from './engine'
+import { fmtAmount, fmtQuote } from './format'
 
 // ---------------------------------------------------------------------------
 // Generic account ledger balance (Dr positive) — everything except Customer
@@ -9,6 +10,11 @@ import { currencyCodes, marginLedger, stampTime, stk } from './engine'
 //
 // Cheque-method settlements only move a bank/cash balance once the cheque
 // clears — matching "Cheque-method amounts count only once cleared."
+//
+// `keep` is a REPORTING-PERIOD cutoff, so an activity row is cut on activityDate(t) — the date
+// the deal was actually struck — not on createdAt, the date it was keyed in. A purchase entered
+// this morning for last Thursday's deal belongs in last Thursday's balance. Journal entries and
+// cheque status changes have no separate deal date, so they stay on their own timestamps.
 // ---------------------------------------------------------------------------
 export function ledgerBalance(
   accountId: string,
@@ -25,7 +31,7 @@ export function ledgerBalance(
   })
   activity.forEach((t) => {
     if (t.settlementAccountId !== accountId || t.method === 'Cheque') return
-    if (!keep(t.createdAt)) return
+    if (!keep(activityDate(t))) return
     const amt = t.type === 'purchase' || t.type === 'pay' ? -(t.paidNow ?? t.amount ?? 0) : t.paidNow ?? t.amount ?? 0
     net += amt
   })
@@ -54,9 +60,19 @@ export interface TrialBalanceGroup {
 
 export interface BalanceSheetResult {
   groups: TrialBalanceGroup[]
+  /** Includes the presentation-only equity plug, so it always equals totalCr. */
   totalDr: number
   totalCr: number
+  /**
+   * True only when debits and credits agree once the legitimately-unjournalled opening currency
+   * stock is accounted for. Deliberately NOT derived from totalDr/totalCr — those carry the plug
+   * that makes them agree by construction.
+   */
   balanced: boolean
+  /** The expected, legitimate residual: currency stock held before the recorded ledger begins. */
+  openingStockEquity: number
+  /** Signed. Anything non-zero here is a real imbalance, not a reconciling item. */
+  unexplained: number
   diags: { label: string; detail: string; amount: number }[]
 }
 
@@ -88,7 +104,6 @@ export function computeBalanceSheet(
     ;(rowsByGroup[g] ||= []).push(row)
   }
 
-  let residual = 0
 
   accounts.forEach((a) => {
     if (a.type === 'Customer') {
@@ -99,9 +114,17 @@ export function computeBalanceSheet(
     }
     if (a.type === 'Currency Stock') {
       const code = a.code || 'AED'
-      const { available, avgCost } = stk(stocks, code)
+      // stockAsOf, NOT stk(): every other row on this sheet is cut at asOfT, so valuing currency
+      // stock at TODAY's position made a historical balance sheet mix two different dates and
+      // guaranteed a residual for any past date — which the equity plug below then silently
+      // absorbed, so the sheet still claimed to balance. Same replay the Stock page's ledger uses.
+      const { available, avgCost } = stockAsOf(code, stocks, activity, asOfT)
       const value = available * avgCost
-      push('Currency Stock', { id: a.id, label: a.name, sub: `${available.toLocaleString('en-US')} ${code} @ ${avgCost.toFixed(2)}`, dr: value, cr: 0 })
+      // Works for ANY code — nothing here is AED-specific, so a new AFN/IRR Currency Stock
+      // account added server-side shows up on its own row with no change needed here. The cost
+      // prints in that currency's own quote convention (avgCost itself stays canonical
+      // PKR-per-unit, which is what `value` is correctly computed from).
+      push('Currency Stock', { id: a.id, label: a.name, sub: `${fmtAmount(available, code)} ${code} @ ${fmtQuote(code, avgCost)} ${currencyMeta(code).rateLabel}`, dr: value, cr: 0 })
       return
     }
     if (a.type === 'Employee') return // memo-only; no ledger balance of its own
@@ -116,7 +139,7 @@ export function computeBalanceSheet(
     if (a.type === 'Capital' || a.type === 'Payable') {
       const cr = -total
       push(a.type, { id: a.id, label: a.name, sub: a.notes || a.type, dr: cr < 0 ? -cr : 0, cr: cr > 0 ? cr : 0 })
-      if (a.id === 'capital') residual = cr // capital row filled below with plug added
+      // (the capital row is topped up with the presentation plug further down)
       return
     }
     // Bank / Cash / Expense are Dr-normal
@@ -131,37 +154,75 @@ export function computeBalanceSheet(
     totalCr += sum(rows, 'cr')
   })
 
-  // Balance the sheet with an equity plug on Capital, and surface exactly what it absorbed.
+  // ---------------------------------------------------------------------------
+  // Reconciliation
+  // ---------------------------------------------------------------------------
+  // The residual is measured BEFORE the equity plug is applied, and `balanced` is judged on what
+  // is left after subtracting the one residual that is legitimately expected. This used to be a
+  // tautology: the plug was added into totalDr/totalCr and then `balanced` was computed from
+  // those same plugged totals, so it could essentially never be false and a genuine posting
+  // error was indistinguishable from the expected opening-stock figure.
   const diags: { label: string; detail: string; amount: number }[] = []
-  const diff = totalDr - totalCr
-  if (Math.abs(diff) > 0.5) {
+  const rawDiff = totalDr - totalCr
+
+  // The ONLY legitimately unjournalled figure on this sheet. Opening balances for customers,
+  // banks, cash and payables are NOT in this category — createAccount posts each one as a real
+  // journal entry against Capital (see accountsService.ts's `opening_for` entry), so they carry
+  // their own credit and need no plug. Currency stock is different: a position that predates the
+  // recorded activity has no originating purchase to credit against. openingStock() unwinds the
+  // whole activity history to recover exactly that pre-ledger position, so this is independent
+  // of asOfT — pre-ledger stock is present at every reporting date.
+  const openingStockEquity = accounts
+    .filter((a) => a.type === 'Currency Stock')
+    .reduce((s, a) => {
+      const open = openingStock(a.code || 'AED', stocks, activity)
+      return s + open.qty * open.avg
+    }, 0)
+
+  const unexplained = rawDiff - openingStockEquity
+
+  if (Math.abs(openingStockEquity) > 0.5) {
+    diags.push({
+      label: 'Opening currency stock',
+      detail:
+        'Currency stock held before the recorded ledger begins, carried at its weighted-average cost. It has no originating purchase to credit against, so it is attributed to opening equity rather than inventing a transaction for it. This is expected and does not indicate an error.',
+      amount: Math.abs(openingStockEquity),
+    })
+  }
+
+  if (!(Math.abs(unexplained) < 0.5)) {
+    diags.push({
+      label: 'Unexplained difference',
+      detail:
+        'Debits and credits do not agree once opening currency stock is accounted for. This is a real imbalance — a posting that did not record both of its legs, or a balance changed outside the ledger — not a reconciling item. The plug below keeps the printed sheet footing, but the books do not actually balance.',
+      amount: Math.abs(unexplained),
+    })
+  }
+
+  // Apply the plug for presentation only, so the printed sheet still foots — never as the basis
+  // for `balanced`, which was the original defect.
+  if (Math.abs(rawDiff) > 0.5) {
     const capitalRows = rowsByGroup[GROUP_TITLES.Capital] || (rowsByGroup[GROUP_TITLES.Capital] = [])
     let capitalRow = capitalRows.find((r) => r.id === 'capital')
     if (!capitalRow) {
       capitalRow = { id: 'capital', label: 'Opening Balance / Capital', sub: 'Owner capital and opening balances', dr: 0, cr: 0 }
       capitalRows.push(capitalRow)
     }
-    if (diff > 0) {
-      capitalRow.cr += diff
-      totalCr += diff
+    if (rawDiff > 0) {
+      capitalRow.cr += rawDiff
+      totalCr += rawDiff
     } else {
-      capitalRow.dr += -diff
-      totalDr += -diff
+      capitalRow.dr += -rawDiff
+      totalDr += -rawDiff
     }
-    diags.push({
-      label: 'Opening currency stock',
-      detail: 'Seeded currency stock predates the ledger and carries no originating journal entry — the reconciling residual is attributed to opening equity so the sheet balances without inventing a fake transaction.',
-      amount: Math.abs(diff),
-    })
   }
-  void residual
 
   const groups: TrialBalanceGroup[] = GROUP_ORDER.filter((g) => rowsByGroup[g]?.length).map((title) => {
     const rows = rowsByGroup[title]
     return { title, rows, subDr: sum(rows, 'dr'), subCr: sum(rows, 'cr') }
   })
 
-  return { groups, totalDr, totalCr, balanced: Math.abs(totalDr - totalCr) < 0.5, diags }
+  return { groups, totalDr, totalCr, balanced: Math.abs(unexplained) < 0.5, openingStockEquity, unexplained, diags }
 }
 
 // ---------------------------------------------------------------------------
@@ -237,8 +298,8 @@ export function computeIncomeStatement(
     },
     {
       label: 'No out-of-range transaction leaked into this period',
-      detail: 'Every sale and journal line counted falls inside the selected date range.',
-      ok: margin.sales.every((t) => keep(t.createdAt)) && journalEntries.filter((e) => keep(e.createdAt)).every((e) => keep(e.createdAt)),
+      detail: 'Every sale (on its transaction date) and journal line counted falls inside the selected date range.',
+      ok: margin.sales.every((t) => keep(activityDate(t))) && journalEntries.filter((e) => keep(e.createdAt)).every((e) => keep(e.createdAt)),
     },
     {
       label: 'Gross profit matches sales margin plus journal postings',

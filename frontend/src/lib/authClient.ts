@@ -4,6 +4,8 @@ import { apiUrl } from './apiBase'
 export interface SessionUser {
   id: string
   email: string
+  /** Null for accounts that have not been given a login username yet. */
+  username: string | null
   displayName: string
   role: Role
 }
@@ -16,13 +18,17 @@ async function parseJson(res: Response): Promise<any> {
   }
 }
 
-export async function login(email: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }> {
+/** `identifier` is whatever the user typed — either their username or their email address. */
+export async function login(identifier: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }> {
   try {
     const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ email, password }),
+      // `email` is sent alongside `identifier` only so a newly deployed frontend still works
+      // against a backend that hasn't picked up the `identifier` field yet — the two deploy
+      // separately. The backend prefers `identifier` when both are present.
+      body: JSON.stringify({ identifier, email: identifier, password }),
     })
     const body = await parseJson(res)
     if (!res.ok) return { ok: false, error: body?.error || 'Sign in failed.' }

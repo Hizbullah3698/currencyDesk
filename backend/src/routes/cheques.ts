@@ -14,7 +14,7 @@ chequesRouter.post(
   '/:id/deposit',
   requireAuth,
   asyncHandler(async (req, res) => {
-    await handleMutation(res, (client) => depositCheque(client, req.params.id, req.session.userId ?? null))
+    await handleMutation(res, req, (client) => depositCheque(client, req.params.id, req.session.userId ?? null))
   }),
 )
 
@@ -22,7 +22,7 @@ chequesRouter.post(
   '/:id/clear',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await handleMutation(res, (client) => clearCheque(client, req.params.id, req.session.userId ?? null))
+    await handleMutation(res, req, (client) => clearCheque(client, req.params.id, req.session.userId ?? null))
   }),
 )
 
@@ -30,6 +30,6 @@ chequesRouter.post(
   '/:id/return',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await handleMutation(res, (client) => returnCheque(client, req.params.id, req.session.userId ?? null))
+    await handleMutation(res, req, (client) => returnCheque(client, req.params.id, req.session.userId ?? null))
   }),
 )

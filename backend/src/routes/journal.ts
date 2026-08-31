@@ -18,6 +18,6 @@ journalRouter.post(
       creditAmount: Number(b.creditAmount) || 0,
       narration: String(b.narration ?? ''),
     }
-    await handleMutation(res, (client) => postJournal(client, input, req.session.userId ?? null))
+    await handleMutation(res, req, (client) => postJournal(client, input, req.session.userId ?? null))
   }),
 )

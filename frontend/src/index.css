@@ -1,9 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Report-title face only — Balance Sheet / Income Statement / customer statement
+     headings and the print masthead, i.e. the pages that get filed or handed to
+     someone as paper. Deliberately NOT applied to body copy, interface chrome,
+     table content, buttons or nav: the sans stays the voice of the app, and the
+     serif marks "this is a document, not a screen". Instrument Serif is the
+     designed companion to Instrument Sans (shared skeleton and metrics), which is
+     why it pairs without looking like two unrelated fonts collided. Ships weight
+     400 only — never set a bold weight on it or the browser will synthesise a
+     smeared faux-bold. */
+  --font-serif: 'Instrument Serif', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+
+  /* Type scale — meta/labels, body copy, section/page headers, and the single most
+     important number(s) on a screen. `text-hero-lg` is a dedicated top-of-range size
+     reserved for the Dashboard's 3 headline KPI cards specifically; every other
+     "most important number" on a page (customer balances, salary totals, the AED
+     stock figure, a statement's net line) uses `text-hero`. Apply these instead of
+     one-off text-[Npx] arbitrary values going forward. */
+  --text-meta: 12px;
+  --text-meta--line-height: 1.4;
+  --text-body: 14px;
+  --text-body--line-height: 1.45;
+  --text-heading: 22px;
+  --text-heading--line-height: 1.2;
+  /* Report-document titles only, paired with --font-serif. Larger than
+     --text-heading because Instrument Serif at weight 400 carries less optical
+     weight than the sans at 600 — matching the px would make the report title
+     read smaller than an ordinary page heading, which is backwards. */
+  --text-report: 27px;
+  --text-report--line-height: 1.15;
+  --text-hero: 30px;
+  --text-hero--line-height: 1.1;
+  --text-hero-lg: 36px;
+  --text-hero-lg--line-height: 1.05;
 
   --color-app: #f5f6f8;
   --color-surface: #ffffff;
@@ -21,21 +54,30 @@
   --color-muted-42: rgba(20, 22, 26, 0.42);
   --color-muted-38: rgba(20, 22, 26, 0.38);
 
-  --color-accent: #3d46d0;
-  --color-accent-hover: #2f37ad;
-  --color-accent-bg: rgba(61, 70, 208, 0.08);
-  --color-accent-border: rgba(61, 70, 208, 0.28);
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-bg: rgba(37, 99, 235, 0.08);
+  --color-accent-border: rgba(37, 99, 235, 0.28);
   /* Solid-fill variant: what white button/segment text sits on. Identical to
      --color-accent in light mode; diverges in dark mode where a single hue can't
      both read as text on a near-black page AND hold 4.5:1 for white text on top
      of it — see the dark-mode blocks below. */
-  --color-accent-solid: #3d46d0;
-  --color-accent-solid-hover: #2f37ad;
+  --color-accent-solid: #2563eb;
+  --color-accent-solid-hover: #1d4ed8;
+  --color-accent-glow: rgba(37, 99, 235, 0.16);
 
   --color-positive: #10794f;
   --color-positive-text: #0f6b46;
   --color-positive-bg: #e6f4ec;
   --color-positive-border: #bfe6d1;
+  --color-positive-glow: rgba(16, 121, 79, 0.14);
+  /* Solid-fill variant, added for the Dashboard's bold KPI cards (see
+     Dashboard.tsx's KpiCard) — the first genuine solid positive fill in the
+     app. Checked at 5.43:1 for white text and reused as-is in dark mode: a
+     solid fill's contrast only depends on the fill color itself, not the page
+     it sits on, so — unlike --color-accent-solid — this one doesn't need a
+     separate darker dark-mode value. */
+  --color-positive-solid: #10794f;
 
   --color-negative: #c4443a;
   --color-negative-text: #b03a30;
@@ -43,6 +85,29 @@
   --color-negative-bg: #fdecea;
   --color-negative-border: #e3c6c2;
   --color-negative-solid: #c4443a;
+  --color-negative-glow: rgba(196, 68, 58, 0.14);
+
+  /* Inflow/outflow — dedicated identity pair for the Dashboard's Sales/Purchases
+     KPI tiles (see Dashboard.tsx's KpiCard). Deliberately distinct from
+     positive/negative: those two mean "signed value, can be good or bad" (a
+     margin, a net movement). Inflow/outflow mean "direction of a routine,
+     one-directional total" — a purchase isn't a loss, so it must never render
+     with the negative-red language. Kept as their own token pair rather than
+     reusing --color-cat-blue/--color-pending so this identity isn't tied to (and
+     can't drift with) an unrelated category or state meaning elsewhere. */
+  --color-inflow: #0e7490;
+  --color-inflow-bg: rgba(14, 116, 144, 0.07);
+  --color-inflow-border: rgba(14, 116, 144, 0.24);
+  --color-inflow-glow: rgba(14, 116, 144, 0.16);
+  /* Checked at 5.36:1 for white text — same value works in both themes. */
+  --color-inflow-solid: #0e7490;
+
+  --color-outflow: #b45309;
+  --color-outflow-bg: rgba(180, 83, 9, 0.07);
+  --color-outflow-border: rgba(180, 83, 9, 0.24);
+  --color-outflow-glow: rgba(180, 83, 9, 0.16);
+  /* Checked at 5.02:1 for white text — same value works in both themes. */
+  --color-outflow-solid: #b45309;
 
   --color-pending: #97650c;
   --color-pending-text: #6b4306;
@@ -71,7 +136,58 @@
   --color-strip-border: #d3d8df;
   --color-scrollbar-thumb: #d6dae0;
 
-  --radius-app: 6px;
+  /* Sidebar — a fixed dark-navy identity, deliberately NOT theme-reactive.
+     Defined once here and never redefined in the dark-mode blocks below, so
+     it stays constant whether the app is in light or dark mode — the same
+     permanent-dark-rail pattern used by Linear/Vercel/Notion, requested
+     specifically for visual impact. Every hue here is the same one already
+     verified against a dark surface for the app's dark theme (see the
+     --color-cat-* dark-mode values) — reused as fixed constants, not
+     duplicated with new, unverified picks. Contrast checked directly against
+     --color-sidebar-bg: text-sidebar-text 15.1:1, text-sidebar-text-muted
+     10.8:1, text-sidebar-text-faint 5.3:1. */
+  --color-sidebar-bg: #0e1a2e;
+  --color-sidebar-active-bg: #1b2c4a;
+  --color-sidebar-hover-bg: rgba(255, 255, 255, 0.05);
+  --color-sidebar-border: rgba(255, 255, 255, 0.09);
+  --color-sidebar-divider: rgba(255, 255, 255, 0.07);
+  --color-sidebar-text: rgba(255, 255, 255, 0.94);
+  --color-sidebar-text-muted: rgba(255, 255, 255, 0.70);
+  --color-sidebar-text-faint: rgba(255, 255, 255, 0.44);
+  --color-sidebar-active-text: #ffffff;
+
+  --color-sidebar-cat-fx-bg: rgba(91, 157, 245, 0.18);
+  --color-sidebar-cat-fx: #8cbdf8;
+  --color-sidebar-cat-bank-bg: rgba(77, 159, 214, 0.18);
+  --color-sidebar-cat-bank: #7fc1e8;
+  --color-sidebar-cat-customers-bg: rgba(63, 194, 199, 0.18);
+  --color-sidebar-cat-customers: #6ad7db;
+  --color-sidebar-cat-cheques-bg: rgba(226, 168, 63, 0.18);
+  --color-sidebar-cat-cheques: #edbf68;
+  --color-sidebar-cat-salary-bg: rgba(180, 142, 224, 0.18);
+  --color-sidebar-cat-salary: #cdaeee;
+  --color-sidebar-cat-reports-bg: rgba(168, 178, 189, 0.18);
+  --color-sidebar-cat-reports: #c7ced5;
+  --color-sidebar-cat-neutral-bg: rgba(255, 255, 255, 0.09);
+  --color-sidebar-cat-neutral: rgba(255, 255, 255, 0.78);
+
+  /* Radius scale — three deliberate tiers, not one value used everywhere.
+     The rule: the denser and more data-like a thing is, the sharper its corners.
+       data    (3px) — anything that reads as a figure or a record: status badges,
+                       in-row icon chips, signed-amount chips, ledger/table cells,
+                       progress bars. Sharp corners read as precise and tabular,
+                       which is what a ledger should feel like.
+       control (6px) — things a person clicks or types into: buttons, inputs,
+                       selects, nav items, menu items. Slightly softer, because a
+                       soft corner reads as pressable.
+       panel  (10px) — things that contain other things: cards, modals, popovers,
+                       KPI tiles. Softest, so containers recede and their contents
+                       carry the structure.
+     Add new UI to whichever tier it genuinely belongs to rather than picking a
+     px value by eye — that is how the old uniform-6px-everywhere look crept in. */
+  --radius-data: 3px;
+  --radius-control: 6px;
+  --radius-panel: 10px;
 
   --shadow-xs: 0 1px 2px 0 rgba(20, 22, 26, 0.04);
   --shadow-sm: 0 1px 2px 0 rgba(20, 22, 26, 0.05), 0 1px 1px -1px rgba(20, 22, 26, 0.045);
@@ -116,17 +232,23 @@
     --color-muted-42: rgba(238, 240, 243, 0.42);
     --color-muted-38: rgba(238, 240, 243, 0.38);
 
-    --color-accent: #7c86f0;
-    --color-accent-hover: #929bf5;
-    --color-accent-bg: #1c2036;
-    --color-accent-border: rgba(124, 134, 240, 0.35);
-    --color-accent-solid: #4a52d6;
-    --color-accent-solid-hover: #5a63e6;
+    --color-accent: #5b9df5;
+    --color-accent-hover: #7db4f7;
+    --color-accent-bg: #10233b;
+    --color-accent-border: rgba(91, 157, 245, 0.35);
+    --color-accent-solid: #2f66d6;
+    --color-accent-solid-hover: #3f76e2;
+    --color-accent-glow: rgba(91, 157, 245, 0.24);
 
     --color-positive: #34c38f;
     --color-positive-text: #34c38f;
     --color-positive-bg: #0f2a20;
     --color-positive-border: rgba(52, 195, 143, 0.35);
+    --color-positive-glow: rgba(52, 195, 143, 0.22);
+    /* Deliberately NOT the bright #34c38f above — that hue is picked to read as
+       text on a near-black page and is too light to hold white text at 4.5:1.
+       Reuses the same deep value as light mode (see its own comment). */
+    --color-positive-solid: #10794f;
 
     --color-negative: #f2685c;
     --color-negative-text: #f2685c;
@@ -134,6 +256,23 @@
     --color-negative-bg: #331613;
     --color-negative-border: rgba(242, 104, 92, 0.35);
     --color-negative-solid: #c8382c;
+    --color-negative-glow: rgba(242, 104, 92, 0.22);
+
+    /* Re-picked for dark, not darkened — see the light-mode definition's comment
+       for why these stay a separate pair from positive/negative. */
+    --color-inflow: #38bdf8;
+    --color-inflow-bg: rgba(56, 189, 248, 0.1);
+    --color-inflow-border: rgba(56, 189, 248, 0.32);
+    --color-inflow-glow: rgba(56, 189, 248, 0.22);
+    /* Same reasoning as positive-solid above — the bright dark-mode text hue
+       can't hold white text, so this reuses light mode's deeper value. */
+    --color-inflow-solid: #0e7490;
+
+    --color-outflow: #fb923c;
+    --color-outflow-bg: rgba(251, 146, 60, 0.1);
+    --color-outflow-border: rgba(251, 146, 60, 0.32);
+    --color-outflow-glow: rgba(251, 146, 60, 0.22);
+    --color-outflow-solid: #b45309;
 
     --color-pending: #e2a83f;
     --color-pending-text: #e2a83f;
@@ -183,17 +322,20 @@
   --color-muted-42: rgba(238, 240, 243, 0.42);
   --color-muted-38: rgba(238, 240, 243, 0.38);
 
-  --color-accent: #7c86f0;
-  --color-accent-hover: #929bf5;
-  --color-accent-bg: #1c2036;
-  --color-accent-border: rgba(124, 134, 240, 0.35);
-  --color-accent-solid: #4a52d6;
-  --color-accent-solid-hover: #5a63e6;
+  --color-accent: #5b9df5;
+  --color-accent-hover: #7db4f7;
+  --color-accent-bg: #10233b;
+  --color-accent-border: rgba(91, 157, 245, 0.35);
+  --color-accent-solid: #2f66d6;
+  --color-accent-solid-hover: #3f76e2;
+  --color-accent-glow: rgba(91, 157, 245, 0.24);
 
   --color-positive: #34c38f;
   --color-positive-text: #34c38f;
   --color-positive-bg: #0f2a20;
   --color-positive-border: rgba(52, 195, 143, 0.35);
+  --color-positive-glow: rgba(52, 195, 143, 0.22);
+  --color-positive-solid: #10794f;
 
   --color-negative: #f2685c;
   --color-negative-text: #f2685c;
@@ -201,6 +343,19 @@
   --color-negative-bg: #331613;
   --color-negative-border: rgba(242, 104, 92, 0.35);
   --color-negative-solid: #c8382c;
+  --color-negative-glow: rgba(242, 104, 92, 0.22);
+
+  --color-inflow: #38bdf8;
+  --color-inflow-bg: rgba(56, 189, 248, 0.1);
+  --color-inflow-border: rgba(56, 189, 248, 0.32);
+  --color-inflow-glow: rgba(56, 189, 248, 0.22);
+  --color-inflow-solid: #0e7490;
+
+  --color-outflow: #fb923c;
+  --color-outflow-bg: rgba(251, 146, 60, 0.1);
+  --color-outflow-border: rgba(251, 146, 60, 0.32);
+  --color-outflow-glow: rgba(251, 146, 60, 0.22);
+  --color-outflow-solid: #b45309;
 
   --color-pending: #e2a83f;
   --color-pending-text: #e2a83f;
@@ -257,8 +412,8 @@ body {
   background: var(--color-app);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
@@ -271,16 +426,43 @@ input, select, button, textarea {
   background: var(--color-accent-border);
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+/*
+ * Layered for the same reason as the `a` rule below: several components
+ * (Popover content, DropdownMenuItem, Select item, TopBar's search input)
+ * deliberately override this default with their own `outline-none` /
+ * `focus-visible:outline-none` Tailwind utility — e.g. Radix menu items get
+ * real keyboard focus while arrow-navigating and rely on outline-none so
+ * only their own highlighted-background state shows, not a stray outline
+ * box. Left unlayered, this rule silently won anyway, since an unlayered
+ * rule beats every layered utility regardless of specificity — so those
+ * components could never actually suppress it.
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
 }
 
-a {
-  color: var(--color-accent);
-}
-a:hover {
-  color: var(--color-accent-hover);
+/*
+ * Wrapped in @layer base deliberately: Tailwind v4 emits utility classes into
+ * its own `utilities` cascade layer, which always wins over an unlayered
+ * rule's specificity would suggest — but a BARE (unlayered) rule like this
+ * one used to sit outside all cascade layers entirely, which gives it
+ * unconditional top priority over every layered rule, utilities included.
+ * That silently defeated any text-color utility applied to a real <a> tag
+ * (the Sidebar's NavLink is the only one in the app) — its "brighten the nav
+ * text to near-white" utility class was always losing to this rule, no
+ * matter what value it set. Layering this correctly restores normal
+ * cascade-layer precedence, so a utility class on the element wins again.
+ */
+@layer base {
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-hover);
+  }
 }
 
 .tabular {
@@ -353,17 +535,20 @@ a:hover {
     --color-muted-42: rgba(20, 22, 26, 0.42) !important;
     --color-muted-38: rgba(20, 22, 26, 0.38) !important;
 
-    --color-accent: #3d46d0 !important;
-    --color-accent-hover: #2f37ad !important;
-    --color-accent-bg: rgba(61, 70, 208, 0.08) !important;
-    --color-accent-border: rgba(61, 70, 208, 0.28) !important;
-    --color-accent-solid: #3d46d0 !important;
-    --color-accent-solid-hover: #2f37ad !important;
+    --color-accent: #2563eb !important;
+    --color-accent-hover: #1d4ed8 !important;
+    --color-accent-bg: rgba(37, 99, 235, 0.08) !important;
+    --color-accent-border: rgba(37, 99, 235, 0.28) !important;
+    --color-accent-solid: #2563eb !important;
+    --color-accent-solid-hover: #1d4ed8 !important;
+    --color-accent-glow: rgba(37, 99, 235, 0.16) !important;
 
     --color-positive: #10794f !important;
     --color-positive-text: #0f6b46 !important;
     --color-positive-bg: #e6f4ec !important;
     --color-positive-border: #bfe6d1 !important;
+    --color-positive-glow: rgba(16, 121, 79, 0.14) !important;
+    --color-positive-solid: #10794f !important;
 
     --color-negative: #c4443a !important;
     --color-negative-text: #b03a30 !important;
@@ -371,6 +556,19 @@ a:hover {
     --color-negative-bg: #fdecea !important;
     --color-negative-border: #e3c6c2 !important;
     --color-negative-solid: #c4443a !important;
+    --color-negative-glow: rgba(196, 68, 58, 0.14) !important;
+
+    --color-inflow: #0e7490 !important;
+    --color-inflow-bg: rgba(14, 116, 144, 0.07) !important;
+    --color-inflow-border: rgba(14, 116, 144, 0.24) !important;
+    --color-inflow-solid: #0e7490 !important;
+    --color-inflow-glow: rgba(14, 116, 144, 0.16) !important;
+
+    --color-outflow: #b45309 !important;
+    --color-outflow-bg: rgba(180, 83, 9, 0.07) !important;
+    --color-outflow-border: rgba(180, 83, 9, 0.24) !important;
+    --color-outflow-glow: rgba(180, 83, 9, 0.16) !important;
+    --color-outflow-solid: #b45309 !important;
 
     --color-pending: #97650c !important;
     --color-pending-text: #6b4306 !important;
@@ -411,7 +609,36 @@ a:hover {
     color: #14161a !important;
   }
 
+  /* Document typography: slightly tighter body copy than screen, and every figure
+     forced to the tabular face so financial columns line up digit-for-digit on
+     paper exactly as they do on screen. `.tabular` already sets this, but a
+     printed statement is the one context where a missed .tabular is genuinely
+     costly (a filed report with ragged columns), so the numeric column classes
+     are belt-and-braces here rather than relying on per-element classes alone. */
+  body {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  .tabular {
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  /* Keep a statement's structure intact across a page break — a group header
+     stranded at the foot of a page, or a total split from its own table, is the
+     clearest "this was printed from a webpage" tell. */
+  h1, h2, h3 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  table, thead, tbody tr {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
   @page {
-    margin: 14mm 12mm;
+    /* Wider foot margin leaves room for the browser's own page-number footer
+       without it colliding with the last table row. */
+    margin: 16mm 14mm 18mm 14mm;
   }
 }
