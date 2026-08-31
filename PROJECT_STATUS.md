@@ -131,6 +131,11 @@ to display them.
 Staff sign in with a username or an email address and a password. There is no self-service
 sign-up; accounts are created deliberately by an administrator.
 
+A terminal left untouched signs itself out — five minutes by default, changeable by an
+administrator on the Settings page. A warning appears thirty seconds beforehand with the chance to
+stay signed in. This is enforced by the server as well as the screen, so it cannot be sidestepped
+by a browser with scripting turned off.
+
 ---
 
 # Part 2 — Client requirements
@@ -140,13 +145,13 @@ sign-up; accounts are created deliberately by an administrator.
 All eight points are now recorded. Each status below was checked against the actual software on
 2026-08-31, not assumed.
 
-**Summary: 6 done, 0 partial, 2 not started.**
+**Summary: 7 done, 0 partial, 1 not started.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | 1 | **A date on every entry** | ✅ **Done** | All four transaction screens (buy, sell, receive, pay) carry a date picker for the day the deal was struck, kept separate from when it was typed in. Reports are cut on that date. Verified live in production: a purchase recorded and correctly dated "Aug 31, 2026". Previously this worked on the two trade screens but was silently missing on the two payment screens. |
 | 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | ✅ **Done — all 6 live** | All six are live in production: AED, USD, EUR, IRR, AFN, JPY. Each has its own correct quoting convention and is carried separately on the balance sheet at its own cost, so no two currencies share a position. Verified in production after release — six stock positions, six separate stock accounts, and every currency present in the software actually being served to staff. Each new currency's arithmetic was checked against a real conversion (e.g. 1,000 USD at 282.50 storing 282,500 PKR), confirmed against the figure the database actually holds rather than the screen appearing to accept it. |
-| 3 | **Auto-logout after inactivity** | ❌ **Not started** | Sessions last 30 days and renew on each use, so a signed-in user stays signed in indefinitely while active. No inactivity timeout exists on either the screen or the server. |
+| 3 | **Auto-logout after inactivity** | ✅ **Done** | A terminal left untouched signs itself out, defaulting to 5 minutes. Thirty seconds beforehand a warning counts down with a "Stay logged in" button, so an active user is never cut off without notice. Enforced in **two independent places**: the screen runs the countdown, and the session itself expires on the server after the same period — so a machine with the browser's scripting disabled, or someone replaying a copied session from another computer, is cut off just the same. On timeout the session is genuinely ended, not merely hidden behind a locked screen. The period is an **admin setting** on the new Settings page, from 1 minute to 8 hours, applying to everyone. Verified in production. |
 | 4 | **Ledger export** | ❌ **Not started** | Reports print cleanly, with correct formatting and page breaks. There is no export to a file — no spreadsheet, CSV or PDF download. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
@@ -175,7 +180,7 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 ### Done
 
-*At a glance: two of the three security releases are live; two real accounting defects fixed; the
+*At a glance: two of the three security releases are live; automatic sign-out on inactivity built and released; the currency list completed to all six; two real accounting defects fixed; the*
 client's full requirement list recovered and verified against the software; twenty accumulated
 changes released to production after three days without a release.*
 
@@ -296,6 +301,27 @@ name appearing on hover rather than permanently taking up room. Two explanatory 
 removed — one telling the dealer which direction a purchase runs, one explaining that a date field
 holds a date. Both were the software narrating its own workings to someone who already knows them.
 
+**A terminal left untouched now signs itself out** — five minutes by default, with a thirty-second
+warning and a button to stay signed in, so an active user is never cut off mid-task.
+
+The part worth understanding is that this is enforced **twice, independently**. The screen runs the
+countdown, which is what produces the warning and the tidy sign-out. But a countdown that lives in
+the browser protects nobody who is deliberately getting round it — a machine with scripting turned
+off, or someone using a session copied from another computer, never runs it at all. So the session
+itself also expires on the server after the same period. Either half alone would be inadequate:
+without the screen there would be no warning, and without the server it would be decoration.
+
+Keeping the two in step needed care. The server measures idleness from the last time the screen
+*asked it for something*, and someone reading a long report is plainly present while asking for
+nothing. Left alone, their countdown would show plenty of time while the session quietly expired
+underneath them, and the next click would fail for no visible reason. Genuine activity therefore
+touches the server about once a minute, and ordinary use satisfies that without extra traffic.
+
+Making the period an administrator setting required somewhere to keep it. There was no such place:
+every setting until now lives in the hosting configuration, which only the account holder can
+change and only by re-releasing the software. A small settings store was added, and an admin-only
+Settings page edits it.
+
 ### Found
 
 | Finding | Severity | Status |
@@ -306,6 +332,8 @@ holds a date. Both were the software narrating its own workings to someone who a
 | Every server error is reported to the user as "Something went wrong", including ordinary faults that should say what was actually wrong | Misleading. Cost real time today: a malformed test command looked exactly like a broken production sign-in | **Open** — small fix, needs a release |
 | Preview copies of the software are wired to the **live** database | Real risk — test work writes to the real books | **Open** — needs a decision |
 | Sign-in appeared broken in production | **Not a fault.** The test command was malformed by the Windows shell and never reached the server intact. Sign-in verified working. | Closed, no action |
+| The automatic sign-out would not have applied until a user's *second* request — the first sign-in of every session still handed out the old 30-day window | Would have quietly weakened the new control for exactly the first moments of each session | Fixed before release — found while writing the test, not afterwards |
+| 34 sessions that existed before this release still carry the old 30-day window until they are next used | Low but real: an old unused session stays usable for its original period, which is precisely the case the timeout exists to close | **Open — a decision, not a defect.** Expiring them is one command, but it signs every current user out immediately |
 | The planned way of deciding when to switch on CSRF enforcement did not work — the hosting platform's logs are tied to a single release and expire within hours | Would have meant guessing at the final step of a rollout that was split into three specifically to avoid guessing | Fixed — signal now written to the database, with a one-command check |
 | The first version of that check reported "safe" against live data, incorrectly | Would have caused enforcement to be switched on prematurely, locking out anyone on a cached copy of the screen | Fixed the same session — it compared a brand-new failure record against two days of business history; both are now measured over the same window |
 | Trades and payments create no paired ledger entries — the balance sheet reconstructs each account's debit/credit position from transaction records instead | Figures are correct, but there is no auditable entry per transaction | **Open — confirmed in scope.** Client has since decided they want full traceability, so this is real work, not a question. Gated behind the CSRF rollout; scoping plan required first |
@@ -360,14 +388,15 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
    - Note the migration risk this carries: existing trades have no journal entries, so the plan
      must say what happens to historical records — backfilled, left as-is with reports handling
      both shapes, or something else. That decision affects whether past reports stay reproducible.
-3. **Auto-logout after inactivity** *(requirement 3)* — not started, and now the only client
-   requirement with nothing built at all. Relevant to a shared counter where a terminal may be
-   left unattended.
-4. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
-   Worth confirming the wanted format (spreadsheet vs PDF) before building.
+3. **Ledger export** *(requirement 4)* — the last outstanding client requirement, and not started.
+   Printing works; file export does not exist. Worth confirming the wanted format (spreadsheet vs
+   PDF) before building, since that decides most of the work.
 
-   *Items 3 and 4 are small and fully independent of item 2. If the scoping plan for the
-   double-entry work is under review, either can be picked up without conflicting with it.*
+   *Item 3 is fully independent of item 2. If the scoping plan for the double-entry work is under
+   review, it can be picked up without conflicting with it.*
+4. **Decide whether to expire the 34 pre-existing sessions** — they keep the old 30-day window
+   until next used. One command, but it signs every current user out, so it wants a quiet moment
+   rather than a busy trading hour.
 5. **Fix the misleading error message** — report the actual fault instead of "Something went
    wrong". Small, and it will mislead again if left.
 6. **Decide on the preview-writes-to-live-database risk** — either a separate database for
