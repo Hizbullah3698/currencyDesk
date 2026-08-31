@@ -173,7 +173,12 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 ### Done
 
-**Security — cross-site request forgery protection, stage 1 of 3 shipped and verified live.**
+*At a glance: two of the three security releases are live; two real accounting defects fixed; the
+client's full requirement list recovered and verified against the software; twenty accumulated
+changes released to production after three days without a release.*
+
+**Security — cross-site request forgery protection, stages 1 and 2 of 3 shipped and verified
+live.**
 
 The live setup requires the browser to attach its sign-in credentials to requests coming from
 other websites. That means a hostile page a signed-in admin visits could, in principle, instruct
@@ -260,7 +265,20 @@ version.
 
 **Documentation.** The engineering reference was rewritten from a full audit (it described a state
 of the system roughly a month out of date) and then condensed. The public README, which still
-described the app as a browser-only demo with no server and a fake login, was rewritten.
+described the app as a browser-only demo with no server and a fake login, was rewritten. **This
+document was created**, and is now updated at the end of every working session.
+
+**The client's requirements were recovered and checked.** Only four of the eight were written down
+anywhere — in the repository, the change history, or any project document. The missing four were
+supplied during the session and every one of the eight was then verified against the actual
+software rather than assumed. Two turned out to have been satisfied by earlier work that had never
+been recorded as meeting a requirement. One — how a customer was paid being hidden on the buy
+screen — was found not only done but done reversibly, with the controls kept in place and a
+written procedure for restoring them, which is what the client had asked for.
+
+The eighth point, correct debit/credit accounting, was raised as a question and answered the same
+day: the client wants a genuine auditable entry per transaction, not merely correct totals. That
+moves it from ambiguous to confirmed work, and makes it the largest remaining item in the project.
 
 ### Found
 
