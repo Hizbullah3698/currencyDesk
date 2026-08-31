@@ -3,6 +3,7 @@ import cors from 'cors'
 import { env } from './config/env.js'
 import { sessionMiddleware } from './middleware/session.js'
 import { csrfProtection } from './middleware/csrf.js'
+import { applySessionIdleTimeout } from './middleware/sessionIdleTimeout.js'
 import { authRouter } from './routes/auth.js'
 import { healthRouter } from './routes/health.js'
 import { stateRouter } from './routes/state.js'
@@ -12,6 +13,7 @@ import { chequesRouter } from './routes/cheques.js'
 import { journalRouter } from './routes/journal.js'
 import { salaryRouter } from './routes/salary.js'
 import { accountsRouter } from './routes/accounts.js'
+import { settingsRouter } from './routes/settings.js'
 
 export function createApp() {
   const app = express()
@@ -36,6 +38,12 @@ export function createApp() {
   app.use(express.json())
   app.use(sessionMiddleware)
 
+  // Applies the admin-configured idle window to this session. Must run after the session
+  // middleware (it reads req.session) and before the routes, so the window is in place by the time
+  // express-session saves at the end of the response. This is what actually enforces the timeout —
+  // the client-side countdown is a courtesy. See middleware/sessionIdleTimeout.ts.
+  app.use(applySessionIdleTimeout)
+
   // After the session (it reads req.session) and before every route, so no route can be added
   // that forgets it. Stage 1 of a three-stage rollout: validates a token when one is sent, does
   // not yet require one. See middleware/csrf.ts for the full reasoning and the remaining stages.
@@ -50,6 +58,7 @@ export function createApp() {
   app.use('/api/journal', journalRouter)
   app.use('/api/salary', salaryRouter)
   app.use('/api/accounts', accountsRouter)
+  app.use('/api/settings', settingsRouter)
 
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     console.error(err)

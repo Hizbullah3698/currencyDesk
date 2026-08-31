@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Banknote, SquarePen, Lock, Users2, Wallet, UserRound, List, Coins, Landmark, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Banknote, SquarePen, Lock, Users2, Wallet, UserRound, List, Coins, Landmark, TrendingUp, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStore } from '@/lib/store'
 import { SIDEBAR_CATEGORY_COLORS, type Category } from '@/lib/ui-helpers'
@@ -32,6 +32,7 @@ const BOOKS: NavItemDef[] = [
   { to: '/stock', label: 'Ledgers', icon: Coins, category: 'fx' },
   { to: '/balance-sheet', label: 'Balance Sheet', icon: Landmark, category: 'reports', adminOnly: true },
   { to: '/income-statement', label: 'Income Statement', icon: TrendingUp, category: 'reports', adminOnly: true },
+  { to: '/settings', label: 'Settings', icon: SlidersHorizontal, category: 'neutral', adminOnly: true },
 ]
 
 function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[]; isAdmin: boolean }) {

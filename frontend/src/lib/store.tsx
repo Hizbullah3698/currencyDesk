@@ -5,6 +5,7 @@ import { CORE_ACCOUNT_IDS } from './engine'
 import { useAuth } from './auth'
 import { apiUrl } from './apiBase'
 import { getCsrfToken, isCsrfError, isMutatingMethod, requestHeaders } from './csrf'
+import { markActivity, markServerContact } from './activity'
 import { refreshCsrfToken } from './authClient'
 
 export interface AppState {
@@ -34,6 +35,11 @@ async function parseJson(res: Response): Promise<any> {
 type ApiResult = { ok: true; snapshot: AppState } | { ok: false; error: string }
 
 async function sendRequest(method: string, url: string, body?: unknown): Promise<Response> {
+  // Every request is both activity (someone asked for this) and server contact (the session's
+  // rolling window just moved). Recording the latter is what stops the idle keepalive firing
+  // redundantly alongside traffic the app was already making. See lib/activity.ts.
+  markActivity()
+  markServerContact()
   return fetch(apiUrl(url), {
     method,
     headers: requestHeaders(method),

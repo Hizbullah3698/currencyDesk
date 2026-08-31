@@ -4,6 +4,7 @@ import { attemptLogin } from '../services/authService.js'
 import { findUserById, toPublicUser } from '../services/userService.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 import { issueCsrfToken } from '../middleware/csrf.js'
+import { applyIdleWindow } from '../middleware/sessionIdleTimeout.js'
 import { env } from '../config/env.js'
 import { pool } from '../db/pool.js'
 import { PostgresRateLimitStore } from '../services/rateLimitStore.js'
@@ -42,13 +43,18 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
 
   // Regenerate the session id on login (before storing any identity in it) to prevent
   // session fixation — a pre-login session id is never reused as a post-login one.
-  req.session.regenerate((err) => {
+  req.session.regenerate(async (err) => {
     if (err) {
       res.status(500).json({ error: 'Could not start a session.' })
       return
     }
     req.session.userId = result.user.id
     req.session.role = result.user.role
+    // The idle window has to be applied HERE, not only by the middleware. Middleware runs before
+    // the route, when a logging-in request still looks anonymous — so without this the very first
+    // cookie of every session would carry the default 30-day window rather than the idle one, and
+    // the timeout would not begin applying until the user's second request.
+    await applyIdleWindow(req)
     // Minted after regenerate(), so the token belongs to the post-login session id and a
     // pre-login token can never carry over. Returned in the body rather than a cookie: the SPA
     // holds it in memory and echoes it as X-CSRF-Token — see middleware/csrf.ts for why a

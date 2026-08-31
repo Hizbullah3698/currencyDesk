@@ -1,6 +1,7 @@
 import type { Role } from './types'
 import { apiUrl } from './apiBase'
 import { clearCsrfToken, getCsrfToken, setCsrfToken, CSRF_HEADER } from './csrf'
+import { markServerContact } from './activity'
 
 export interface SessionUser {
   id: string
@@ -67,6 +68,7 @@ export type MeResult = { status: 'authenticated'; user: SessionUser } | { status
 
 export async function me(): Promise<MeResult> {
   try {
+    markServerContact()
     const res = await fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
     if (res.status === 401) {
       clearCsrfToken()
