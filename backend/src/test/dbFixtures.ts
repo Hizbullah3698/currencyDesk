@@ -30,15 +30,23 @@ export async function resetBusinessData(pool: Pool): Promise<void> {
       ('capital', 'Capital', 'Opening Balance / Capital', true, NULL, '')
   `)
   await pool.query("UPDATE accounts SET code = 'AED' WHERE id = 'currency'")
-  // Migration 012 — one Currency Stock account and one stock position per traded currency.
+  // Migrations 012 and 014 — one Currency Stock account and one stock position per traded
+  // currency. This must stay in step with CURRENCIES: a code the engine will accept but that has
+  // no account and no stock row behind it fails in a way no unit test would catch.
   await pool.query(`
     INSERT INTO accounts (id, type, name, is_system, code, notes) VALUES
       ('currencyAFN', 'Currency Stock', 'Currency stock (AFN)', true, 'AFN',
          'Quantity and weighted-average cost are derived from the currency ledger.'),
       ('currencyIRR', 'Currency Stock', 'Currency stock (IRR)', true, 'IRR',
+         'Quantity and weighted-average cost are derived from the currency ledger.'),
+      ('currencyUSD', 'Currency Stock', 'Currency stock (USD)', true, 'USD',
+         'Quantity and weighted-average cost are derived from the currency ledger.'),
+      ('currencyEUR', 'Currency Stock', 'Currency stock (EUR)', true, 'EUR',
+         'Quantity and weighted-average cost are derived from the currency ledger.'),
+      ('currencyJPY', 'Currency Stock', 'Currency stock (JPY)', true, 'JPY',
          'Quantity and weighted-average cost are derived from the currency ledger.')
   `)
-  await pool.query("INSERT INTO stock_positions (code, available, avg_cost) VALUES ('AED', 0, 0), ('AFN', 0, 0), ('IRR', 0, 0)")
+  await pool.query("INSERT INTO stock_positions (code, available, avg_cost) VALUES ('AED', 0, 0), ('AFN', 0, 0), ('IRR', 0, 0), ('USD', 0, 0), ('EUR', 0, 0), ('JPY', 0, 0)")
 
   // Not a business table, but it has to be cleared here for the same reason: the login limiter
   // (20 attempts / 15 min per IP) is backed by a real Postgres table (migration 010), so its

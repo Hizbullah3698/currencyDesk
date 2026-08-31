@@ -130,11 +130,13 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
   })
 
   it('rejects an unknown currency with a clean 400 rather than silently creating a position for it', async () => {
-    const res = await client.post('/api/trades/purchase', { ...purchaseBody(100, 280), currency: 'USD' })
+    const res = await client.post('/api/trades/purchase', { ...purchaseBody(100, 280), currency: 'CHF' })
     expect(res.status).toBe(400)
-    expect(res.json.error).toMatch(/Unknown currency "USD"/)
+    // CHF, not USD — USD became a traded currency in migration 014, so it stopped being a valid
+    // example of something the desk rejects. This test correctly failed when that changed.
+    expect(res.json.error).toMatch(/Unknown currency "CHF"/)
 
-    const { rows } = await pool.query("SELECT code FROM stock_positions WHERE code = 'USD'")
+    const { rows } = await pool.query("SELECT code FROM stock_positions WHERE code = 'CHF'")
     expect(rows).toHaveLength(0)
   })
 

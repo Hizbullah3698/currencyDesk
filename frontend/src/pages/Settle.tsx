@@ -94,7 +94,6 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Transaction date</label>
             <DatePicker value={txnDate} onChange={setTxnDate} placeholder="Payment date" className="h-[34px] w-full justify-start border-border-input text-body" />
-            <div className="mt-0.5 text-meta font-normal text-muted-60">The day the payment was made, not the day it was keyed in.</div>
           </div>
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Amount {mode === 'receive' ? 'received' : 'paid'} (PKR)</label>

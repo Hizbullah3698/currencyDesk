@@ -36,7 +36,28 @@ export interface CurrencyMeta {
 }
 
 // Ordered strongest-to-weakest against PKR, which is also the order the picker shows.
+//
+// Every code except IRR is an ordinary 'multiply' quote — worth more than a rupee, so a dealer
+// says "PKR per 1 unit". Even JPY, the weakest of them at roughly 1.9 PKR, is still quoted that
+// way; the convention only inverts when a unit is worth a small fraction of a rupee and the rate
+// box would otherwise want a number like 0.0002. IRR remains the only such case.
 export const CURRENCY_LIST: CurrencyMeta[] = [
+  {
+    code: 'EUR',
+    name: 'Euro',
+    quote: 'multiply',
+    rateLabel: 'PKR per 1 EUR',
+    amountDecimals: 0,
+    rateDecimals: 2,
+  },
+  {
+    code: 'USD',
+    name: 'US Dollar',
+    quote: 'multiply',
+    rateLabel: 'PKR per 1 USD',
+    amountDecimals: 0,
+    rateDecimals: 2,
+  },
   {
     code: 'AED',
     name: 'UAE Dirham',
@@ -54,6 +75,14 @@ export const CURRENCY_LIST: CurrencyMeta[] = [
     rateDecimals: 2,
   },
   {
+    code: 'JPY',
+    name: 'Japanese Yen',
+    quote: 'multiply',
+    rateLabel: 'PKR per 1 JPY',
+    amountDecimals: 0,
+    rateDecimals: 2,
+  },
+  {
     code: 'IRR',
     name: 'Iranian Rial',
     quote: 'divide',
@@ -62,6 +91,17 @@ export const CURRENCY_LIST: CurrencyMeta[] = [
     rateDecimals: 2,
   },
 ]
+
+/**
+ * What a trade screen starts on.
+ *
+ * Explicit rather than "whatever is first in CURRENCY_LIST", which is what the trade screen used
+ * to do. That was equivalent only while AED happened to head the list; adding EUR and USD — both
+ * stronger against PKR, so both sorted above it — would otherwise have silently moved the default
+ * off the desk's main currency and onto one it holds no stock in. Ordering the picker by strength
+ * and choosing the default are two separate decisions, so they are written down separately.
+ */
+export const DEFAULT_CURRENCY = 'AED'
 
 export const CURRENCY_META: Record<string, CurrencyMeta> = Object.fromEntries(CURRENCY_LIST.map((c) => [c.code, c]))
 

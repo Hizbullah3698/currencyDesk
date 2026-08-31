@@ -70,7 +70,7 @@ describe('regressions: cheque bank account, and Currency Stock code integrity', 
   })
 
   it('rejects a Currency Stock account for a currency this desk does not trade', async () => {
-    const res = await client.post('/api/accounts', form({ name: 'Dollar vault', code: 'USD' }))
+    const res = await client.post('/api/accounts', form({ name: 'Franc vault', code: 'CHF' }))
     expect(res.status).toBe(400)
     expect(String(res.json?.error)).toMatch(/this desk trades/i)
   })

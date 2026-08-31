@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '@/lib/store'
-import { buyCalc, sellCalc, stk, CURRENCY_LIST, currencyMeta, currencyName } from '@/lib/engine'
+import { buyCalc, sellCalc, stk, CURRENCY_LIST, DEFAULT_CURRENCY, currencyMeta, currencyName } from '@/lib/engine'
 import { fmt, fmtAmount, fmtLongDate, fmtQuote, fmtRate, todayISO } from '@/lib/format'
 import type { SettlementMethod } from '@/lib/types'
 import { BackButton } from '@/components/BackButton'
@@ -57,7 +57,10 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
   const [step, setStep] = useState<'form' | 'review' | 'done'>('form')
   const [customerId, setCustomerId] = useState(presetCustomerId)
   const [custSearch, setCustSearch] = useState('')
-  const [currency, setCurrency] = useState(CURRENCY_LIST[0]?.code || 'AED')
+  // DEFAULT_CURRENCY, not CURRENCY_LIST[0]: the picker is ordered strongest-to-weakest against
+  // PKR, so adding EUR and USD moved AED off the top of that list. Taking the first entry would
+  // have silently changed the default the screen opens on to a currency the desk holds no stock in.
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [txnDate, setTxnDate] = useState(todayISO())
   const [amount, setAmount] = useState('')
   const [rate, setRate] = useState('')
@@ -132,7 +135,6 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
   }
 
   const title = mode === 'buy' ? 'Buy Currency' : 'Sell Currency'
-  const sub = mode === 'buy' ? 'Business receives currency, business owes the supplying customer.' : 'Customer receives currency, customer owes the business.'
   const counterpartyLabel = mode === 'buy' ? 'Supplier' : 'Customer'
 
   return (
@@ -140,8 +142,10 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
       <div className="mb-3">
         <BackButton label="Currency Stock" onBack={() => navigate('/stock')} />
       </div>
-      <h1 className="m-0 mb-[3px] text-heading font-semibold">{title}</h1>
-      <div className="mb-[26px] text-body text-muted-60">{sub}</div>
+      {/* No explanatory subtitle. "Business receives currency, business owes the supplying
+          customer" was the screen narrating its own bookkeeping to a dealer who already knows
+          which direction a purchase runs. The margin below is what the subtitle used to occupy. */}
+      <h1 className="m-0 mb-[26px] text-heading font-semibold">{title}</h1>
 
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">
@@ -161,14 +165,19 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="mb-1 block text-meta font-semibold text-muted-70">Currency</label>
+              {/* Code only as the visible label, with the full name on hover via `title` — on the
+                  select for whatever is currently chosen, and on each option in the open list. A
+                  dealer reads the code; the name is there for the rare moment someone needs it,
+                  rather than occupying the control permanently. */}
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
+                title={currencyName(currency)}
                 className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2 text-body font-medium transition-colors duration-150"
               >
                 {CURRENCY_LIST.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} — {c.name}
+                  <option key={c.code} value={c.code} title={c.name}>
+                    {c.code}
                   </option>
                 ))}
               </select>
@@ -176,7 +185,6 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             <div>
               <label className="mb-1 block text-meta font-semibold text-muted-70">Transaction date</label>
               <DatePicker value={txnDate} onChange={setTxnDate} placeholder="Deal date" className="h-[34px] w-full justify-start border-border-input text-body" />
-              <div className="mt-0.5 text-meta font-normal text-muted-60">The day the deal was struck, not the day it was keyed in.</div>
             </div>
           </div>
 

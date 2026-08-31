@@ -13,7 +13,7 @@ import {
   custEffects,
   customerBalanceAsOf,
 } from './engine.js'
-import { pkrPerUnit, quoteRate, pkrValueOf, currencyMeta } from './currencies.js'
+import { pkrPerUnit, quoteRate, pkrValueOf, currencyMeta, DEFAULT_CURRENCY } from './currencies.js'
 import type { Account, Activity, Cheque, JournalEntry } from './types.js'
 
 function activity(overrides: Partial<Activity>): Activity {
@@ -275,14 +275,30 @@ describe('customer receivable/payable replay (custEffects / customerBalanceAsOf)
 // ---------------------------------------------------------------------------
 
 describe('quote conventions (pkrPerUnit / quoteRate / pkrValueOf)', () => {
-  it('lists exactly the three codes the desk trades, in strongest-to-weakest order', () => {
-    // CURRENCIES is what tradesService.ts validates an incoming trade's currency against, and
-    // what migration 012 seeded stock_positions/Currency Stock accounts for — a change here
+  it('lists exactly the six codes the desk trades, in strongest-to-weakest order', () => {
+    // CURRENCIES is what tradesService.ts validates an incoming trade's currency against, and what
+    // migrations 012 and 014 seeded stock_positions/Currency Stock accounts for — a change here
     // without a matching migration leaves a tradeable code with no seeded row behind it.
-    expect(CURRENCIES).toEqual(['AED', 'AFN', 'IRR'])
-    expect(currencyMeta('AED').quote).toBe('multiply')
-    expect(currencyMeta('AFN').quote).toBe('multiply')
+    expect(CURRENCIES).toEqual(['EUR', 'USD', 'AED', 'AFN', 'JPY', 'IRR'])
+  })
+
+  it('quotes every currency the normal way round except IRR', () => {
+    // The multiply/divide split is the one piece of per-currency behaviour that can silently
+    // corrupt a posting: getting it wrong returns a cheerful 200 while booking the position at
+    // millions of times its true cost. JPY is the interesting case — at ~1.9 PKR it is the
+    // weakest 'multiply' currency, and close enough to parity to be worth pinning deliberately.
+    for (const code of ['EUR', 'USD', 'AED', 'AFN', 'JPY']) {
+      expect(currencyMeta(code).quote, `${code} should be a multiply quote`).toBe('multiply')
+    }
     expect(currencyMeta('IRR').quote).toBe('divide')
+  })
+
+  it('opens the trade screen on AED, independently of picker order', () => {
+    // DEFAULT_CURRENCY exists precisely so that reordering the picker cannot move the default.
+    // Adding EUR and USD sorted both above AED, and the screen previously took the first entry.
+    expect(DEFAULT_CURRENCY).toBe('AED')
+    expect(CURRENCIES).toContain(DEFAULT_CURRENCY)
+    expect(CURRENCIES[0]).not.toBe(DEFAULT_CURRENCY) // the two are genuinely decoupled now
   })
 
   it("round-trips a 'multiply' currency's rate unchanged in both directions", () => {
