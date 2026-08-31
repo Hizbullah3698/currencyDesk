@@ -183,6 +183,56 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-01
+
+### Done
+
+*At a glance: the data-entry screens were tidied, a stale branch that could mislead was removed,
+and the live server's list of permitted addresses was trimmed.*
+
+**The dealing screens were simplified.** Choosing a customer used to mean two controls stacked on
+top of each other — a box to type a filter into, and a separate dropdown to pick from. Two things
+to operate for one decision, where typing in the first silently changed the contents of the second
+and neither showed the current answer on its own. It is now a single field: click it, the list
+opens, type to narrow it, and it closes showing the chosen name. Arrow keys and Enter work, since
+this is a field a dealer goes through dozens of times a day.
+
+The currency field now reads just the code — "AED" — while working, with the full name shown only
+when the list is open, where someone unsure which code is which actually needs it. The transaction
+date field went from three lines of label and explanation down to one label with a small
+information icon carrying the clarification.
+
+Applied to buying, selling, receiving and making payments — all four screens had the same pattern.
+One of them turned out to have its own private copy of the filtering rather than sharing, which is
+exactly how two screens quietly drift apart; both now use the same control.
+
+**A stale branch was removed.** An old development branch had fallen 22 releases behind and still
+had a working preview address. Anyone opening it would have seen a months-old version of the app
+and reasonably reported bugs that were fixed long ago. Deleted rather than merely updated: updating
+would have made it correct for a day and then let it fall behind again, whereas deleting removes
+the trap. Nothing was lost — every change on it was already in the live line of work.
+
+**The live server's permitted-address list was trimmed** to the real application address alone,
+since the deleted branch's address was still on it. That list is currently the main thing standing
+between a hostile web page and a request made in a signed-in user's name, so keeping it to exactly
+what is needed matters. Verified afterwards from a real browser: the application loads and reaches
+the server normally, and the removed address is now refused.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| "Applied to all four screens" was too loose a claim: receipts and payments have **no currency field at all**, since they move rupees only | Not a defect — but it overstated what had been done, which is the kind of claim this document exists to keep honest | Corrected. The customer and date changes cover four screens; the currency change covers two, plus the account form |
+| The inline "add a customer" was described as existing behaviour to preserve. It did not exist anywhere | Would have been quietly dropped had it not been checked | Built rather than skipped, and restricted to Admins because the server already restricts it — an Operator pressing it would otherwise have been refused by a control that looked available |
+| Changing the permitted-address list briefly marked it unreadable, so its value could no longer be checked for a typo | Real risk: a wrong value there locks every user out, and it had just become unverifiable | Caught and undone in the same change; the value was then read back and confirmed exactly |
+
+### Next — in priority order
+
+Unchanged from 2026-08-31 below, with one addition: **the three data-entry screens other than
+Buy have been checked at the source but not yet seen working in a browser.** Signing in is needed
+for that and could not be done unattended. Worth a few minutes before treating the form changes as
+finished.
+
 ## 2026-08-31
 
 ### Done
@@ -441,7 +491,9 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
 5. **Fix the misleading error message** — report the actual fault instead of "Something went
    wrong". Small, and it will mislead again if left.
 6. **Decide on the preview-writes-to-live-database risk** — either a separate database for
-   previews, or an explicit accepted decision recorded here.
+   previews, or an explicit accepted decision recorded here. One such address was removed on
+   2026-09-01 with the stale branch, but the underlying arrangement is unchanged: any new preview
+   still writes to the real books.
 7. **Lower priority, carried:** no automated checks on the visual side of the app; no automatic
    test run on release; sign-in itself is not protected against a forced-login attack; the screen
    downloads as a single large file rather than in parts.
