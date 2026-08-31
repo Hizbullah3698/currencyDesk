@@ -156,7 +156,14 @@ All eight points are now recorded. Each status below was checked against the act
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
 | 7 | **Correct Dr/Cr accounting throughout** | ❌ **In scope — not started** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*What is missing:* trades and payments create no paired entries. They are stored as transaction records, and each account's debit/credit position is reconstructed at report time. Under the client's decision this does not meet the requirement — there is no journal entry to point at for an individual purchase. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** (stages 2 and 3, enforcement on). Not to be started while that security work is half-finished. <br><br>*Before any code:* a written scoping plan is required and must be reviewed — see the next-steps list. This is the largest remaining piece of work in the project. |
-| 8 | **Customer records show the actual currency and amount** | ✅ **Done** | A customer's statement shows each trade in the currency actually transacted — e.g. "1,000 AED @ 77.00" — with the rate in that currency's own convention, alongside the rupee value in a separate column. The client's stated failure case (buying AED but the record reading PKR) does not occur. Note for clarity: the customer's **overall balance** is shown in rupees, which is correct — the customer owes or is owed rupees, not dirhams. It is the individual transactions that must name their real currency, and they do. |
+| 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
+
+> **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
+> day and marked done, on the grounds that the customer record displayed "1,000 AED @ 77.00"
+> somewhere on the row. That was too lenient: it confirmed the currency *appeared*, not that it was
+> the figure being led with — while the bold, right-aligned amount, the one a reader takes as *the*
+> number, still said PKR. The client was right and the earlier check was wrong. Noted because a
+> status document is only useful if its "done" marks can be trusted, and this one could not.
 
 ### Delivered alongside, not on the recorded list
 
@@ -301,6 +308,18 @@ name appearing on hover rather than permanently taking up room. Two explanatory 
 removed — one telling the dealer which direction a purchase runs, one explaining that a date field
 holds a date. Both were the software narrating its own workings to someone who already knows them.
 
+**Transaction amounts now read in the currency actually dealt.** Buying a thousand dirhams from a
+customer and then opening their record showed a rupee figure — a currency that had no part in the
+deal. The cause was not a faulty conversion but a display choice: transactions are stored with both
+the real amount and its rupee value, and every screen had reached for the rupee one as the number
+to show large, leaving the real currency in small grey text or nowhere.
+
+That choice is now made in one place rather than separately on each screen, and it is made the
+other way round: what was dealt leads, the rupee equivalent sits underneath. Fixed on the customer
+record, the dashboard, the transaction log and the currency stock page. Receipts and payments are
+untouched, because those genuinely are rupee movements and dressing them up with a conversion
+would be inventing something that did not happen.
+
 **The customer ledger was built** — the last outstanding client requirement. A Customer Ledger
 section opens on a searchable list of customers showing names and balances only, deliberately with
 no transaction detail: a statement belongs to one customer, and putting transactions on the chooser
@@ -354,6 +373,8 @@ Settings page edits it.
 | Preview copies of the software are wired to the **live** database | Real risk — test work writes to the real books | **Open** — needs a decision |
 | Sign-in appeared broken in production | **Not a fault.** The test command was malformed by the Windows shell and never reached the server intact. Sign-in verified working. | Closed, no action |
 | The automatic sign-out would not have applied until a user's *second* request — the first sign-in of every session still handed out the old 30-day window | Would have quietly weakened the new control for exactly the first moments of each session | Fixed before release — found while writing the test, not afterwards |
+| Customer transaction amounts were shown converted into rupees, on five screens — the client's own report | Real: a purchase of 1,000 dirhams read as a rupee figure, a currency that was never part of the deal | Fixed. One shared rule now decides which figure leads, instead of the same choice being made separately on each screen |
+| **An earlier assessment in this document was wrong.** Requirement 8 was marked done because the currency appeared on the row, without checking it was the figure being led with | The client had to report a bug this document said was already handled | Corrected in Part 2, and the correction left visible rather than quietly overwritten |
 | 34 sessions that existed before this release still carry the old 30-day window until they are next used | Low but real: an old unused session stays usable for its original period, which is precisely the case the timeout exists to close | **Open — a decision, not a defect.** Expiring them is one command, but it signs every current user out immediately |
 | The planned way of deciding when to switch on CSRF enforcement did not work — the hosting platform's logs are tied to a single release and expire within hours | Would have meant guessing at the final step of a rollout that was split into three specifically to avoid guessing | Fixed — signal now written to the database, with a one-command check |
 | The first version of that check reported "safe" against live data, incorrectly | Would have caused enforcement to be switched on prematurely, locking out anyone on a cached copy of the screen | Fixed the same session — it compared a brand-new failure record against two days of business history; both are now measured over the same window |
