@@ -20,6 +20,17 @@ import { env } from '../config/env.js'
 
 const HOURS = Number(process.argv[2]) || 48
 
+/**
+ * Host and database name only — never the credentials. Printed on every run because a verdict is
+ * only meaningful if you know which database produced it, and the two invocations
+ * (`csrf:gate` for local, `csrf:gate:prod` for production) differ only by an env var that is easy
+ * to forget. Acting on a green light from the wrong database is the mistake this line prevents.
+ */
+function describeTarget(): string {
+  const m = env.databaseUrl.match(/@([^/?]+)\/([^?]*)/)
+  return m ? `${m[2]} @ ${m[1]}` : '(unrecognised connection string)'
+}
+
 async function run() {
   // The window MUST NOT extend back beyond the moment this table started being written, or the
   // check compares a numerator with no history against a denominator with plenty and reports a
@@ -76,6 +87,7 @@ async function run() {
 
   console.log(`\nCSRF stage-3 gate — last ${HOURS}h requested`)
   console.log('─'.repeat(52))
+  console.log(`  database checked             : ${describeTarget()}`)
   console.log(`  window actually measured     : ${effectiveHours.toFixed(1)}h, since ${since.toISOString()}`)
   if (clamped) {
     console.log(`  (clamped — recording only began ${recordingSince.toISOString()};`)

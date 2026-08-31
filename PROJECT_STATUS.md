@@ -220,7 +220,7 @@ completely different things — nothing went wrong, the release is new, or the r
 only the first justifies switching enforcement on. Acting on either of the others locks out every
 user still running an older cached copy of the screen.
 
-The signal is now written to the database instead, and `npm run csrf:gate` reports it as a
+The signal is now written to the database instead, and `npm run csrf:gate:prod` reports it as a
 verdict. It deliberately answers *inconclusive* rather than *safe* when the desk has simply not
 been used, because an empty result from an idle day is not evidence of anything.
 
@@ -301,7 +301,7 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
 
 1. **CSRF stage 3 — switch enforcement on.** The last step of the security rollout. Stages 1 and 2
    are both live, so the software is ready; what remains is waiting for evidence.
-   - **Gate:** run `npm run csrf:gate` against the live database. It answers, in one command,
+   - **Gate:** run `npm run csrf:gate:prod` (checks the live database directly). It answers, in one command,
      whether anything is still sending data-changing requests without a token — and returns
      *inconclusive* rather than a false all-clear when the desk simply has not been used. It must
      say **SAFE** before enforcement is switched on.

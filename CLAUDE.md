@@ -31,6 +31,8 @@ npm run build && npm start      # production path
 npm run create-user -- --email … --password … --role admin --name "…"
 npm run set-username            # give an existing account a login username
 npm run set-password            # reset an existing account's password
+npm run csrf:gate               # is it safe to switch on CSRF_ENFORCE? (local dev DB)
+npm run csrf:gate:prod          # same check against production (reads .env.production)
 
 # frontend/
 npm run dev                     # Vite on :5173
