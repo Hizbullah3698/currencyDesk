@@ -21,6 +21,33 @@ import { env } from '../config/env.js'
 const HOURS = Number(process.argv[2]) || 48
 
 async function run() {
+  // The window MUST NOT extend back beyond the moment this table started being written, or the
+  // check compares a numerator with no history against a denominator with plenty and reports a
+  // confident green light off the back of it. That is precisely the mismatched-window mistake this
+  // script exists to replace, and it produced a false SAFE the first time this ran in production —
+  // zero failures because the table was minutes old, against four business writes from the
+  // preceding two days, one of which is known to have carried no token.
+  const { rows: applied } = await pool.query<{ applied_at: Date }>(
+    `SELECT applied_at FROM schema_migrations WHERE name = '013_create_csrf_missing_token.sql'`,
+  )
+  if (applied.length === 0) {
+    console.error('\n  ✗ csrf_missing_token has never been created on this database — run `npm run migrate` first.\n')
+    process.exitCode = 1
+    await pool.end()
+    return
+  }
+  const recordingSince = applied[0].applied_at
+
+  const { rows: window } = await pool.query<{ since: Date; hours: number; clamped: boolean }>(
+    `SELECT GREATEST(now() - ($1 || ' hours')::interval, $2::timestamptz) AS since,
+            EXTRACT(EPOCH FROM (now() - GREATEST(now() - ($1 || ' hours')::interval, $2::timestamptz))) / 3600 AS hours,
+            (now() - ($1 || ' hours')::interval) < $2::timestamptz AS clamped`,
+    [HOURS, recordingSince],
+  )
+  const since = window[0].since
+  const effectiveHours = Number(window[0].hours)
+  const clamped = window[0].clamped
+
   const { rows: missing } = await pool.query<{
     total: number
     users: number
@@ -32,22 +59,28 @@ async function run() {
             COALESCE(string_agg(DISTINCT method || ' ' || path, ', '), '') AS paths,
             MAX(last_seen)                    AS latest
        FROM csrf_missing_token
-      WHERE last_seen > now() - ($1 || ' hours')::interval`,
-    [HOURS],
+      WHERE last_seen > $1`,
+    [since],
   )
 
+  // Counted over the SAME window, so the two figures are comparable.
   const { rows: traffic } = await pool.query<{ activity: number; journal: number }>(
-    `SELECT (SELECT count(*) FROM activity        WHERE created_at > now() - ($1 || ' hours')::interval)::int AS activity,
-            (SELECT count(*) FROM journal_entries WHERE created_at > now() - ($1 || ' hours')::interval)::int AS journal`,
-    [HOURS],
+    `SELECT (SELECT count(*) FROM activity        WHERE created_at > $1)::int AS activity,
+            (SELECT count(*) FROM journal_entries WHERE created_at > $1)::int AS journal`,
+    [since],
   )
 
   const m = missing[0]
   const t = traffic[0]
   const mutationsSeen = t.activity + t.journal
 
-  console.log(`\nCSRF stage-3 gate — last ${HOURS}h`)
+  console.log(`\nCSRF stage-3 gate — last ${HOURS}h requested`)
   console.log('─'.repeat(52))
+  console.log(`  window actually measured     : ${effectiveHours.toFixed(1)}h, since ${since.toISOString()}`)
+  if (clamped) {
+    console.log(`  (clamped — recording only began ${recordingSince.toISOString()};`)
+    console.log(`   nothing before that can be known either way)`)
+  }
   console.log(`  enforcement currently        : ${env.csrfEnforce ? 'ON' : 'off'}`)
   console.log(`  requests missing a token     : ${m.total}${m.total > 0 ? `  (${m.users} user(s))` : ''}`)
   if (m.total > 0) {
@@ -65,8 +98,12 @@ async function run() {
     process.exitCode = 1
   } else if (mutationsSeen === 0) {
     console.log('  ? INCONCLUSIVE — no untokened requests, but no real usage either.')
-    console.log('    An empty result from an idle desk is not evidence. Re-run after the desk')
-    console.log('    has been used, or widen the window:  npm run csrf:gate -- 168')
+    console.log('    An empty result from an idle desk is not evidence of anything. Re-run once')
+    console.log('    the desk has actually been used.')
+    if (clamped) {
+      console.log(`    Note: only ${effectiveHours.toFixed(1)}h of history exists so far, so a wider`)
+      console.log('    window would not help yet — the recording simply has not been running long.')
+    }
     process.exitCode = 2
   } else {
     console.log('  ✓ SAFE — real traffic occurred and every mutating request carried a token.')
