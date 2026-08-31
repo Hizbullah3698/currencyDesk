@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
+import { customSearchFilter } from '@/lib/customerSearch'
 
 // ---------------------------------------------------------------------------
 // SETTLEMENT UI — TEMPORARILY HIDDEN, NOT REMOVED
@@ -371,11 +372,6 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
       )}
     </div>
   )
-}
-
-function customSearchFilter(customers: { id: string; name: string }[], q: string) {
-  const s = q.trim().toLowerCase()
-  return s ? customers.filter((c) => c.name.toLowerCase().includes(s)) : customers
 }
 
 function Row({ label, value, bold, mono, positive }: { label: string; value: string; bold?: boolean; mono?: boolean; positive?: boolean }) {

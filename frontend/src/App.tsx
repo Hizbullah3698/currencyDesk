@@ -22,6 +22,8 @@ import { IncomeStatement } from '@/pages/IncomeStatement'
 import { Salary } from '@/pages/Salary'
 import { Denied } from '@/pages/Denied'
 import { Settings } from '@/pages/Settings'
+import { Ledger } from '@/pages/Ledger'
+import { LedgerDetail } from '@/pages/LedgerDetail'
 import { IdleWarningModal } from '@/components/IdleWarningModal'
 import { useIdleTimeout } from '@/lib/useIdleTimeout'
 import { fetchSettings, FALLBACK_SETTINGS, type AppSettings } from '@/lib/settings'
@@ -96,6 +98,8 @@ function RoutedApp() {
           }
         />
         <Route path="/transactions" element={<Transactions />} />
+        <Route path="/ledger" element={<Ledger />} />
+        <Route path="/ledger/:id" element={<LedgerDetail />} />
         <Route
           path="/balance-sheet"
           element={
