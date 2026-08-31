@@ -210,9 +210,23 @@ Two problems were caught by review rather than by discovering them later:
 If a screen ever holds a valid sign-in but no token — possible after a reload — it now quietly
 fetches one and continues, instead of refusing the user's action.
 
-**Enforcement remains off.** Before it is switched on, the server log must fall silent: any user
-still working from an older cached copy of the screen is still sending requests without a token,
-and would be locked out.
+**Enforcement remains off**, and the way that decision gets made was rebuilt during this session.
+
+It was originally gated on a server log going quiet. That turned out not to work, established by
+measurement rather than suspicion: the hosting platform's logs are tied to a single release and
+kept only briefly, a warning recorded at 13:40 could no longer be retrieved by 16:05 the same day,
+and five separate releases happened in one afternoon. A quiet log therefore meant one of three
+completely different things — nothing went wrong, the release is new, or the record expired — and
+only the first justifies switching enforcement on. Acting on either of the others locks out every
+user still running an older cached copy of the screen.
+
+The signal is now written to the database instead, and `npm run csrf:gate` reports it as a
+verdict. It deliberately answers *inconclusive* rather than *safe* when the desk has simply not
+been used, because an empty result from an idle day is not evidence of anything.
+
+That second point is not hypothetical: the first version of the check reported **safe** against
+live data and was wrong — it compared a brand-new record of failures against two days of business
+history. It now measures both over the same window and says how much history it actually has.
 
 **Accounting — two real defects found and fixed.**
 
@@ -258,6 +272,8 @@ described the app as a browser-only demo with no server and a fake login, was re
 | Every server error is reported to the user as "Something went wrong", including ordinary faults that should say what was actually wrong | Misleading. Cost real time today: a malformed test command looked exactly like a broken production sign-in | **Open** — small fix, needs a release |
 | Preview copies of the software are wired to the **live** database | Real risk — test work writes to the real books | **Open** — needs a decision |
 | Sign-in appeared broken in production | **Not a fault.** The test command was malformed by the Windows shell and never reached the server intact. Sign-in verified working. | Closed, no action |
+| The planned way of deciding when to switch on CSRF enforcement did not work — the hosting platform's logs are tied to a single release and expire within hours | Would have meant guessing at the final step of a rollout that was split into three specifically to avoid guessing | Fixed — signal now written to the database, with a one-command check |
+| The first version of that check reported "safe" against live data, incorrectly | Would have caused enforcement to be switched on prematurely, locking out anyone on a cached copy of the screen | Fixed the same session — it compared a brand-new failure record against two days of business history; both are now measured over the same window |
 | Trades and payments create no paired ledger entries — the balance sheet reconstructs each account's debit/credit position from transaction records instead | Figures are correct, but there is no auditable entry per transaction | **Open — confirmed in scope.** Client has since decided they want full traceability, so this is real work, not a question. Gated behind the CSRF rollout; scoping plan required first |
 
 ### Client requirements
@@ -284,12 +300,15 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
 ### Next — in priority order
 
 1. **CSRF stage 3 — switch enforcement on.** The last step of the security rollout. Stages 1 and 2
-   are both live, so the software is ready; what remains is a judgement call about timing.
-   - **Gate:** the server log line `[csrf] mutating request with no token` must fall silent first.
-     Check with `vercel logs --level warning --since 24h`. Anyone still working from an older
-     cached copy of the screen is still sending requests without a token and would be locked out.
-     Waiting a day or so, so every open browser has picked up the new screen, is the cheap and
-     sensible course.
+   are both live, so the software is ready; what remains is waiting for evidence.
+   - **Gate:** run `npm run csrf:gate` against the live database. It answers, in one command,
+     whether anything is still sending data-changing requests without a token — and returns
+     *inconclusive* rather than a false all-clear when the desk simply has not been used. It must
+     say **SAFE** before enforcement is switched on.
+   - As of 2026-08-31 it reports **inconclusive**: recording had only been running for a few
+     minutes and no trades had been posted since. Re-run after a normal working day.
+   - Anyone still working from an older cached copy of the screen is still sending requests
+     without a token and would be locked out, which is what the gate is watching for.
    - **Switching it on is a single setting**, `CSRF_ENFORCE=true`, not a code change — so it can be
      reversed by changing one value rather than releasing a fix.
    - Once this is done the security work is complete, and the double-entry work below is unblocked.
