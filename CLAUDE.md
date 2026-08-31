@@ -135,7 +135,10 @@ as a raw Postgres `40P01`, not a clean `appError`).
 
 ### Currency quote conventions — easy to break silently
 
-The desk trades **AED, AFN, IRR** against PKR. `packages/engine/src/currencies.ts` is the single
+The desk trades **EUR, USD, AED, AFN, JPY, IRR** against PKR (that order is strongest-to-weakest,
+which is also the picker's order — the trade screen's starting currency is `DEFAULT_CURRENCY`, not
+the first list entry, so reordering the list cannot move the default).
+`packages/engine/src/currencies.ts` is the single
 source of truth; `CURRENCIES` derives from `CURRENCY_LIST`.
 
 They are not quoted alike. AED/AFN are worth more than a rupee and are quoted "PKR per 1 unit" and

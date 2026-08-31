@@ -86,13 +86,15 @@ desk down — see the 2026-08-31 entry in Part 3 for a case where this was caugh
 
 ## Money and accounting
 
-**Currencies.** The desk trades **AED (UAE Dirham), AFN (Afghan Afghani) and IRR (Iranian Rial)**
-against Pakistani Rupees.
+**Currencies.** The desk trades six against Pakistani Rupees: **EUR (Euro), USD (US Dollar), AED
+(UAE Dirham), AFN (Afghan Afghani), JPY (Japanese Yen) and IRR (Iranian Rial)** — listed
+strongest-to-weakest, which is the order they appear in when choosing one.
 
 These are not quoted the same way, and the system respects that rather than forcing one format:
 
-- AED and AFN are each worth *more* than a rupee, so a dealer quotes them as **"rupees per 1
-  unit"** — e.g. 77 PKR per 1 AED — and the system multiplies.
+- Five of the six are worth *more* than a rupee, so a dealer quotes them as **"rupees per 1
+  unit"** — e.g. 77 PKR per 1 AED — and the system multiplies. That holds even for the yen, the
+  weakest of them at roughly 1.9 rupees.
 - IRR is worth far *less* than a rupee (one rupee buys roughly 4,950 rials). Quoting it as "rupees
   per 1 rial" would mean typing 0.0002 into a rate box, which no dealer does. It is quoted the
   other way round — **"rials per 1 rupee"** — and the system divides.
@@ -138,12 +140,12 @@ sign-up; accounts are created deliberately by an administrator.
 All eight points are now recorded. Each status below was checked against the actual software on
 2026-08-31, not assumed.
 
-**Summary: 5 done, 1 partial, 2 not started.**
+**Summary: 6 done, 0 partial, 2 not started.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | 1 | **A date on every entry** | ✅ **Done** | All four transaction screens (buy, sell, receive, pay) carry a date picker for the day the deal was struck, kept separate from when it was typed in. Reports are cut on that date. Verified live in production: a purchase recorded and correctly dated "Aug 31, 2026". Previously this worked on the two trade screens but was silently missing on the two payment screens. |
-| 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | 🟡 **Partial — 3 of 6** | Live and working: **AED, AFN, IRR**. Still missing: **USD, EUR, JPY**. Each live currency has its own correct quoting convention and is carried separately on the balance sheet at its own cost. The three missing ones are all quoted the straightforward way (rupees per 1 unit), so each is a small, well-understood addition — a registry entry plus a one-off database addition per currency. No new mechanism is needed; the hard case (IRR, which is quoted inverted) is already solved. |
+| 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | ✅ **Done — all 6 live** | All six are live in production: AED, USD, EUR, IRR, AFN, JPY. Each has its own correct quoting convention and is carried separately on the balance sheet at its own cost, so no two currencies share a position. Verified in production after release — six stock positions, six separate stock accounts, and every currency present in the software actually being served to staff. Each new currency's arithmetic was checked against a real conversion (e.g. 1,000 USD at 282.50 storing 282,500 PKR), confirmed against the figure the database actually holds rather than the screen appearing to accept it. |
 | 3 | **Auto-logout after inactivity** | ❌ **Not started** | Sessions last 30 days and renew on each use, so a signed-in user stays signed in indefinitely while active. No inactivity timeout exists on either the screen or the server. |
 | 4 | **Ledger export** | ❌ **Not started** | Reports print cleanly, with correct formatting and page breaks. There is no export to a file — no spreadsheet, CSV or PDF download. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
@@ -280,6 +282,20 @@ The eighth point, correct debit/credit accounting, was raised as a question and 
 day: the client wants a genuine auditable entry per transaction, not merely correct totals. That
 moves it from ambiguous to confirmed work, and makes it the largest remaining item in the project.
 
+**The currency list was completed — all six the client asked for are now live.** USD, EUR and JPY
+join AED, AFN and IRR. Each is quoted the ordinary way round, so this repeated a pattern already
+proven rather than breaking new ground; the awkward case, the Iranian rial, was solved earlier and
+already covered them. Each new currency's arithmetic was checked against a real conversion and
+confirmed against the figure the database actually stores, rather than the screen appearing to
+accept it — the failure being guarded against is not an error message but a plausible-looking
+wrong number. The yen was checked twice for that reason: at roughly 1.9 rupees it is close enough
+to parity that a mistake would still look believable.
+
+**The trade screens were simplified.** Choosing a currency now shows just the code, with the full
+name appearing on hover rather than permanently taking up room. Two explanatory captions were
+removed — one telling the dealer which direction a purchase runs, one explaining that a date field
+holds a date. Both were the software narrating its own workings to someone who already knows them.
+
 ### Found
 
 | Finding | Severity | Status |
@@ -344,20 +360,18 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
    - Note the migration risk this carries: existing trades have no journal entries, so the plan
      must say what happens to historical records — backfilled, left as-is with reports handling
      both shapes, or something else. That decision affects whether past reports stay reproducible.
-3. **Auto-logout after inactivity** *(requirement 3)* — not started. Relevant to a shared counter
-   where a terminal may be left unattended, and the only client requirement with nothing built yet.
-4. **Add USD, EUR and JPY** *(requirement 2)* — takes the desk from 3 of 6 currencies to all six.
-   All three are quoted the straightforward way, so this is a repeat of work already done rather
-   than new ground: a registry entry and a one-off database addition each.
-5. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
+3. **Auto-logout after inactivity** *(requirement 3)* — not started, and now the only client
+   requirement with nothing built at all. Relevant to a shared counter where a terminal may be
+   left unattended.
+4. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
    Worth confirming the wanted format (spreadsheet vs PDF) before building.
 
    *Items 3 and 4 are small and fully independent of item 2. If the scoping plan for the
    double-entry work is under review, either can be picked up without conflicting with it.*
-6. **Fix the misleading error message** — report the actual fault instead of "Something went
+5. **Fix the misleading error message** — report the actual fault instead of "Something went
    wrong". Small, and it will mislead again if left.
-7. **Decide on the preview-writes-to-live-database risk** — either a separate database for
+6. **Decide on the preview-writes-to-live-database risk** — either a separate database for
    previews, or an explicit accepted decision recorded here.
-8. **Lower priority, carried:** no automated checks on the visual side of the app; no automatic
+7. **Lower priority, carried:** no automated checks on the visual side of the app; no automatic
    test run on release; sign-in itself is not protected against a forced-login attack; the screen
    downloads as a single large file rather than in parts.
