@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import type { Request, Response, NextFunction } from 'express'
 import { env } from '../config/env.js'
+import { pool } from '../db/pool.js'
 
 // ---------------------------------------------------------------------------
 // CSRF protection — synchroniser token, session-bound
@@ -84,7 +85,34 @@ function headerToken(req: Request): string | null {
   return typeof raw === 'string' && raw.length > 0 ? raw : null
 }
 
-export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
+/**
+ * Durably records a mutating request that arrived without a token — see migration 013 for why a
+ * log line is not sufficient to gate rollout stage 3.
+ *
+ * Deliberately swallows every failure. This is diagnostic data: a telemetry write must never be
+ * the reason a dealer's trade fails. If the insert errors, the request proceeds and the console
+ * warning below is still emitted, so the signal degrades rather than disappearing.
+ *
+ * Awaited rather than fire-and-forget, because on a serverless runtime work left pending when the
+ * response is sent may simply be discarded — an un-awaited promise here would record nothing at
+ * exactly the moments it matters. The cost is one round trip, and only on the path that is already
+ * the exception rather than the rule.
+ */
+async function recordMissingToken(req: Request): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO csrf_missing_token (hour, user_id, method, path, count)
+       VALUES (date_trunc('hour', now()), $1, $2, $3, 1)
+       ON CONFLICT (hour, user_id, method, path)
+       DO UPDATE SET count = csrf_missing_token.count + 1, last_seen = now()`,
+      [req.session.userId, req.method, req.path],
+    )
+  } catch (err) {
+    console.error('[csrf] could not record a missing-token observation (request still allowed)', err)
+  }
+}
+
+export async function csrfProtection(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (SAFE_METHODS.has(req.method) || EXEMPT_PATHS.has(req.path)) {
     next()
     return
@@ -113,15 +141,18 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     return
   }
 
-  // Absent.
+  // Absent. Recorded either way — a rejection under enforcement is just as worth seeing as one
+  // that was allowed through, and it is the same signal.
+  await recordMissingToken(req)
+
   if (env.csrfEnforce) {
     res.status(403).json({ error: 'Missing security token. Reload the page and try again.' })
     return
   }
 
-  // Stage 1: allow, but make the gap observable. This log is the actual gate on stage 3 — it must
-  // go quiet (accounting for users on cached bundles and for any non-browser caller) before
-  // CSRF_ENFORCE is turned on. Without it, stage 3 would be a guess.
+  // Kept alongside the durable record: the log is the convenient live view while tailing, the
+  // table is what the stage-3 decision is actually made from (see migration 013 — Vercel's runtime
+  // logs are deployment-scoped and short-lived, so a quiet log proves nothing on its own).
   console.warn(`[csrf] mutating request with no token: ${req.method} ${req.path} (enforcement off; would be rejected at stage 3)`)
   next()
 }

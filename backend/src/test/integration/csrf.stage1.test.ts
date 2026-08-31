@@ -141,4 +141,72 @@ describe('CSRF stage 1 — issue and validate, do not yet require', () => {
     const res = await post(a.cookie, '/api/trades/purchase', trade(), b.token)
     expect(res.status).toBe(403)
   })
+
+  // -------------------------------------------------------------------------
+  // Durable record of untokened requests — the stage-3 gate (migration 013)
+  // -------------------------------------------------------------------------
+  // Vercel's runtime logs are deployment-scoped and short-lived, so "the log is quiet" cannot
+  // distinguish no untokened requests from a fresh deployment or an expired entry. Acting on the
+  // wrong one locks out every user on a cached bundle. These tests cover the durable signal the
+  // stage-3 decision is actually made from.
+  describe('durable missing-token record', () => {
+    const countRows = async () => {
+      const { rows } = await pool.query<{ total: number; n: number }>(
+        'SELECT COALESCE(SUM(count),0)::int AS total, COUNT(*)::int AS n FROM csrf_missing_token',
+      )
+      return rows[0]
+    }
+
+    it('records a mutating request that arrived without a token', async () => {
+      await pool.query('TRUNCATE csrf_missing_token')
+      const { cookie } = await login()
+
+      expect((await post(cookie, '/api/trades/purchase', trade())).status).toBe(200)
+
+      const { rows } = await pool.query<{ method: string; path: string; count: number; user_id: string }>(
+        'SELECT method, path, count, user_id FROM csrf_missing_token',
+      )
+      expect(rows).toHaveLength(1)
+      expect(rows[0].method).toBe('POST')
+      expect(rows[0].path).toBe('/api/trades/purchase')
+      expect(rows[0].count).toBe(1)
+      expect(rows[0].user_id).toBeTruthy()
+    })
+
+    it('increments an existing row rather than adding one per request', async () => {
+      // Bucketed by hour on purpose: a stuck client retrying a failed action must not be able to
+      // grow this table without bound.
+      await pool.query('TRUNCATE csrf_missing_token')
+      const { cookie } = await login()
+
+      for (let i = 0; i < 3; i++) {
+        expect((await post(cookie, '/api/trades/purchase', trade())).status).toBe(200)
+      }
+
+      const { total, n } = await countRows()
+      expect(n, 'one bucketed row, not three').toBe(1)
+      expect(total, 'but the real volume is still counted').toBe(3)
+    })
+
+    it('records NOTHING when the request carries a valid token — the gate must stay clean', async () => {
+      // The load-bearing assertion. If a correctly-behaving request left a row here, the gate
+      // would never go green and stage 3 could never be switched on.
+      await pool.query('TRUNCATE csrf_missing_token')
+      const { cookie, token } = await login()
+
+      expect((await post(cookie, '/api/trades/purchase', trade(), token)).status).toBe(200)
+
+      expect((await countRows()).n).toBe(0)
+    })
+
+    it('records nothing for a safe method or an unauthenticated request', async () => {
+      await pool.query('TRUNCATE csrf_missing_token')
+      const { cookie } = await login()
+
+      await fetch(`${server.baseUrl}/api/state`, { headers: { Cookie: cookie } })
+      await post('', '/api/trades/purchase', trade()) // no session at all
+
+      expect((await countRows()).n).toBe(0)
+    })
+  })
 })

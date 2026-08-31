@@ -8,7 +8,10 @@ import { hashPassword } from '../services/authService.js'
  * CLAUDE.md's "Business-data migration" section), just run before every concurrency test
  * instead of by hand. `users`/`session` are untouched. */
 export async function resetBusinessData(pool: Pool): Promise<void> {
-  await pool.query('TRUNCATE accounts, stock_positions, cheques, activity, journal_entries RESTART IDENTITY CASCADE')
+  // csrf_missing_token is included so an untokened request made by one test file cannot be seen by
+  // another — the gate script's whole value is that a row here means something, so leaking rows
+  // between files would make the CSRF tests assert against each other's noise.
+  await pool.query('TRUNCATE accounts, stock_positions, cheques, activity, journal_entries, csrf_missing_token RESTART IDENTITY CASCADE')
   await pool.query('ALTER SEQUENCE cheque_number_seq RESTART WITH 1')
   await pool.query('ALTER SEQUENCE journal_ref_seq RESTART WITH 1')
   await pool.query(`
