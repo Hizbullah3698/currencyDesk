@@ -1,5 +1,6 @@
 import type { Role } from './types'
 import { apiUrl } from './apiBase'
+import { clearCsrfToken, getCsrfToken, setCsrfToken, CSRF_HEADER } from './csrf'
 
 export interface SessionUser {
   id: string
@@ -32,6 +33,9 @@ export async function login(identifier: string, password: string): Promise<{ ok:
     })
     const body = await parseJson(res)
     if (!res.ok) return { ok: false, error: body?.error || 'Sign in failed.' }
+    // The token belongs to the session that was just created, so it is captured here rather than
+    // fetched separately — see csrf.ts for why it is held in memory only.
+    setCsrfToken(body.csrfToken)
     return { ok: true, user: body.user }
   } catch {
     return { ok: false, error: 'Could not reach the server. Is the backend running?' }
@@ -40,9 +44,22 @@ export async function login(identifier: string, password: string): Promise<{ ok:
 
 export async function logout(): Promise<void> {
   try {
-    await fetch(apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' })
+    // Logout is a POST and is NOT exempt from CSRF checks server-side, so it has to carry the
+    // token like any other mutating request. Missing this would mean sign-out breaks the moment
+    // enforcement is switched on (stage 3) — while every other action kept working, which is a
+    // particularly confusing failure to debug.
+    const token = getCsrfToken()
+    await fetch(apiUrl('/api/auth/logout'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: token ? { [CSRF_HEADER]: token } : undefined,
+    })
   } catch {
     /* best-effort — local session state is cleared regardless by the caller */
+  } finally {
+    // Cleared whether or not the request succeeded: the token is meaningless once the caller has
+    // dropped the session, and leaving a stale one behind would be sent on a later request.
+    clearCsrfToken()
   }
 }
 
@@ -51,12 +68,35 @@ export type MeResult = { status: 'authenticated'; user: SessionUser } | { status
 export async function me(): Promise<MeResult> {
   try {
     const res = await fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
-    if (res.status === 401) return { status: 'anonymous' }
+    if (res.status === 401) {
+      clearCsrfToken()
+      return { status: 'anonymous' }
+    }
     if (!res.ok) return { status: 'unreachable' }
     const body = await parseJson(res)
-    if (!body?.user) return { status: 'anonymous' }
+    if (!body?.user) {
+      clearCsrfToken()
+      return { status: 'anonymous' }
+    }
+    // /me carries the token as well as /login. This is the call every returning user makes on
+    // boot without re-authenticating, so it is the only way a session that predates the token
+    // mechanism — or a page reload, which starts with empty memory — acquires one.
+    setCsrfToken(body.csrfToken)
     return { status: 'authenticated', user: body.user }
   } catch {
     return { status: 'unreachable' }
   }
+}
+
+/**
+ * Re-fetches the CSRF token for the current session, returning it (or null if the session is gone).
+ *
+ * This is the recovery path for a tab that holds a valid session cookie but no token in memory —
+ * possible because the token is memory-only, so anything that resets module state without a fresh
+ * boot (or a request racing ahead of AuthProvider's own /me) leaves the cookie valid and the token
+ * absent. Rather than failing the user's action, the caller refreshes and retries once.
+ */
+export async function refreshCsrfToken(): Promise<string | null> {
+  const result = await me()
+  return result.status === 'authenticated' ? getCsrfToken() : null
 }

@@ -4,6 +4,8 @@ import { ACCOUNT_TYPES } from './types'
 import { CORE_ACCOUNT_IDS } from './engine'
 import { useAuth } from './auth'
 import { apiUrl } from './apiBase'
+import { getCsrfToken, isCsrfError, isMutatingMethod, requestHeaders } from './csrf'
+import { refreshCsrfToken } from './authClient'
 
 export interface AppState {
   accounts: Account[]
@@ -31,15 +33,38 @@ async function parseJson(res: Response): Promise<any> {
 
 type ApiResult = { ok: true; snapshot: AppState } | { ok: false; error: string }
 
+async function sendRequest(method: string, url: string, body?: unknown): Promise<Response> {
+  return fetch(apiUrl(url), {
+    method,
+    headers: requestHeaders(method),
+    credentials: 'include',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+}
+
 async function apiCall(method: string, url: string, body?: unknown): Promise<ApiResult> {
   try {
-    const res = await fetch(apiUrl(url), {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
-    const json = await parseJson(res)
+    const mutating = isMutatingMethod(method)
+
+    // A mutating request with no token in memory would be rejected once the server enforces
+    // (rollout stage 3). Fetching one first turns that from a failed user action into a slightly
+    // slower one. Only on the mutating path — a plain refetch never needs it.
+    if (mutating && !getCsrfToken()) await refreshCsrfToken()
+
+    let res = await sendRequest(method, url, body)
+    let json = await parseJson(res)
+
+    // Recover from a rejected token exactly once. Deliberately narrow: `isCsrfError` matches only
+    // the server's own token messages, so a genuine "Admin access required" 403 is NOT retried —
+    // retrying that would be pointless and would hide the real reason from the user.
+    if (mutating && isCsrfError(res.status, json?.error)) {
+      const refreshed = await refreshCsrfToken()
+      if (refreshed) {
+        res = await sendRequest(method, url, body)
+        json = await parseJson(res)
+      }
+    }
+
     // The Express backend's own global error handler always responds with real {error: string}
     // JSON on failure — so a response with no parseable `error` field never actually came from
     // our app at all. In local dev this is exactly what Vite's proxy returns (an empty-bodied
