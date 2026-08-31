@@ -135,24 +135,21 @@ sign-up; accounts are created deliberately by an administrator.
 
 *Status of each point the client raised. Update whenever a status changes.*
 
-> **⚠️ This section is incomplete and needs input.** The client raised **eight** points. Only
-> **four** are recorded anywhere I can find — three named directly in conversation, and one
-> quoted verbatim as a client requirement. The remaining four are not written down in this
-> repository, in the commit history, or in any project document.
->
-> They have deliberately **not** been guessed at. Please supply the missing four and they will be
-> added with the same evidence standard as the rest.
+All eight points are now recorded. Each status below was checked against the actual software on
+2026-08-31, not assumed.
+
+**Summary: 5 done, 2 partial, 1 not started.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
-| 1 | **A date on every entry** | ✅ **Done** | All four transaction screens (buy, sell, receive, pay) now carry a date picker for the day the deal was struck, separate from when it was typed in. Reports are cut on that date. Verified live in production on 2026-08-31: a purchase recorded and correctly dated "Aug 31, 2026". Previously this worked on the two trade screens but was silently missing on the two payment screens. |
-| 2 | **Full currency list** | 🟡 **Partial** | Three currencies live and working: AED, AFN, IRR — each with its own correct quoting convention, and each carried separately on the balance sheet at its own cost. Verified in production. **Open:** the client's intended full list is not recorded; adding further currencies is a small, well-understood change per currency. |
-| 3 | **Auto-logout after inactivity** | ❌ **Not started** | Sessions currently last 30 days and renew on each use. A user stays signed in indefinitely while active. No inactivity timeout exists on either the screen or the server. |
-| 4 | **Ledger export** | ❌ **Not started** | Reports can be printed (and print cleanly, with correct formatting and page breaks). There is no export to a file — no spreadsheet, CSV or PDF download. |
-| 5 | *(not recorded)* | ❓ | Needs input |
-| 6 | *(not recorded)* | ❓ | Needs input |
-| 7 | *(not recorded)* | ❓ | Needs input |
-| 8 | *(not recorded)* | ❓ | Needs input |
+| 1 | **A date on every entry** | ✅ **Done** | All four transaction screens (buy, sell, receive, pay) carry a date picker for the day the deal was struck, kept separate from when it was typed in. Reports are cut on that date. Verified live in production: a purchase recorded and correctly dated "Aug 31, 2026". Previously this worked on the two trade screens but was silently missing on the two payment screens. |
+| 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | 🟡 **Partial — 3 of 6** | Live and working: **AED, AFN, IRR**. Still missing: **USD, EUR, JPY**. Each live currency has its own correct quoting convention and is carried separately on the balance sheet at its own cost. The three missing ones are all quoted the straightforward way (rupees per 1 unit), so each is a small, well-understood addition — a registry entry plus a one-off database addition per currency. No new mechanism is needed; the hard case (IRR, which is quoted inverted) is already solved. |
+| 3 | **Auto-logout after inactivity** | ❌ **Not started** | Sessions last 30 days and renew on each use, so a signed-in user stays signed in indefinitely while active. No inactivity timeout exists on either the screen or the server. |
+| 4 | **Ledger export** | ❌ **Not started** | Reports print cleanly, with correct formatting and page breaks. There is no export to a file — no spreadsheet, CSV or PDF download. |
+| 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
+| 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🟡 **Partial** | *Balances are correct, and as of today genuinely checkable.* The balance sheet groups every account into debits and credits, and now honestly reports whether they agree — previously it silently forced agreement and always claimed success (fixed today; see Part 3). Salary, manual entries and opening balances each create true paired debit-and-credit records. **However, trades and payments do not.** They are stored as transaction records, and each account's debit/credit position is reconstructed at report time from those transactions plus the cheque and journal records. The figures come out right, but there is no ledger entry to point at for an individual purchase — an auditor asking "show me the journal entry for this trade" would find a transaction record instead of a matched pair. Whether that satisfies the client depends on whether they mean *correct balances* (met) or *a conventional double-entry journal for every movement* (not met). **Needs a decision before this can be called done.** |
+| 8 | **Customer records show the actual currency and amount** | ✅ **Done** | A customer's statement shows each trade in the currency actually transacted — e.g. "1,000 AED @ 77.00" — with the rate in that currency's own convention, alongside the rupee value in a separate column. The client's stated failure case (buying AED but the record reading PKR) does not occur. Note for clarity: the customer's **overall balance** is shown in rupees, which is correct — the customer owes or is owed rupees, not dirhams. It is the individual transactions that must name their real currency, and they do. |
 
 ### Delivered alongside, not on the recorded list
 
@@ -243,6 +240,22 @@ described the app as a browser-only demo with no server and a fake login, was re
 | Every server error is reported to the user as "Something went wrong", including ordinary faults that should say what was actually wrong | Misleading. Cost real time today: a malformed test command looked exactly like a broken production sign-in | **Open** — small fix, needs a release |
 | Preview copies of the software are wired to the **live** database | Real risk — test work writes to the real books | **Open** — needs a decision |
 | Sign-in appeared broken in production | **Not a fault.** The test command was malformed by the Windows shell and never reached the server intact. Sign-in verified working. | Closed, no action |
+| Trades and payments create no paired ledger entries — the balance sheet reconstructs each account's debit/credit position from transaction records instead | Depends entirely on what the client means by requirement 7. Figures are correct either way | **Open** — needs a decision from the client, not a fix |
+
+### Client requirements
+
+The client's full eight-point list was supplied and every point checked against the actual
+software rather than assumed. Result: **5 done, 2 partial, 1 not started** — see Part 2.
+
+Two points were found already satisfied by work done previously and simply never recorded as
+such: the buy screen's currency/customer/date controls (requirement 5) and customer records
+showing the real transacted currency rather than a rupee conversion (requirement 8). One point —
+hiding how a customer was paid on the buy flow (requirement 6) — was found not only done but done
+reversibly, with the controls retained in place and a written restore procedure, which is what the
+client asked for.
+
+The one genuinely unresolved point is requirement 7, and it is unresolved as a *question* rather
+than as missing work; see the next-steps list.
 
 ### Next — in priority order
 
@@ -250,15 +263,19 @@ described the app as a browser-only demo with no server and a fake login, was re
    tab that holds a session but no token, so a user is never left unable to act.
 2. **CSRF stage 3** — server requires the token. Only after stage 2 is live *and* the server log
    confirms nothing is still sending requests without one.
-3. **Auto-logout after inactivity** — outstanding client requirement, not started. Relevant to a
-   shared counter where a terminal may be left unattended.
-4. **Full currency list** — outstanding client requirement, partially met (3 currencies). Needs the
-   client's intended list.
-5. **Ledger export** — outstanding client requirement, not started. Printing works; file export
-   does not exist.
-6. **Recover the remaining four client requirements** — half the client's list isn't written down
-   anywhere. This should arguably be first; it is placed here only because it needs the client
-   rather than development time.
+3. **Auto-logout after inactivity** *(requirement 3)* — not started. Relevant to a shared counter
+   where a terminal may be left unattended, and the only client requirement with nothing built yet.
+4. **Add USD, EUR and JPY** *(requirement 2)* — takes the desk from 3 of 6 currencies to all six.
+   All three are quoted the straightforward way, so this is a repeat of work already done rather
+   than new ground: a registry entry and a one-off database addition each.
+5. **Settle requirement 7 — what "correct Dr/Cr" means to the client.** Balances are correct and
+   now verifiable, but trades don't create paired ledger entries; the balance sheet reconstructs
+   them. If the client means correct figures, this is already done. If they mean a conventional
+   journal with a matched pair per movement, it is a substantial change to how trades are recorded.
+   **This is a question to ask, not work to start** — and the answer decides whether item 7 is
+   finished or is the largest remaining piece of work in the project.
+6. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
+   Worth confirming the wanted format (spreadsheet vs PDF) before building.
 7. **Fix the misleading error message** — report the actual fault instead of "Something went
    wrong". Small, and it will mislead again if left.
 8. **Decide on the preview-writes-to-live-database risk** — either a separate database for
