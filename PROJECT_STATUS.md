@@ -138,7 +138,7 @@ sign-up; accounts are created deliberately by an administrator.
 All eight points are now recorded. Each status below was checked against the actual software on
 2026-08-31, not assumed.
 
-**Summary: 5 done, 2 partial, 1 not started.**
+**Summary: 5 done, 1 partial, 2 not started.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
@@ -190,11 +190,29 @@ The fix is a security token that only the desk's own screen can know. It is bein
 out every user whose browser still holds an older copy of the screen software:
 
 1. **Server issues and checks the token, but does not yet require it** — ✅ **live and verified**
-2. Screen starts sending the token — not started
+2. **Screen sends the token on every action that changes data** — ✅ **live and verified**
 3. Server starts requiring it — not started
 
 Stage 1 was confirmed working in production by recording a real purchase and observing the server
-log the expected message. Enforcement remains off.
+log the expected message. Stage 2 was confirmed by checking the actual JavaScript being served to
+users, rather than assuming a successful release meant working code.
+
+Two problems were caught by review rather than by discovering them later:
+
+- **Signing out would have broken at stage 3.** Signing out is a data-changing action and needs
+  the token like any other, but it is not part of the normal flow that carries it. Left as it was,
+  sign-out would have been the *single* action that stopped working when enforcement was switched
+  on, while everything else carried on — a hard failure to diagnose from a user's description.
+- **A rejected action is only retried when the rejection is genuinely about the token.** A refused
+  token and "you are not allowed to do this" both look identical to the software. Retrying the
+  second would waste time and, worse, hide the real reason from the user.
+
+If a screen ever holds a valid sign-in but no token — possible after a reload — it now quietly
+fetches one and continues, instead of refusing the user's action.
+
+**Enforcement remains off.** Before it is switched on, the server log must fall silent: any user
+still working from an older cached copy of the screen is still sending requests without a token,
+and would be locked out.
 
 **Accounting — two real defects found and fixed.**
 
@@ -265,11 +283,17 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
 
 ### Next — in priority order
 
-1. **CSRF stage 2** — screen sends the security token. Blocks stage 3. Must include recovery for a
-   tab that holds a session but no token, so a user is never left unable to act.
-2. **CSRF stage 3** — server requires the token. Only after stage 2 is live *and* the server log
-   confirms nothing is still sending requests without one.
-3. **Double-entry journal for every trade and payment** *(requirement 7)* — **the largest remaining
+1. **CSRF stage 3 — switch enforcement on.** The last step of the security rollout. Stages 1 and 2
+   are both live, so the software is ready; what remains is a judgement call about timing.
+   - **Gate:** the server log line `[csrf] mutating request with no token` must fall silent first.
+     Check with `vercel logs --level warning --since 24h`. Anyone still working from an older
+     cached copy of the screen is still sending requests without a token and would be locked out.
+     Waiting a day or so, so every open browser has picked up the new screen, is the cheap and
+     sensible course.
+   - **Switching it on is a single setting**, `CSRF_ENFORCE=true`, not a code change — so it can be
+     reversed by changing one value rather than releasing a fix.
+   - Once this is done the security work is complete, and the double-entry work below is unblocked.
+2. **Double-entry journal for every trade and payment** *(requirement 7)* — **the largest remaining
    piece of work in the project.** The client has decided they want full traceability, not just
    correct totals, so this is confirmed in scope.
    - **Hard prerequisite: do not begin until CSRF stage 3 is live and enforcement is on.** The
@@ -283,20 +307,20 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
    - Note the migration risk this carries: existing trades have no journal entries, so the plan
      must say what happens to historical records — backfilled, left as-is with reports handling
      both shapes, or something else. That decision affects whether past reports stay reproducible.
-4. **Auto-logout after inactivity** *(requirement 3)* — not started. Relevant to a shared counter
+3. **Auto-logout after inactivity** *(requirement 3)* — not started. Relevant to a shared counter
    where a terminal may be left unattended, and the only client requirement with nothing built yet.
-5. **Add USD, EUR and JPY** *(requirement 2)* — takes the desk from 3 of 6 currencies to all six.
+4. **Add USD, EUR and JPY** *(requirement 2)* — takes the desk from 3 of 6 currencies to all six.
    All three are quoted the straightforward way, so this is a repeat of work already done rather
    than new ground: a registry entry and a one-off database addition each.
-6. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
+5. **Ledger export** *(requirement 4)* — not started. Printing works; file export does not exist.
    Worth confirming the wanted format (spreadsheet vs PDF) before building.
 
-   *Items 4 and 5 are small and fully independent of item 3. If the scoping plan for the
+   *Items 3 and 4 are small and fully independent of item 2. If the scoping plan for the
    double-entry work is under review, either can be picked up without conflicting with it.*
-7. **Fix the misleading error message** — report the actual fault instead of "Something went
+6. **Fix the misleading error message** — report the actual fault instead of "Something went
    wrong". Small, and it will mislead again if left.
-8. **Decide on the preview-writes-to-live-database risk** — either a separate database for
+7. **Decide on the preview-writes-to-live-database risk** — either a separate database for
    previews, or an explicit accepted decision recorded here.
-9. **Lower priority, carried:** no automated checks on the visual side of the app; no automatic
+8. **Lower priority, carried:** no automated checks on the visual side of the app; no automatic
    test run on release; sign-in itself is not protected against a forced-login attack; the screen
    downloads as a single large file rather than in parts.
