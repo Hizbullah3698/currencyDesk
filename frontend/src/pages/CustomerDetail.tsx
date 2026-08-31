@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer, Pencil, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { activityDate, auditLine, relLabel, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtAmount, fmtRate } from '@/lib/format'
+import { activityDate, auditLine, currencyMeta, relLabel, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtRate, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, statusMeta } from '@/lib/ui-helpers'
 import { BackButton } from '@/components/BackButton'
 import { PrintHeader } from '@/components/PrintHeader'
@@ -212,7 +212,8 @@ export function CustomerDetail() {
           const StatusIcon = status.icon
           const code = t.currency || 'AED'
           // Which currency, how much, and the rate in that currency's own quote convention.
-          const detail = t.type === 'sale' || t.type === 'purchase' ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)}` : `via ${t.method}`
+          const detail = t.type === 'sale' || t.type === 'purchase' ? `at ${fmtRate(t.rate || 0, code)} ${currencyMeta(code).rateLabel}` : `via ${t.method}`
+          const money = txnAmountParts(t)
           return (
             <div key={t.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex min-w-[102px] items-center gap-1.5">
@@ -228,7 +229,13 @@ export function CustomerDetail() {
                   {statusLabel}
                 </Badge>
               </div>
-              <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(t.pkrValue)}</div>
+              {/* The currency actually dealt leads; the rupee conversion sits under it. Reversed,
+                  this row read "PKR 77,000" for a deal that was in dirhams — a currency that was
+                  never part of the transaction. */}
+              <div className="min-w-[130px] text-right">
+                <div className="tabular text-body font-medium">{money.primary}</div>
+                {money.secondary && <div className="tabular text-meta font-normal text-muted-60">{money.secondary}</div>}
+              </div>
               {/* The deal date, not the keyed-in date — a backdated purchase reads as the day it
                   was actually struck on the customer's own statement. */}
               <div className="min-w-[62px] text-right text-meta font-normal text-muted-60" title={auditLine(t)}>

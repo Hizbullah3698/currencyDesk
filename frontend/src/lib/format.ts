@@ -41,6 +41,48 @@ export function fmtSigned(n: number): string {
   return n < 0 ? '-' + s : s
 }
 
+// ---------------------------------------------------------------------------
+// What a transaction's headline amount should be
+// ---------------------------------------------------------------------------
+//
+// THE BUG THIS EXISTS TO PREVENT: buy 1,000 AED from a customer, open that customer's record, and
+// the amount reads "PKR 77,000" — a currency that was never part of the deal. Every screen showing
+// a transaction was reaching for `pkrValue` as its headline figure and leaving the real currency in
+// small muted text beside it, or nowhere.
+//
+// Note what the cause was NOT. `fmt()` hardcoding "PKR " is correct — it formats rupee amounts, and
+// balances, receivables and settlement totals genuinely ARE rupees. Rewriting it would have
+// corrupted every figure that was right. The fault was upstream of formatting: the display layer
+// picked the converted number as primary.
+//
+// So the decision of WHICH figure leads lives here, once, instead of being re-made on each screen.
+// Screens choose their own layout for the two parts; they do not get to choose which is which.
+
+export interface TxnAmountParts {
+  /** The figure to show large. What was actually transacted. */
+  primary: string
+  /** Rupee equivalent, for a foreign-currency deal. Null when the transaction WAS in rupees, so a
+   *  settlement is not decorated with a pointless "≈" restating its own amount. */
+  secondary: string | null
+}
+
+/**
+ * Splits a transaction into the amount that was actually dealt and its rupee equivalent.
+ *
+ * A trade leads with its own currency — "1,000 AED" — because that is what happened; the rupee
+ * value is a conversion and is offered second. A receipt or payment moves rupees and nothing else,
+ * so rupees ARE the real amount and there is no equivalent to add.
+ */
+export function txnAmountParts(t: { type: string; currency?: string; amount?: number; pkrValue?: number }): TxnAmountParts {
+  const isTrade = t.type === 'purchase' || t.type === 'sale'
+  if (!isTrade) return { primary: fmt(t.pkrValue ?? t.amount ?? 0), secondary: null }
+  const code = t.currency || 'AED'
+  return {
+    primary: `${fmtAmount(t.amount || 0, code)} ${code}`,
+    secondary: fmt(t.pkrValue || 0),
+  }
+}
+
 export function todayISO(): string {
   const d = new Date()
   const y = d.getFullYear()

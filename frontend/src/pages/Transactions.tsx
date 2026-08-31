@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activityDate, auditLine, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtAmount, fmtRate } from '@/lib/format'
+import { fmt, fmtAmount, fmtRate, txnAmountParts, type TxnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -21,7 +21,9 @@ interface Row {
   who: string
   detail: string
   status: string
-  amount: number
+  /** Pre-split into what was actually dealt and its rupee equivalent, so the list never leads with
+   *  a converted figure for a foreign-currency trade. See txnAmountParts in lib/format.ts. */
+  money: TxnAmountParts
   /** What the Date column shows: the date the deal was struck for a trade (activityDate), the
    *  row's own timestamp for a cheque or journal entry, which have no separate deal date. */
   date: string
@@ -55,7 +57,7 @@ export function Transactions() {
         who: t.customerName,
         detail,
         status,
-        amount: t.pkrValue,
+        money: txnAmountParts(t),
         date: activityDate(t),
         sortT: stampTime(t.createdAt),
         audit: auditLine(t),
@@ -70,7 +72,7 @@ export function Transactions() {
       who: q.party,
       detail: `${q.direction} · ${q.bank} · ${q.number}`,
       status: q.status,
-      amount: q.amount,
+      money: { primary: fmt(q.amount), secondary: null },
       date: q.createdAt,
       sortT: stampTime(q.createdAt),
       audit: auditLine(q),
@@ -84,7 +86,7 @@ export function Transactions() {
       who: e.narration,
       detail: `Dr ${e.debitLabel} · Cr ${e.creditLabel}`,
       status: 'Posted',
-      amount: e.amount,
+      money: { primary: fmt(e.amount), secondary: null },
       date: e.createdAt,
       sortT: stampTime(e.createdAt),
       audit: auditLine(e),
@@ -159,7 +161,10 @@ export function Transactions() {
                   {r.status}
                 </Badge>
               </div>
-              <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(r.amount)}</div>
+              <div className="min-w-[130px] text-right">
+                <div className="tabular text-body font-medium">{r.money.primary}</div>
+                {r.money.secondary && <div className="tabular text-meta font-normal text-muted-60">{r.money.secondary}</div>}
+              </div>
               <div className="flex min-w-[78px] items-center justify-end gap-1 text-meta font-normal text-muted-60" title={r.audit}>
                 {relLabel(r.date)}
               </div>

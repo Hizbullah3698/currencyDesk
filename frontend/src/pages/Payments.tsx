@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activityDate, relLabel } from '@/lib/engine'
-import { fmt } from '@/lib/format'
+import { txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -49,7 +49,10 @@ export function Payments() {
               </div>
               <div className="min-w-0 flex-1 truncate text-body font-semibold">{t.customerName}</div>
               <div className="min-w-[70px] text-body font-normal text-muted-70">{t.method}</div>
-              <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(t.pkrValue)}</div>
+              {/* Routed through the same helper as every other screen. Receipts and payments move
+                  rupees and nothing else, so it returns the rupee amount with no conversion line —
+                  the uniformity is the point, not a change in what this shows. */}
+              <div className="tabular min-w-[110px] text-right text-body font-medium">{txnAmountParts(t).primary}</div>
               <div className="min-w-[62px] text-right text-meta font-normal text-muted-60">{relLabel(activityDate(t))}</div>
             </div>
           )

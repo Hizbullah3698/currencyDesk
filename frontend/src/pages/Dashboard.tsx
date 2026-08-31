@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activeCurrencies, activityDate, isToday, stk, stockAsOf, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtAmount, fmtQuote, fmtShortDate } from '@/lib/format'
+import { fmt, fmtAmount, fmtQuote, fmtShortDate, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -155,10 +155,7 @@ export function Dashboard() {
                   <div className="w-[88px] flex-none text-body font-medium text-ink">{meta.label}</div>
                   <div className="min-w-[66px] flex-1 overflow-hidden">
                     <div className="truncate text-body font-semibold">{row.customerName}</div>
-                    <div className="text-meta font-normal text-muted-60">
-                      {row.type === 'purchase' || row.type === 'sale' ? `${fmtAmount(row.amount || 0, row.currency || 'AED')} ${row.currency || 'AED'} · ` : ''}
-                      {fmtShortDate(activityDate(row))}
-                    </div>
+                    <div className="text-meta font-normal text-muted-60">{fmtShortDate(activityDate(row))}</div>
                   </div>
                   <div className="min-w-[66px] flex-none">
                     <Badge variant={status.variant}>
@@ -166,7 +163,14 @@ export function Dashboard() {
                       {statusLabel}
                     </Badge>
                   </div>
-                  <div className="tabular min-w-[92px] flex-none text-right text-body font-medium">{fmt(row.pkrValue)}</div>
+                  {/* The dealt currency leads here too. This list mixes currencies, so a column of
+                      bare rupee figures gave no way to tell an AED deal from a USD one. */}
+                  <div className="min-w-[104px] flex-none text-right">
+                    <div className="tabular text-body font-medium">{txnAmountParts(row).primary}</div>
+                    {txnAmountParts(row).secondary && (
+                      <div className="tabular text-meta font-normal text-muted-60">{txnAmountParts(row).secondary}</div>
+                    )}
+                  </div>
                 </div>
               )
             })

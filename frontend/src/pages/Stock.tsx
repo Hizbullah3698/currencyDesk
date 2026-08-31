@@ -107,10 +107,16 @@ export function Stock() {
                 <div className="truncate text-body font-semibold">{r.customerName}</div>
                 <div className="text-meta font-normal text-muted-60">{fmtShortDate(activityDate(r))}</div>
               </div>
-              <div className="tabular text-meta font-normal text-muted-60">
-                {fmtAmount(r.amount || 0, code)} {code} @ {fmtRate(r.rate || 0, code)}
+              <div className="tabular text-meta font-normal text-muted-60">@ {fmtRate(r.rate || 0, code)}</div>
+              {/* The dealt currency leads, the rupee conversion follows. This page names its
+                  currency in the header, so the row was less misleading than a customer record —
+                  but it was still the converted figure carrying the visual weight. */}
+              <div className="min-w-[110px] text-right">
+                <div className="tabular text-body font-medium">
+                  {fmtAmount(r.amount || 0, code)} {code}
+                </div>
+                <div className="tabular text-meta font-normal text-muted-60">{fmt(r.pkrValue)}</div>
               </div>
-              <div className="tabular min-w-[96px] text-right text-body font-medium">{fmt(r.pkrValue)}</div>
             </div>
           ))}
           {purchases.length === 0 && (
@@ -128,10 +134,16 @@ export function Stock() {
                 <div className="truncate text-body font-semibold">{r.customerName}</div>
                 <div className="text-meta font-normal text-muted-60">{fmtShortDate(activityDate(r))}</div>
               </div>
-              <div className="tabular text-meta font-normal text-muted-60">
-                {fmtAmount(r.amount || 0, code)} {code} @ {fmtRate(r.rate || 0, code)}
+              <div className="tabular text-meta font-normal text-muted-60">@ {fmtRate(r.rate || 0, code)}</div>
+              {/* The dealt currency leads, the rupee conversion follows. This page names its
+                  currency in the header, so the row was less misleading than a customer record —
+                  but it was still the converted figure carrying the visual weight. */}
+              <div className="min-w-[110px] text-right">
+                <div className="tabular text-body font-medium">
+                  {fmtAmount(r.amount || 0, code)} {code}
+                </div>
+                <div className="tabular text-meta font-normal text-muted-60">{fmt(r.pkrValue)}</div>
               </div>
-              <div className="tabular min-w-[96px] text-right text-body font-medium">{fmt(r.pkrValue)}</div>
             </div>
           ))}
           {sales.length === 0 && (
