@@ -145,14 +145,14 @@ by a browser with scripting turned off.
 All eight points are now recorded. Each status below was checked against the actual software on
 2026-08-31, not assumed.
 
-**Summary: 7 done, 0 partial, 1 not started.**
+**Summary: 7 of the 8 delivered. Requirement 7 (a true double-entry journal) is confirmed further work — see below.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | 1 | **A date on every entry** | ✅ **Done** | All four transaction screens (buy, sell, receive, pay) carry a date picker for the day the deal was struck, kept separate from when it was typed in. Reports are cut on that date. Verified live in production: a purchase recorded and correctly dated "Aug 31, 2026". Previously this worked on the two trade screens but was silently missing on the two payment screens. |
 | 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | ✅ **Done — all 6 live** | All six are live in production: AED, USD, EUR, IRR, AFN, JPY. Each has its own correct quoting convention and is carried separately on the balance sheet at its own cost, so no two currencies share a position. Verified in production after release — six stock positions, six separate stock accounts, and every currency present in the software actually being served to staff. Each new currency's arithmetic was checked against a real conversion (e.g. 1,000 USD at 282.50 storing 282,500 PKR), confirmed against the figure the database actually holds rather than the screen appearing to accept it. |
 | 3 | **Auto-logout after inactivity** | ✅ **Done** | A terminal left untouched signs itself out, defaulting to 5 minutes. Thirty seconds beforehand a warning counts down with a "Stay logged in" button, so an active user is never cut off without notice. Enforced in **two independent places**: the screen runs the countdown, and the session itself expires on the server after the same period — so a machine with the browser's scripting disabled, or someone replaying a copied session from another computer, is cut off just the same. On timeout the session is genuinely ended, not merely hidden behind a locked screen. The period is an **admin setting** on the new Settings page, from 1 minute to 8 hours, applying to everyone. Verified in production. |
-| 4 | **Ledger export** | ❌ **Not started** | Reports print cleanly, with correct formatting and page breaks. There is no export to a file — no spreadsheet, CSV or PDF download. |
+| 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
 | 7 | **Correct Dr/Cr accounting throughout** | ❌ **In scope — not started** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*What is missing:* trades and payments create no paired entries. They are stored as transaction records, and each account's debit/credit position is reconstructed at report time. Under the client's decision this does not meet the requirement — there is no journal entry to point at for an individual purchase. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** (stages 2 and 3, enforcement on). Not to be started while that security work is half-finished. <br><br>*Before any code:* a written scoping plan is required and must be reviewed — see the next-steps list. This is the largest remaining piece of work in the project. |
@@ -301,6 +301,27 @@ name appearing on hover rather than permanently taking up room. Two explanatory 
 removed — one telling the dealer which direction a purchase runs, one explaining that a date field
 holds a date. Both were the software narrating its own workings to someone who already knows them.
 
+**The customer ledger was built** — the last outstanding client requirement. A Customer Ledger
+section opens on a searchable list of customers showing names and balances only, deliberately with
+no transaction detail: a statement belongs to one customer, and putting transactions on the chooser
+would both bury the one thing that screen is for and show one customer's dealings to someone who
+opened it looking for another. Choosing a customer opens their statement, with Print, Export PDF
+and Export Excel, and a date range that narrows all three together.
+
+Two decisions in it are worth recording.
+
+*Running balances are of two kinds, on purpose.* Rupees run as a single figure, because a customer
+owes one amount regardless of which currency produced it. Currency quantities run **separately per
+currency**, because dirhams and dollars are not the same thing and a single total covering both
+would be a number with no meaning — the same mistake as silently converting a customer's record
+into rupees, in a different shape.
+
+*Export PDF opens the browser's print dialog* rather than producing a file directly. The statement
+already has a print layout, and every browser can save that as PDF. Generating a second version of
+the same document through an added library would mean two layouts to keep looking alike, on a
+download that is already large. Worth revisiting only if the client wants statements emailed, which
+a browser dialog genuinely cannot do — that would be a different piece of work.
+
 **A terminal left untouched now signs itself out** — five minutes by default, with a thirty-second
 warning and a button to stay signed in, so an active user is never cut off mid-task.
 
@@ -388,12 +409,11 @@ a reviewed scoping plan before any code. **This decision is recorded so it is no
    - Note the migration risk this carries: existing trades have no journal entries, so the plan
      must say what happens to historical records — backfilled, left as-is with reports handling
      both shapes, or something else. That decision affects whether past reports stay reproducible.
-3. **Ledger export** *(requirement 4)* — the last outstanding client requirement, and not started.
-   Printing works; file export does not exist. Worth confirming the wanted format (spreadsheet vs
-   PDF) before building, since that decides most of the work.
-
-   *Item 3 is fully independent of item 2. If the scoping plan for the double-entry work is under
-   review, it can be picked up without conflicting with it.*
+3. **Confirm the PDF export is what the client wants.** "Export PDF" currently opens the browser's
+   print dialog, which offers Save as PDF from the same layout the printed statement uses. That
+   avoids a second rendering of the same document and a sizeable library on an already-large
+   download. If the client expects a file generated without a dialog — or wants statements emailed,
+   which a browser cannot do at all — that is a different piece of work and needs saying so.
 4. **Decide whether to expire the 34 pre-existing sessions** — they keep the old 30-day window
    until next used. One command, but it signs every current user out, so it wants a quiet moment
    rather than a busy trading hour.
