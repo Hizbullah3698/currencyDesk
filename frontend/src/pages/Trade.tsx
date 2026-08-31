@@ -9,7 +9,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
-import { customSearchFilter } from '@/lib/customerSearch'
+import { Combobox } from '@/components/ui/combobox'
+import { FieldLabel } from '@/components/ui/field-label'
+import { AddCustomerAction } from '@/components/AddCustomerAction'
+import { AccountFormModal } from '@/components/AccountFormModal'
 
 // ---------------------------------------------------------------------------
 // SETTLEMENT UI — TEMPORARILY HIDDEN, NOT REMOVED
@@ -57,7 +60,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
 
   const [step, setStep] = useState<'form' | 'review' | 'done'>('form')
   const [customerId, setCustomerId] = useState(presetCustomerId)
-  const [custSearch, setCustSearch] = useState('')
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false)
   // DEFAULT_CURRENCY, not CURRENCY_LIST[0]: the picker is ordered strongest-to-weakest against
   // PKR, so adding EUR and USD moved AED off the top of that list. Taking the first entry would
   // have silently changed the default the screen opens on to a currency the desk holds no stock in.
@@ -75,8 +78,17 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
   const [submitting, setSubmitting] = useState(false)
   const [lastResult, setLastResult] = useState<{ currency: string; txnDate: string; amount: number; rate: number; value: number; outstanding: number } | null>(null)
 
-  const customers = state.accounts.filter((a) => a.type === 'Customer')
-  const filteredCustomers = customSearchFilter(customers, custSearch)
+  // The combobox does its own filtering, so the old "type to filter" state is gone with it. The
+  // customer's city rides along as a hint, which is what distinguishes two similarly-named traders.
+  const customerOptions = useMemo(
+    () =>
+      state.accounts
+        .filter((a) => a.type === 'Customer' && !a.archived)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((a) => ({ value: a.id, label: a.name, hint: a.city && a.city !== '—' ? a.city : undefined })),
+    [state.accounts],
+  )
+  const currencyOptions = useMemo(() => CURRENCY_LIST.map((c) => ({ value: c.code, label: c.code, hint: c.name })), [])
   const cust = getAccount(customerId)
   // RESTORE SETTLEMENT — const banks = state.accounts.filter((a) => a.type === 'Bank')
   const meta = currencyMeta(currency)
@@ -140,6 +152,10 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
 
   return (
     <div className="max-w-[560px]">
+      {/* Opened from inside the customer combobox. The modal already handles its own validation
+          and error display, and the store refetches on success, so the new customer appears in the
+          list without anything here having to reconcile it. */}
+      {addCustomerOpen && <AccountFormModal mode="new" defaultType="Customer" onClose={() => setAddCustomerOpen(false)} />}
       <div className="mb-3">
         <BackButton label="Currency Stock" onBack={() => navigate('/stock')} />
       </div>
@@ -151,41 +167,41 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">
           <div>
-            <label className="mb-1 block text-meta font-semibold text-muted-70">{mode === 'buy' ? 'Customer / Supplier' : 'Customer'}</label>
-            <Input value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="Type to filter customers…" className="mb-1.5 h-[30px] text-body" />
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
-              <option value="">Select customer…</option>
-              {filteredCustomers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <FieldLabel htmlFor="trade-customer">{mode === 'buy' ? 'Customer / Supplier' : 'Customer'}</FieldLabel>
+            {/* One control, not a filter box stacked on a dropdown. See ui/combobox.tsx. */}
+            <Combobox
+              id="trade-customer"
+              value={customerId}
+              onChange={setCustomerId}
+              options={customerOptions}
+              placeholder="Select customer…"
+              searchPlaceholder="Search customers…"
+              emptyLabel="No customer matches."
+              footer={<AddCustomerAction onAdd={() => setAddCustomerOpen(true)} />}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="mb-1 block text-meta font-semibold text-muted-70">Currency</label>
-              {/* Code only as the visible label, with the full name on hover via `title` — on the
-                  select for whatever is currently chosen, and on each option in the open list. A
-                  dealer reads the code; the name is there for the rare moment someone needs it,
-                  rather than occupying the control permanently. */}
-              <select
+              <FieldLabel htmlFor="trade-currency">Currency</FieldLabel>
+              {/* Collapsed shows the code alone — what a dealer scans past dozens of times a day.
+                  The full name appears only in the open list, where someone unsure which code is
+                  which actually needs it. A native <select> cannot do this: its closed label IS the
+                  selected option's text, so the two states can never differ. */}
+              <Combobox
+                id="trade-currency"
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                title={currencyName(currency)}
-                className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2 text-body font-medium transition-colors duration-150"
-              >
-                {CURRENCY_LIST.map((c) => (
-                  <option key={c.code} value={c.code} title={c.name}>
-                    {c.code}
-                  </option>
-                ))}
-              </select>
+                onChange={setCurrency}
+                options={currencyOptions}
+                searchable={false}
+                className="font-medium"
+              />
             </div>
             <div>
-              <label className="mb-1 block text-meta font-semibold text-muted-70">Transaction date</label>
-              <DatePicker value={txnDate} onChange={setTxnDate} placeholder="Deal date" className="h-[34px] w-full justify-start border-border-input text-body" />
+              <FieldLabel htmlFor="trade-date" hint="The day the deal was struck, which may differ from the day it is entered. Reports are cut on this date.">
+                Transaction Date
+              </FieldLabel>
+              <DatePicker value={txnDate} onChange={setTxnDate} className="h-[34px] w-full justify-start border-border-input text-body" />
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '@/lib/store'
 import { fmt, fmtLongDate, todayISO } from '@/lib/format'
@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
+import { Combobox } from '@/components/ui/combobox'
+import { FieldLabel } from '@/components/ui/field-label'
+import { AddCustomerAction } from '@/components/AddCustomerAction'
+import { AccountFormModal } from '@/components/AccountFormModal'
 import { cn } from '@/lib/utils'
 
 const METHODS: SettlementMethod[] = ['Cash', 'Bank', 'Cheque']
@@ -21,7 +25,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   const [step, setStep] = useState<'form' | 'review' | 'done'>('form')
   const [customerId, setCustomerId] = useState(presetCustomerId)
   const [txnDate, setTxnDate] = useState(todayISO())
-  const [custSearch, setCustSearch] = useState('')
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false)
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<SettlementMethod>('Bank')
   const [bankId, setBankId] = useState(state.accounts.find((a) => a.type === 'Bank')?.id || 'bank')
@@ -31,9 +35,17 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   const [submitting, setSubmitting] = useState(false)
   const [posted, setPosted] = useState<{ amount: number; remaining: number } | null>(null)
 
-  const customers = state.accounts.filter((a) => a.type === 'Customer')
-  const q = custSearch.trim().toLowerCase()
-  const filtered = q ? customers.filter((c) => c.name.toLowerCase().includes(q)) : customers
+  // Same shape as the trade screens. The combobox filters itself, so the old separate search state
+  // and hand-rolled filter are gone — this screen had its own copy of that logic rather than even
+  // sharing Trade's.
+  const customerOptions = useMemo(
+    () =>
+      state.accounts
+        .filter((a) => a.type === 'Customer' && !a.archived)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((a) => ({ value: a.id, label: a.name, hint: a.city && a.city !== '—' ? a.city : undefined })),
+    [state.accounts],
+  )
   const cust = getAccount(customerId)
   const banks = state.accounts.filter((a) => a.type === 'Bank')
   const outstanding = mode === 'receive' ? cust?.receivable || 0 : cust?.payable || 0
@@ -65,6 +77,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
 
   return (
     <div className="max-w-[460px]">
+      {addCustomerOpen && <AccountFormModal mode="new" defaultType="Customer" onClose={() => setAddCustomerOpen(false)} />}
       <div className="mb-3">
         <BackButton label={cust ? cust.name : 'Overview'} onBack={() => navigate(-1)} />
       </div>
@@ -74,16 +87,19 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">
           <div>
-            <label className="mb-1 block text-meta font-semibold text-muted-70">Customer</label>
-            <Input value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="Type to filter customers…" className="mb-1.5 h-[30px] text-body" />
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150">
-              <option value="">Select customer…</option>
-              {filtered.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <FieldLabel htmlFor="settle-customer">Customer</FieldLabel>
+            {/* Same single control as the trade screens — this form had the identical stacked
+                filter-box-over-dropdown pattern, so it gets the identical fix. */}
+            <Combobox
+              id="settle-customer"
+              value={customerId}
+              onChange={setCustomerId}
+              options={customerOptions}
+              placeholder="Select customer…"
+              searchPlaceholder="Search customers…"
+              emptyLabel="No customer matches."
+              footer={<AddCustomerAction onAdd={() => setAddCustomerOpen(true)} />}
+            />
           </div>
           {cust && (
             <div className={`rounded-control px-2.5 py-2.5 ${mode === 'receive' ? 'bg-positive-bg' : 'bg-negative-bg'}`}>
@@ -92,8 +108,10 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
             </div>
           )}
           <div>
-            <label className="mb-1 block text-meta font-semibold text-muted-70">Transaction date</label>
-            <DatePicker value={txnDate} onChange={setTxnDate} placeholder="Payment date" className="h-[34px] w-full justify-start border-border-input text-body" />
+            <FieldLabel htmlFor="settle-date" hint="The day the payment was actually made, which may differ from the day it is entered. Reports are cut on this date.">
+              Transaction Date
+            </FieldLabel>
+            <DatePicker value={txnDate} onChange={setTxnDate} className="h-[34px] w-full justify-start border-border-input text-body" />
           </div>
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Amount {mode === 'receive' ? 'received' : 'paid'} (PKR)</label>

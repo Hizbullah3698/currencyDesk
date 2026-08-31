@@ -1,17 +1,27 @@
 /**
- * The customer name filter used by every screen that picks a customer.
+ * The one matching rule used by every place in the app that filters a list as you type.
  *
- * Extracted from Trade.tsx, where it was a private function, when the ledger needed the same
- * behaviour. Two independent implementations of "find the customer" would drift — one gaining
- * case-insensitivity or trimming that the other lacked — and a dealer would learn that searching
- * works differently depending on which screen they are on.
+ * Started as a private function inside Trade.tsx, was extracted when the ledger needed it, and now
+ * also backs the combobox. Keeping it in one place is the whole point: two implementations of
+ * "find the thing" drift — one gains trimming or case-insensitivity the other lacks — and a dealer
+ * learns that searching behaves differently depending on which screen they happen to be on.
+ */
+
+/** Case-insensitive substring match across any number of fields, ignoring blank ones. */
+export function matchesQuery(query: string, ...fields: (string | undefined | null)[]): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return fields.some((f) => (f || '').toLowerCase().includes(q))
+}
+
+/**
+ * Filters a list of named records.
  *
  * Deliberately a function rather than a component. The screens that pick a customer genuinely
- * differ in shape — the trade screen needs a compact dropdown beside a rate box, the ledger needs
- * a browsable list with balances — so sharing the matching rule is right where sharing the markup
- * would force both into a compromise that suits neither.
+ * differ in shape — a compact combobox on a dealing slip, a browsable list with balances on the
+ * ledger — so sharing the matching rule is right where sharing the markup would force both into a
+ * compromise that suits neither.
  */
 export function customSearchFilter<T extends { name: string }>(customers: T[], q: string): T[] {
-  const s = q.trim().toLowerCase()
-  return s ? customers.filter((c) => c.name.toLowerCase().includes(s)) : customers
+  return customers.filter((c) => matchesQuery(q, c.name))
 }

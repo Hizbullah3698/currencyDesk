@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Lock, X } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { CORE_ACCOUNT_IDS, CURRENCY_LIST, currencyName } from '@/lib/engine'
+import { CORE_ACCOUNT_IDS, CURRENCY_LIST } from '@/lib/engine'
 import { ACCOUNT_TYPES } from '@/lib/types'
 import type { Account, AccountType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { Combobox } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 
 const BLANK = {
@@ -171,20 +172,14 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
                   row, so a typo silently values the account against the wrong position and two
                   accounts sharing a code double-count that stock on the Balance Sheet. The server
                   rejects both cases too — this just stops them being reachable by hand. */}
-              {/* Code only, with the full name on hover — same treatment as the trade screen's
-                  picker, so a currency reads identically wherever it is chosen. */}
-              <select
+              {/* Same control as the trade screens: code collapsed, full name in the open list. */}
+              <Combobox
                 value={form.code}
-                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                title={currencyName(form.code)}
-                className="h-[34px] w-full rounded-control border border-border-input bg-surface px-2.5 text-body transition-colors duration-150"
-              >
-                {CURRENCY_LIST.map((c) => (
-                  <option key={c.code} value={c.code} title={c.name}>
-                    {c.code}
-                  </option>
-                ))}
-              </select>
+                onChange={(code) => setForm((f) => ({ ...f, code }))}
+                options={CURRENCY_LIST.map((c) => ({ value: c.code, label: c.code, hint: c.name }))}
+                searchable={false}
+                aria-label="Currency"
+              />
               <div className="mt-1.5 text-meta font-normal text-muted-60">One stock account per traded currency. Quantity and weighted-average cost come from the currency ledger.</div>
             </Field>
           )}
