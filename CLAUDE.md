@@ -97,7 +97,10 @@ polling, data is at most one navigation stale by design.
 `getSnapshot()` takes a **required** `SnapshotView`; `viewForRole(role)` sets `includeMargin` only
 for `'admin'`. Non-admins get every activity row with `cost`/`margin` **omitted** — absent keys,
 not zeros, since a zero would assert "this sale made nothing". This matches the UI, which gates
-`/income-statement` and the Stock currency ledger as Admin-only.
+`/income-statement` as Admin-only and, on the Stock page's movements table, drops the **Margin** and
+**Running avg cost** columns for non-admins — the rest of the table (what moved, when, how much, at
+what rate) is theirs. Rendering those two columns for a non-admin would print `margin || 0`, a
+confident zero on every sale, which is the exact claim the API declines to make.
 
 Because a mutation response *is* a snapshot, `handleMutation(res, req, fn)` takes the request and
 reads the role itself — filtering only the `GET` would leak the same figures back out of every

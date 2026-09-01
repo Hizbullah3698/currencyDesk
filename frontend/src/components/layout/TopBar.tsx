@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ArrowDownCircle, ArrowUpCircle, Coins } from 'lucide-react'
+import { Search, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
-import { CURRENCIES, activeCurrencies, stk } from '@/lib/engine'
-import { fmt, fmtAmount, fmtQuote } from '@/lib/format'
+import { fmt } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { CATEGORY_COLORS } from '@/lib/ui-helpers'
@@ -69,15 +68,13 @@ export function TopBar() {
     }
   }, [state.accounts])
 
-  // One strip item per currency the desk actually trades, instead of a hardcoded AED tile. The
-  // strip already scrolls horizontally (overflow-x-auto below), so three desks widen it rather
-  // than wrapping or squeezing the two balance tiles.
-  // On a brand-new desk nothing is "active" yet, so fall back to the full registry rather than
-  // dropping the stock tiles (and their link to /stock) off the strip entirely.
-  const codes = useMemo(() => {
-    const active = activeCurrencies(state.stocks, state.activity)
-    return active.length ? active : CURRENCIES
-  }, [state.stocks, state.activity])
+  // NO CURRENCY STOCK HERE — deliberately. A tile per traded currency pushed the strip into a
+  // horizontal scrollbar, so most of the desk's positions were invisible unless someone thought
+  // to scroll a header, and the two figures that belong here got crowded by detail that does not.
+  // The strip carries portfolio-wide totals only; per-currency stock lives on /stock, reached from
+  // the sidebar's "Currency Stock" link — pick a currency there and the whole page is its detail.
+  // Keeping a second, cramped copy up here only guarantees the two drift apart. If a single
+  // at-a-glance stock figure is ever wanted back, that is a product decision, not a layout one.
 
   // The Customers page is search-first now, so hand it the typed query rather than dropping the
   // user on an empty search box (it reads ?q=).
@@ -130,25 +127,9 @@ export function TopBar() {
           value={fmt(totals.payable)}
           valueClassName="text-negative-text"
           sub={`${totals.payableCount} customers`}
+          bordered={false}
           onClick={() => navigate('/customers?owe=payable')}
         />
-        {codes.map((code, i) => {
-          const pos = stk(state.stocks, code)
-          return (
-            <StripItem
-              key={code}
-              category="fx"
-              icon={Coins}
-              label={`${code} stock`}
-              value={fmtAmount(pos.available, code)}
-              // The average cost is stored as canonical PKR-per-unit; fmtQuote puts it back into
-              // this currency's own convention so IRR reads as a real rate, not "0.00".
-              sub={`@ ${fmtQuote(code, pos.avgCost)}`}
-              bordered={i < codes.length - 1}
-              onClick={() => navigate('/stock')}
-            />
-          )
-        })}
       </div>
     </div>
   )

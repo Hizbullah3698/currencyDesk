@@ -183,6 +183,86 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-01 — second session
+
+### Done
+
+*At a glance: a design pass over four screens. The theme throughout was removing things that
+looked like information but were not — repeated labels, a chart with no scale, and a summary panel
+that duplicated a table further down the same page.*
+
+**The buying and selling screens lost three lines of grey text.** Under the amount box sat a line
+reading "In AED", and under the rate box two more: the quote convention and the average cost. The
+currency now sits inside the amount box itself as a small badge, reading whichever currency is
+selected above. The average cost moved onto the rate field's own label line, where it is still
+visible while a rate is being typed. The quote convention — which flips direction for Iranian Rial,
+so it cannot simply be dropped — moved behind the small information icon the date field already
+uses. The result is two labelled fields instead of two fields and three captions.
+
+The word "buy"/"sell" came out of the amount label, leaving just "Amount". Not a preference: with
+the available balance now on that same line, the longer label was being cut off to "Amoun…" as soon
+as the desk held a six-figure position. The screen still says which direction the deal runs in its
+title and on its button.
+
+The scroll wheel no longer changes a figure in the amount or rate box. On a rate box, an accidental
+wheel turn over a focused field is a wrong deal, not a cosmetic slip.
+
+**The two salary summary cards were resized.** They stretched the full width of the screen with the
+figure blown up to fill the space, which made a real number read as a placeholder tile. They are
+now sized to their content, with the figure scaled to match. Colours, icon and wording are
+untouched. The rest of that page has the same problem in its two tables — full width for about
+two-thirds as much content — which is recorded below rather than changed unasked.
+
+**The row of stock figures across the top of every screen was cut back to two.** It had grown one
+tile per currency and no longer fitted, so it had quietly become horizontally scrollable: most of
+the desk's positions were invisible unless someone happened to scroll a header. It now carries only
+the two figures that belong on every screen — what customers owe the desk and what the desk owes
+them. Currency positions live on the Currency Stock page, reached from the sidebar, which is the
+page built for them. Deliberately not replaced with a single tile for one favoured currency: two
+places showing the same thing is how they drift apart.
+
+**The Currency Stock page was rebuilt around one idea per section.** It previously named the
+selected currency four times on one screen, showed the same three figures twice, and had two
+"recent activity" panels listing a subset of the very table three sections below them.
+
+- The currency is now named once, at the top, with everything below it using the three-letter code.
+- The decorative bar chart is gone. It had no scale, no units and no dates, and its bars were held
+  to a minimum height, so an empty desk still drew a full row of them — it looked like data while
+  asserting nothing. In its place is a real chart of the quantity on hand after each movement, with
+  a labelled scale, dated points and a flat-then-step shape that matches how a stock level actually
+  behaves. A currency with no movements shows no chart at all rather than an empty frame.
+- The two "recent purchases"/"recent sales" panels were removed. The movement table below them is
+  now the single history for the currency.
+- The all-currencies table at the bottom became a comparison rather than a second copy of the
+  figures already shown above: quantity and value only, with the currently open row marked.
+- The paragraph of accounting explanation under it moved behind an information icon, matching the
+  pattern used elsewhere.
+
+**Operators can now see the movement history**, minus the two columns that carry cost and profit,
+which stay restricted to Admin. Previously the ledger was Admin-only and Operators saw the two
+recent-activity panels instead; removing those panels without this change would have left an
+Operator with no transaction history on the page at all.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The old stock chart floored every bar at a tenth of full height, so a desk holding nothing still drew six bars | Presented as data while carrying none — the failure mode is a reader trusting it | Replaced with a real chart; an empty desk now shows no chart |
+| Removing the recent-activity panels would have left Operators with no transaction history at all on the Currency Stock page | Would have quietly reduced what a non-Admin can see, unasked | Movement table shown to everyone, with the cost and profit columns held back |
+| For a non-Admin the server deliberately omits the profit figure. The page's old code turned a missing figure into "0" | Real defect had those columns been shown: a confident zero on every sale, which is the exact claim the server declines to make | Columns are not rendered for non-Admins, and the missing-value handling was corrected rather than left to coincidence |
+| With the available balance moved onto the label line, "Amount to sell" was cut off once the figure grew past five digits | Cosmetic, but it was introduced by this session's own change | Label shortened and the three field widths rebalanced; checked at a nine-figure balance |
+| Signing in to the local copy with the live site's password does not work | Not a defect — the local copy has its own separate demo database and its own demo logins | Confirmed the local sign-in works end to end; the credentials are the ones in the demo setup script |
+
+### Next — in priority order
+
+Unchanged from the entries below, plus two cosmetic items recorded but not acted on: on the Salary
+page, the employee table and the postings list run the full width of the screen for noticeably less
+content, and the Cheques page has the same pair of over-wide summary cards that were just fixed on
+Salary.
+
+Nothing on this page has automated tests — none of the app's screens do — so all of the above was
+checked by running the app and looking at it, in both light and dark themes.
+
 ## 2026-09-01
 
 ### Done

@@ -52,6 +52,14 @@ import { AccountFormModal } from '@/components/AccountFormModal'
 /** Every trade posts on credit while the settlement UI above is hidden. */
 const CREDIT_ONLY: SettlementMethod = 'Credit'
 
+/**
+ * Suppresses the browser's own number-input spinners on the amount and rate boxes. Two reasons:
+ * the amount box carries a currency affix where Chrome would draw its spinner, and a scroll wheel
+ * over a focused `type=number` silently increments it — on a rate box that is a wrong deal, not a
+ * cosmetic slip. Typing and arrow keys are unaffected.
+ */
+const NO_SPINNER = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
 export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
   const { state, confirmPurchase, confirmSale, getAccount } = useStore()
   const navigate = useNavigate()
@@ -205,22 +213,56 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5">
+          {/* Not three equal columns. The two input columns now carry a reference figure on the
+              label line (an available balance, an average cost), and at equal thirds "Amount to
+              sell" truncated to "Amoun…" as soon as the desk held a six-figure position. The
+              slack comes from the PKR value column, which is a read-only display and the shortest
+              string of the three. */}
+          <div className="grid grid-cols-[0.95fr_1.07fr_0.98fr] gap-2.5">
             <div>
-              <label className="mb-1 block text-meta font-semibold text-muted-70">Amount to {mode === 'buy' ? 'buy' : 'sell'}</label>
-              <Input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" placeholder="0" className="tabular h-[34px] text-body" />
-              <div className="mt-0.5 text-meta font-normal text-muted-60">{mode === 'sell' ? `Available ${fmtAmount(avail, currency)} ${currency}` : `In ${currency}`}</div>
+              {/* No "In AED" caption: the unit belongs to the number being typed, so it rides
+                  inside the box as an affix instead of as a line of gray text under it. It reads
+                  `currency` straight off the picker above — nothing about it is per-currency. */}
+              {/* "Amount", not "Amount to sell": the direction is already carried by the page
+                  title and the Review button, and the four characters it saves are what let the
+                  available balance sit on this line without either half truncating — an IRR
+                  position runs to nine figures. */}
+              <FieldLabel htmlFor="trade-amount" aside={mode === 'sell' ? `Avail ${fmtAmount(avail, currency)}` : undefined}>
+                Amount
+              </FieldLabel>
+              <div className="relative">
+                <Input
+                  id="trade-amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  type="number"
+                  placeholder="0"
+                  className={`tabular h-[34px] pr-12 text-body ${NO_SPINNER}`}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-1.5 my-auto flex h-[22px] items-center rounded-data bg-surface-tint px-1.5 text-meta font-semibold text-muted-70">
+                  {currency}
+                </span>
+              </div>
             </div>
             <div>
-              <label className="mb-1 block text-meta font-semibold text-muted-70">{mode === 'buy' ? 'Purchase rate' : 'Selling rate'}</label>
-              <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" placeholder="0.00" className="tabular h-[34px] text-body" />
-              {/* The label spells out which convention this box expects — it flips per currency
-                  (PKR per 1 AED, but IRR per 1 PKR), so the dealer never has to guess. */}
-              <div className="mt-0.5 text-meta font-semibold text-muted-70">{meta.rateLabel}</div>
-              <div className="text-meta font-normal text-muted-60">Avg cost {fmtQuote(currency, avgCost)}</div>
+              {/* The quote convention flips per currency (PKR per 1 AED, but IRR per 1 PKR), so it
+                  cannot simply be dropped — but it is instruction, not data, so it belongs behind
+                  the icon. The average cost IS data and is worth a glance while typing a rate, so
+                  it stays visible, inline on the label's line rather than as a third stacked line. */}
+              <FieldLabel htmlFor="trade-rate" hint={`Enter this rate as ${meta.rateLabel}.`} aside={`Avg ${fmtQuote(currency, avgCost)}`}>
+                {mode === 'buy' ? 'Purchase rate' : 'Selling rate'}
+              </FieldLabel>
+              <Input
+                id="trade-rate"
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                type="number"
+                placeholder="0.00"
+                className={`tabular h-[34px] text-body ${NO_SPINNER}`}
+              />
             </div>
             <div>
-              <label className="mb-1 block text-meta font-semibold text-muted-70">PKR value</label>
+              <FieldLabel>PKR value</FieldLabel>
               <div className="tabular flex h-[34px] items-center rounded-control border border-border bg-app px-2.5 text-body font-medium">{fmt(value)}</div>
             </div>
           </div>

@@ -93,12 +93,24 @@ export function Salary() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-5">
-        <KpiCard tone="negative" icon={Banknote} label="Accrued but unpaid" size="md" caption="Salary Payable balance">
-          <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(totalOutstanding)}</div>
+      {/* Sized to their content, not to the row. These are a secondary summary pair, and a
+          two-equal-column grid stretched them the full width of the page: the figure ended up
+          floating in a wide field of gradient, which is what made a real number read as a
+          placeholder tile. `flex` + a fixed basis holds them compact and identical to each other
+          (the two labels are different lengths, so pure content sizing would leave them visibly
+          mismatched), and they wrap instead of squeezing on a narrow window. The basis is a floor,
+          not a clamp — flex will not shrink an item below its own min-content, so an unusually
+          long figure widens the card rather than spilling out of it.
+
+          The figure steps down from text-hero to text-heading to match: at 30px it was scaled for
+          a full-width tile and was simply filling leftover space. Tone, icon, label and caption
+          are all deliberately untouched. */}
+      <div className="mb-5 flex flex-wrap gap-4">
+        <KpiCard tone="negative" icon={Banknote} label="Accrued but unpaid" size="md" caption="Salary Payable balance" className="basis-[232px]">
+          <div className="tabular text-heading font-semibold tracking-tight text-white">{fmt(totalOutstanding)}</div>
         </KpiCard>
-        <KpiCard tone="accent" icon={WalletCards} label="Accrued to date" size="md" caption={`${emps.length} employee${emps.length === 1 ? '' : 's'} on file`}>
-          <div className="tabular text-hero font-semibold tracking-tight text-white">{fmt(totalAccrued)}</div>
+        <KpiCard tone="accent" icon={WalletCards} label="Accrued to date" size="md" caption={`${emps.length} employee${emps.length === 1 ? '' : 's'} on file`} className="basis-[232px]">
+          <div className="tabular text-heading font-semibold tracking-tight text-white">{fmt(totalAccrued)}</div>
         </KpiCard>
       </div>
 

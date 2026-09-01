@@ -51,6 +51,12 @@ function toneStyle(tone: KpiTone) {
  * tighter padding/icon size to match. Using "lg" outside the Dashboard is
  * the exact mistake that made Salary's two cards look oversized.
  *
+ * Size is the padding/icon tier only — this component has no opinion about
+ * WIDTH, which belongs to the row that lays the cards out. A full-width
+ * two-column grid is right for the Dashboard's headline row and wrong for a
+ * secondary pair; Salary passes a flex basis instead so its two cards stay
+ * compact, and steps its figure down a rung on the type scale to match.
+ *
  * Height is entirely content-driven — there is no min-height here and never
  * should be. The card previously *looked* like it had one because the
  * padding was generous and, more importantly, asymmetric: the caption's own

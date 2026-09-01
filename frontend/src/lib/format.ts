@@ -10,6 +10,29 @@ export function fmtNum(n: number, decimals = 0): string {
 }
 
 /**
+ * A quantity shortened to fit a chart axis tick — "12.5k", "3.4M". For axis labels and nothing
+ * else: it rounds hard, so never use it where a figure is read as a number (a ledger cell, a
+ * balance, anything that has to reconcile). An IRR position runs to nine figures, and a Y axis
+ * printing "495,253,000" against every gridline is unreadable at 10px.
+ */
+export function fmtCompact(n: number): string {
+  const v = n || 0
+  const abs = Math.abs(v)
+  const unit = (div: number, suffix: string) => {
+    const scaled = v / div
+    // One decimal below 10 of the unit (1.2M), none above it (12M) — enough to separate adjacent
+    // gridlines without printing digits the tick is too small to read.
+    return `${scaled.toFixed(Math.abs(scaled) < 10 ? 1 : 0).replace(/\.0$/, '')}${suffix}`
+  }
+  if (abs >= 1e9) return unit(1e9, 'B')
+  if (abs >= 1e6) return unit(1e6, 'M')
+  // Thresholds are exactly the unit boundaries, with no dead band: at 1e4 the axis printed "14k"
+  // against "9,000" and "4,500", three formats on one scale.
+  if (abs >= 1e3) return unit(1e3, 'k')
+  return fmtNum(v, abs > 0 && abs < 10 ? 2 : 0)
+}
+
+/**
  * A rate ALREADY in a currency's own quote convention (what the dealer typed / what is stored on
  * an Activity row). Decimal places come from the currency registry rather than a hardcoded 2, so
  * a currency that needs more precision in its own convention gets it without a new constant here.

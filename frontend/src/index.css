@@ -18,9 +18,11 @@
   /* Type scale — meta/labels, body copy, section/page headers, and the single most
      important number(s) on a screen. `text-hero-lg` is a dedicated top-of-range size
      reserved for the Dashboard's 3 headline KPI cards specifically; every other
-     "most important number" on a page (customer balances, salary totals, the AED
-     stock figure, a statement's net line) uses `text-hero`. Apply these instead of
-     one-off text-[Npx] arbitrary values going forward. */
+     "most important number" on a page (customer balances, the AED stock figure, a
+     statement's net line) uses `text-hero`. A figure in a compact, content-sized
+     card — Salary's two accrual cards — steps down again to `text-heading`: a
+     30px number inside a ~230px card is filling space rather than carrying weight.
+     Apply these instead of one-off text-[Npx] arbitrary values going forward. */
   --text-meta: 12px;
   --text-meta--line-height: 1.4;
   --text-body: 14px;

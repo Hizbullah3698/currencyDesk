@@ -261,38 +261,6 @@ export function stockAsOf(code: string, stocks: Stocks, activity: Activity[], to
   return { available: qty, avgCost: avg }
 }
 
-export interface TrendBar {
-  heightPct: number
-  value: number
-  label: string
-  color: string
-  labelColor: string
-}
-
-/** Running stock quantity after each of the last N movements, for a small sparkline. */
-export function stockTrend(code: string, stocks: Stocks, activity: Activity[], count = 6): TrendBar[] {
-  const open = openingStock(code, stocks, activity)
-  const moves = open.moves.slice(-count)
-  let qty = open.qty
-  const points: { qty: number; date: Date; kind: string }[] = []
-  open.moves.slice(0, open.moves.length - moves.length).forEach((t) => {
-    qty = t.type === 'purchase' ? qty + (t.amount || 0) : qty - (t.amount || 0)
-  })
-  moves.forEach((t) => {
-    qty = t.type === 'purchase' ? qty + (t.amount || 0) : qty - (t.amount || 0)
-    points.push({ qty, date: new Date(t.createdAt), kind: t.type })
-  })
-  while (points.length < count) points.unshift({ qty: points[0]?.qty ?? qty, date: new Date(), kind: '' })
-  const max = Math.max(...points.map((p) => p.qty), 1)
-  return points.map((p, i) => ({
-    heightPct: Math.max(10, Math.round((p.qty / max) * 100)),
-    value: p.qty,
-    label: p.kind ? p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
-    color: i === points.length - 1 ? 'var(--color-accent)' : 'var(--color-accent-border)',
-    labelColor: 'var(--color-muted-60)',
-  }))
-}
-
 // ---------------------------------------------------------------------------
 // Buy / Sell math
 // ---------------------------------------------------------------------------
