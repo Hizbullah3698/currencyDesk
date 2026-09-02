@@ -7,6 +7,7 @@ import { apiUrl } from './apiBase'
 import { getCsrfToken, isCsrfError, isMutatingMethod, requestHeaders } from './csrf'
 import { markActivity, markServerContact } from './activity'
 import { refreshCsrfToken } from './authClient'
+import { notifySessionExpired } from './sessionExpiry'
 
 export interface AppState {
   accounts: Account[]
@@ -20,8 +21,12 @@ const EMPTY_STATE: AppState = { accounts: [], activity: [], cheques: [], journal
 
 // Matches auth.tsx's AuthStatus naming convention — the same "what phase is this async data in"
 // modeling, one level down (business data instead of identity). No 'unreachable' distinction
-// here: a failed fetch of any kind (network failure, session expiry, a real server error) is
-// just 'error' with a message, since the recovery action (retry) is the same either way.
+// here: a failed fetch of any kind (a network failure, a real server error) is just 'error' with
+// a message, since the recovery action (retry) is the same either way.
+//
+// A 401 is the one failure that is NOT one of those, and is deliberately excluded: retrying it can
+// only fail again, because the session it needed is gone. It routes to the login screen instead —
+// see the `unauthenticated` flag on ApiResult and lib/sessionExpiry.ts.
 export type StoreStatus = 'loading' | 'ready' | 'error'
 
 async function parseJson(res: Response): Promise<any> {
@@ -32,7 +37,15 @@ async function parseJson(res: Response): Promise<any> {
   }
 }
 
-type ApiResult = { ok: true; snapshot: AppState } | { ok: false; error: string }
+type ApiResult =
+  | { ok: true; snapshot: AppState }
+  | {
+      ok: false
+      error: string
+      /** The session is gone. The caller must not present this as a retryable load failure —
+       *  sign-out is already under way, and the app is about to render the login screen. */
+      unauthenticated?: boolean
+    }
 
 async function sendRequest(method: string, url: string, body?: unknown): Promise<Response> {
   // Every request is both activity (someone asked for this) and server contact (the session's
@@ -69,6 +82,15 @@ async function apiCall(method: string, url: string, body?: unknown): Promise<Api
         res = await sendRequest(method, url, body)
         json = await parseJson(res)
       }
+    }
+
+    // A 401 is not a data-loading problem and must never be presented as one: the session is
+    // gone, and no amount of retrying this request will bring it back. Raising the signal here —
+    // once, centrally, for every GET and every mutation this app makes — is what turns it into a
+    // trip to the login screen. See lib/sessionExpiry.ts.
+    if (res.status === 401) {
+      notifySessionExpired()
+      return { ok: false, error: json?.error || 'Your session ended.', unauthenticated: true }
     }
 
     // The Express backend's own global error handler always responds with real {error: string}
@@ -209,10 +231,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setState(result.snapshot)
       setStatus('ready')
       setLoadError(null)
-    } else {
-      setStatus('error')
-      setLoadError(result.error)
+      return
     }
+    // A 401 has already raised the expiry signal, so AuthProvider is flipping to anonymous and
+    // Gate is about to render the login screen. Setting an error here would put a dead-end
+    // "Couldn't load your data" screen in front of that for a frame — the exact screen this
+    // change exists to remove.
+    if (result.unauthenticated) return
+    setStatus('error')
+    setLoadError(result.error)
   }, [])
 
   useEffect(() => {
@@ -223,7 +250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (result.ok) {
           setState(result.snapshot)
           setStatus('ready')
-        } else {
+        } else if (!result.unauthenticated) {
           setStatus('error')
           setLoadError(result.error)
         }

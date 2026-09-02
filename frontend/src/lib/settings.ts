@@ -1,6 +1,7 @@
 import { apiUrl } from './apiBase'
 import { requestHeaders } from './csrf'
 import { markServerContact } from './activity'
+import { notifySessionExpired } from './sessionExpiry'
 
 /**
  * App-level settings an administrator can change at runtime, as opposed to the deployment
@@ -41,6 +42,9 @@ export async function fetchSettings(): Promise<AppSettings> {
   try {
     markServerContact()
     const res = await fetch(apiUrl('/api/settings'), { credentials: 'include' })
+    // Falling back silently on a 401 would leave the app running the DEFAULT idle window against
+    // a session that no longer exists — a countdown for a session that already ended.
+    if (res.status === 401) notifySessionExpired()
     if (!res.ok) return FALLBACK_SETTINGS
     const body = await parseJson(res)
     return {
@@ -64,6 +68,7 @@ export async function saveIdleTimeout(minutes: number): Promise<{ ok: true; sett
       body: JSON.stringify({ idleTimeoutMinutes: minutes }),
     })
     const body = await parseJson(res)
+    if (res.status === 401) notifySessionExpired()
     if (!res.ok) return { ok: false, error: body?.error || 'Could not reach the server.' }
     return { ok: true, settings: body as AppSettings }
   } catch {

@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Logo } from '@/components/layout/Logo'
 
 export function Login() {
-  const { login } = useAuth()
+  const { login, sessionEnded } = useAuth()
   // Either a username or an email address — the backend resolves whichever it is.
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -33,6 +33,14 @@ export function Login() {
         <Card className="p-[22px] shadow-md">
           <h1 className="m-0 mb-[3px] text-heading font-semibold tracking-tight">Sign in</h1>
           <div className="mb-[18px] text-body font-normal text-muted-60">Use your desk account to continue.</div>
+
+          {/* Shown when the session ended on its own — the idle window lapsing, or a 401 on a
+              request the app made. Says what happened, because arriving back at a sign-in screen
+              mid-task with no explanation is what made this look like a fault. Not shown for an
+              ordinary sign-out, which needs no explaining. */}
+          {sessionEnded && (
+            <div className="mb-4 rounded-control bg-pending-bg px-2.5 py-2 text-meta font-medium text-pending-text">Your session ended — please sign in again.</div>
+          )}
 
           <form onSubmit={onSubmit}>
             <label className="mb-[5px] block text-meta font-semibold uppercase tracking-wide text-muted-60">Username or email</label>

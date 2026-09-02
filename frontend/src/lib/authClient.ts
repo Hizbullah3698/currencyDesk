@@ -2,6 +2,7 @@ import type { Role } from './types'
 import { apiUrl } from './apiBase'
 import { clearCsrfToken, getCsrfToken, setCsrfToken, CSRF_HEADER } from './csrf'
 import { markServerContact } from './activity'
+import { notifySessionExpired } from './sessionExpiry'
 
 export interface SessionUser {
   id: string
@@ -72,12 +73,18 @@ export async function me(): Promise<MeResult> {
     const res = await fetch(apiUrl('/api/auth/me'), { credentials: 'include' })
     if (res.status === 401) {
       clearCsrfToken()
+      // Raised here as well as in the store, because this is the call the idle keepalive makes:
+      // a user who is plainly present but making no other requests would otherwise sit in front
+      // of a fully-rendered app whose session had already lapsed, and find out at their next
+      // click. A no-op at boot and on a failed login, when no session was ever established.
+      notifySessionExpired()
       return { status: 'anonymous' }
     }
     if (!res.ok) return { status: 'unreachable' }
     const body = await parseJson(res)
     if (!body?.user) {
       clearCsrfToken()
+      notifySessionExpired()
       return { status: 'anonymous' }
     }
     // /me carries the token as well as /login. This is the call every returning user makes on

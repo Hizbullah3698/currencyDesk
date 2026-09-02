@@ -160,7 +160,12 @@ function Gate() {
     // A real sign-out, not a screen lock: logout() destroys the session server-side, so the
     // cookie left in the browser is worthless afterwards. Gate then falls through to <Login/> on
     // the next render because authStatus becomes 'anonymous'.
-    void logout()
+    //
+    // `expired` because the user did not ask for this, so the login screen should say why they are
+    // looking at it. The countdown this fires from is now shared across tabs (lib/activity.ts), so
+    // reaching here means the whole SESSION was idle — not merely this tab. A tab left open on a
+    // dashboard used to sign out a colleague's active tab from here.
+    void logout({ expired: true })
   }, [logout]))
 
   // Refetch business data on every navigation (not just once at boot) — this is the app's whole

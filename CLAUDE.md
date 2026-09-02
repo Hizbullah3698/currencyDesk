@@ -9,8 +9,11 @@ customer, tracking receivables/payables, moving cheques through their lifecycle,
 journal entries, and closing the books with a balance sheet and income statement.
 
 Three tiers, all real: a React SPA, an Express/PostgreSQL API, and a shared pure accounting-math
-package both sides compute with. Postgres is the ledger of record. `localStorage` holds exactly one
-key (`currencydesk.theme.v1`, a display preference) — if a comment claims otherwise, it is stale.
+package both sides compute with. Postgres is the ledger of record. `localStorage` holds no business
+data and must not start: only `currencydesk.theme.v1` (a display preference) and, on the fallback
+path of the cross-tab idle transport where `BroadcastChannel` is unavailable,
+`currencydesk.activity.v1` (a single timestamp, never read as state — see `lib/activity.ts`).
+Anything that must persist belongs on the server; treat a third key as a defect.
 
 ## Commands
 
@@ -308,9 +311,11 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-76 tests: 33 engine unit, 37 backend integration (real HTTP against real Postgres, no supertest —
-each file boots `http.createServer(createApp())` on an ephemeral port), 6 frontend unit
-(`lib/reports.test.ts`, node environment, no jsdom). No CI — `npm run test` is manual.
+162 tests: 46 engine unit, 56 backend integration (real HTTP against real Postgres, no supertest —
+each file boots `http.createServer(createApp())` on an ephemeral port), 60 frontend unit (7 files
+under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
+never a component, and anything touching `window` must be guarded at module load or it breaks the
+suite). No CI — `npm run test` is manual.
 
 Most of the app has no automated coverage: every React component and page, cheque lifecycle
 end-to-end, the auth routes, `deleteAccount`'s success path. Correctness there rests on `tsc`,
