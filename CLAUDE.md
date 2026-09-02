@@ -275,6 +275,13 @@ reproducibility. Read `012`'s header before adding a fourth currency.
   on stringification). `activity.txn_date` and `cheques.due_date` both depend on that.
 - `stock_positions.avg_cost` is `numeric(24,12)` — `18,6` rounds an IRR unit cost enough to
   compound error on every re-weighting.
+- **`journal_entries.txn_date`** (migration `017`) is the journal's counterpart to
+  `activity.txn_date` — the day the entry belongs to, vs. `created_at` when it was keyed in. Its own
+  stored column rather than a join through `activity_id`, because manual entries, opening balances,
+  salary postings and future reversal vouchers have no activity row to join to. A voucher written
+  from a trade must **copy** the date from that activity row at write time, never join to it at
+  read time. Reports do **not** cut on it yet — `ledgerBalance()` still uses `created_at`, and
+  switching that moves reported figures, which requirement 7's acceptance test forbids.
 - **`journal_entries.voucher_id` / `activity_id` exist but nothing writes them yet** (migration
   `016`). The table is strictly two-legged and a sale needs four legs, so requirement 7 makes a deal
   several balanced rows sharing a `voucher_id`; `activity_id` links a leg back to its source row.
@@ -330,7 +337,7 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-178 tests: 46 engine unit, 60 backend integration (real HTTP against real Postgres, no supertest —
+182 tests: 46 engine unit, 64 backend integration (real HTTP against real Postgres, no supertest —
 each file boots `http.createServer(createApp())` on an ephemeral port), 72 frontend unit (8 files
 under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
 never a component, and anything touching `window` must be guarded at module load or it breaks the

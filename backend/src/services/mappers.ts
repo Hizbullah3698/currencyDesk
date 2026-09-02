@@ -202,6 +202,10 @@ export interface JournalRow {
   salary_kind: 'accrual' | 'payment' | null
   voucher_id: string | null
   activity_id: string | null
+  /** A Postgres `date`, delivered as literal 'YYYY-MM-DD' text by the DATE type parser in
+   *  db/pool.ts — same mechanism as `activity.txn_date` and `cheques.due_date`. No Date object is
+   *  constructed from it, so no timezone shift can occur. */
+  txn_date: string
   created_at: Date
   created_by: string | null
   updated_at: Date
@@ -261,6 +265,7 @@ export function mapJournalRow(
   }
   if (row.voucher_id) entry.voucherId = row.voucher_id
   if (row.activity_id) entry.activityId = row.activity_id
+  if (row.txn_date) entry.txnDate = row.txn_date
   return entry
 }
 

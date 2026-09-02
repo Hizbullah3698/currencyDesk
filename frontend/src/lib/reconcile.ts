@@ -64,12 +64,17 @@ export const TOLERANCE = 0.005
  *
  * Cut on `createdAt`, matching what ledgerBalance() already does with journal entries today.
  *
- * PHASE 3 WILL NEED MORE THAN THIS. Reports cut activity on `activityDate()` — the day the deal
- * was struck — not on the day it was keyed in. `journal_entries` has no equivalent column, so a
- * voucher posted for a backdated trade would land in the wrong period and silently undo
- * requirement 1. Either journal entries gain their own transaction date, or a voucher's date is
- * read through its `activity_id`. That decision belongs to phase 3; recording it here because
- * building this is what surfaced it.
+ * RESOLVED, BUT NOT YET SWITCHED. Building this harness surfaced that reports cut activity on
+ * `activityDate()` — the day the deal was struck — while `journal_entries` had no equivalent
+ * column, so a voucher for a backdated trade would have landed in the wrong period and silently
+ * undone requirement 1. Migration 017 gives journal entries their own `txn_date` (its own column,
+ * not a join through `activity_id`, which would leave manual entries and reversal vouchers with no
+ * date at all).
+ *
+ * This function still cuts on `createdAt` on purpose. Switching the cut-off moves reported figures,
+ * which the requirement 7 acceptance test forbids — the harness has to keep measuring against what
+ * the app reports *today*. Both sides move to `txnDate` together in phase 5, as the
+ * reconstructions are retired.
  */
 export function journalOnlyNet(accountId: string, journalEntries: JournalEntry[], keep: (iso: string) => boolean): number {
   let net = 0

@@ -153,6 +153,14 @@ export interface JournalEntry {
   voucherId?: string
   /** The activity row that produced this leg, when one did. Absent on manual entries. */
   activityId?: string
+  /**
+   * The day this entry belongs to, 'YYYY-MM-DD' — the journal's counterpart to
+   * `Activity.txnDate`, and distinct from `createdAt` (when it was keyed in). Its own stored
+   * column rather than a join through `activityId`, because manual entries, opening balances,
+   * salary postings and future reversal vouchers have no activity row to join to. See
+   * migration 017.
+   */
+  txnDate?: string
   createdAt: string
   createdBy: string
   updatedAt: string
