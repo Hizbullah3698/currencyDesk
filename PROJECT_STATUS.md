@@ -155,7 +155,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | ❌ **In scope — not started** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*What is missing:* trades and payments create no paired entries. They are stored as transaction records, and each account's debit/credit position is reconstructed at report time. Under the client's decision this does not meet the requirement — there is no journal entry to point at for an individual purchase. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** (stages 2 and 3, enforcement on). Not to be started while that security work is half-finished. <br><br>*Before any code:* a written scoping plan is required and must be reviewed — see the next-steps list. This is the largest remaining piece of work in the project. |
+| 7 | **Correct Dr/Cr accounting throughout** | ❌ **In scope — not started** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*What is missing:* trades and payments create no paired entries. They are stored as transaction records, and each account's debit/credit position is reconstructed at report time. Under the client's decision this does not meet the requirement — there is no journal entry to point at for an individual purchase. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** — stage 2 shipped 2026-08-31, so only stage 3 (enforcement on) now stands in front of it. Not to be started while that security work is half-finished. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. It is therefore the next concrete piece of work once stage 3 lands. <br><br>*Before any code:* a written scoping plan is required and must be reviewed — see the next-steps list. This is the largest remaining piece of work in the project. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -182,6 +182,128 @@ Worth noting because it represents real completed work, whether or not it maps t
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-02
+
+### Done
+
+*At a glance: a session-expiry defect found and fixed, the local database brought back into step
+with production, an audit of what an Admin cannot do, and a scoping plan for corrections — which
+the client then settled five open questions on.*
+
+**A session that ended left the app in a dead end, and that is now fixed and live.** Identity was
+worked out once when the app loaded and never revisited. So when a session ended underneath someone
+— the idle window lapsing, or another tab signing out — the app carried on believing they were
+signed in. The next request came back refused, and the screen reported it as an ordinary failure to
+load data, behind a Retry button that could only ever fail the same way. The only escape was opening
+a new tab, because a new tab re-checks who you are.
+
+The app now treats "the server says this session is gone" as its own distinct signal, wherever it
+arrives, and sends the user to the sign-in screen with a line saying the session ended. An ordinary
+sign-out says nothing extra, because it needs no explaining.
+
+The care in it is about when that message is allowed to appear. Two refusals are completely normal
+and must never be reported as a session ending: the check made when someone who is not signed in
+first opens the app, and a mistyped password. Both happen when no session exists, so the signal
+stays silent. It also disarms itself, so a page refresh and a save failing at the same moment
+produce one sign-out rather than two.
+
+**Found while fixing it: one idle tab could sign out a colleague who was actively working.** The
+countdown ran per browser tab, but signing out ends the session on the server, which every tab
+shares. A second tab left open on a dashboard reached its own five-minute timeout and ended the
+session in the tab someone was dealing in, mid-form, with no warning. Worse, the workaround for the
+bug above — open it again in a new tab — left one of these behind every time.
+
+Activity is now shared between tabs, so the countdown belongs to the session rather than to a tab.
+An active tab keeps every other tab alive, and only a session genuinely idle everywhere runs down.
+
+Both were verified in a real browser with two tabs, not only by automated checks. With one tab
+active and the other untouched, the idle tab was still signed in after 208 seconds against a
+two-minute timeout, and the working tab was unaffected throughout. With both left alone, the
+warning appeared at 101 seconds and both tabs then landed on the sign-in screen reading "Your
+session ended — please sign in again", which is the screen this work exists to produce.
+
+**The local development database was three structural changes behind production.** It was missing
+the two-way record used to decide when the security rollout can finish, the three newer currencies,
+and the settings table. In practice that meant the local copy could only trade three of the six
+currencies and had no Settings page behind it, so anything checked locally about those two features
+was being checked against a database that predated them. Brought up to date and confirmed identical
+to production, field by field.
+
+**An audit of what an Admin cannot do.** The client asked where an Admin is blocked from seeing or
+changing something they should reasonably control. Worth recording that every role check in the app
+grants Admin *more*, never less — there is no screen an Admin is locked out of. What the audit found
+instead were capabilities missing for everyone:
+
+- **"Customer since" is not a real field.** It is worked out from the day the record was created, so
+  every customer carried over from the old way of working reads as starting on the day they were
+  typed in.
+- **An opening balance cannot be corrected** after the account is created — blocked on the screen and
+  again on the server.
+- **Phone and city cannot be cleared** — emptying one stores a dash rather than nothing.
+- **The record of who did what is a hover tooltip.** Worse, who archived a customer and who
+  overrode an account type are both recorded in the database and shown nowhere at all.
+- **Nothing posted can ever be corrected** — the finding that dominates the rest, and the subject of
+  the plan below.
+
+**A written plan for correcting posted entries.** Today a trade booked at the wrong rate, a payment
+against the wrong customer or a salary accrued twice is permanent. The plan sets out correction by
+*reversal* — posting an opposite entry that names the original — rather than editing, entity by
+entity, with the conditions under which each is safe.
+
+Reversal rather than editing is not a preference. Currency stock cost is rebuilt by replaying every
+purchase and sale in order, so editing a historical trade would quietly re-cost every sale that came
+after it with nothing in the record showing anything had moved.
+
+Two things surfaced that were not visible before reading the posting code. Salary corrections are
+blocked outright by a database rule that permits only one accrual per employee per month, which a
+correction would violate — and which also means a reversed month could not be re-accrued without
+reworking that rule. And forty-four separate places across eight files add up transactions on the
+assumption each one counts exactly once; correcting them individually is how a correction ends up
+counted on the dashboard but not on the balance sheet.
+
+### Decided by the client
+
+*Recorded because these were delegated decisions, answered by the client, not assumptions made on
+their behalf. They are settled; do not re-open them.*
+
+| # | Question | Client's decision |
+|---|---|---|
+| 1 | What date does a correction post on? | **Always today.** Never backdated into the period being corrected, so figures already reported for a past month cannot change after the fact. |
+| 2 | Are corrected entries hidden or shown? | **Always shown** — the original struck through, with the correction linked beside it. Never hidden, so a correction can never become invisible. |
+| 3 | Can a purchase be undone once some of it has been sold? | **Yes.** Post an adjustment so the profit total stays right, rather than refusing the correction. Accepted alongside it: the profit figures on the sales in between stand as they were originally posted. |
+| 4 | Is there an age limit on corrections? | **No.** An Admin can correct an entry of any age at any time. Who performed each correction and when is recorded, as already planned. |
+| 5 | Does correction come before or after the full journal work? | **After.** Build the paired double-entry postings first, then corrections on top — so the correction logic is not written twice when the underlying shape changes. |
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| A session ending mid-use left the app on a dead-end error with a Retry button that could only fail again; the only escape was a new tab | Real, and reachable in ordinary use — the auto-logout released on 2026-08-31 made it reachable every five idle minutes | Fixed and live |
+| One idle tab could end the session in a tab someone was actively dealing in, mid-form, with no warning | Real — and made *more* likely by the bug above, whose workaround left spare tabs open | Fixed and live |
+| The local development database was three structural changes behind production | Anything checked locally about the newer currencies or the Settings page was being checked against the wrong shape | Fixed — local now matches production exactly |
+| Two claims in the engineering reference were no longer true: the note on browser storage, and the test count (76 claimed, 162 actual) | Low, but this is the document people trust to be current | Corrected in the same change |
+| The old browser-only version of the app left real business data in the browser's own storage, which nothing clears | Low — current code neither writes nor reads it, but it sits in any browser that used the app before the move to a server | **Open — noted, not acted on** |
+| Salary corrections are blocked by the database rule allowing one accrual per employee per month; a reversed month also could not be re-accrued | Would have been discovered mid-build. Both the rule and the field it checks have to change first | Recorded in the plan, not yet built |
+| Forty-four places across eight files total up transactions assuming each counts once | The main sizing risk in the correction work — doing them one by one is how a correction lands in one report and not another | Recorded in the plan; belongs in one shared rule, not forty-four edits |
+| Profit is stripped from what an Operator receives, but journal entries are sent to every role unfiltered | **Real risk in the work about to start.** Once trades post journal entries, recording profit as one side of an entry would hand Operators the exact figure the server currently withholds | **Open — must be designed for before the journal work begins** |
+
+### Next — in priority order
+
+1. **Finish the security rollout** (unchanged, still first). Run the readiness check against production;
+   it must report SAFE before enforcement is switched on.
+2. **Paired double-entry postings for trades and payments** *(requirement 7)* — now the next concrete
+   piece of work, and being scoped to the same standard as everything else this session. The client's
+   decision 5 places it ahead of the correction feature.
+3. **Corrections and reversals** — planned, decided, and deliberately **not** started until item 2 is
+   done.
+4. **Small Admin gaps from the audit** — "customer since" as a real field, clearing phone and city,
+   and showing the record of who changed what. Independent of each other and of the work above.
+5. **Correcting an opening balance** — medium-sized, and needs an accounting decision about the
+   entry created with the account.
+6. Carried unchanged from earlier entries: confirm the PDF export is what the client wants; decide
+   whether to expire the pre-existing sessions; fix the misleading error message; decide on preview
+   copies writing to the live database.
 
 ## 2026-09-01 — second session
 
