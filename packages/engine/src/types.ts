@@ -145,6 +145,14 @@ export interface JournalEntry {
   amount: number
   openingFor?: string
   salary?: SalaryMeta
+  /**
+   * Groups the legs of one deal. A sale needs up to four legs and this table holds two per row,
+   * so a deal is several balanced rows sharing this id — see migration 016. Absent on manual
+   * entries, opening balances and salary postings, which are each a single pair.
+   */
+  voucherId?: string
+  /** The activity row that produced this leg, when one did. Absent on manual entries. */
+  activityId?: string
   createdAt: string
   createdBy: string
   updatedAt: string

@@ -34,3 +34,7 @@ PROJECT_BRIEFING.md
 *.sw?
 
 .vercel
+
+# Reconciliation harness input — a full admin-view snapshot, carries cost and margin figures.
+backend/snapshot.json
+snapshot.json

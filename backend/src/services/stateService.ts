@@ -63,11 +63,20 @@ export async function getSnapshot(client: Pool | PoolClient, view: SnapshotView)
   const journalEntries = await client.query<JournalRow>('SELECT * FROM journal_entries ORDER BY created_at DESC')
   const stocks = await client.query<StockRow>('SELECT * FROM stock_positions ORDER BY code')
 
+  // Which accounts are Income, so mapJournalRow can withhold entries that disclose the desk's
+  // profit from a non-admin. Derived from the rows already read above rather than hardcoding
+  // 'margin': an admin can create further Income accounts from the Accounts page, and a filter
+  // that only knew about the seeded one would leak through every account added after it.
+  const incomeAccountIds = new Set(accounts.rows.filter((a) => a.type === 'Income').map((a) => a.id))
+
   return {
     accounts: accounts.rows.map((r) => mapAccountRow(r, names)),
     activity: activity.rows.map((r) => mapActivityRow(r, names, view.includeMargin)),
     cheques: cheques.rows.map((r) => mapChequeRow(r, names)),
-    journalEntries: journalEntries.rows.map((r) => mapJournalRow(r, names)),
+    // Nulls are omitted entries, not mapping failures — see mapJournalRow.
+    journalEntries: journalEntries.rows
+      .map((r) => mapJournalRow(r, names, view.includeMargin, incomeAccountIds))
+      .filter((e): e is JournalEntry => e !== null),
     stocks: mapStocks(stocks.rows),
   }
 }

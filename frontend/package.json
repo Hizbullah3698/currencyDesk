@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint src",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "reconcile": "cross-env NODE_OPTIONS=--conditions=development tsx scripts/reconcile.ts"
   },
   "dependencies": {
     "@currencydesk/engine": "*",

@@ -36,12 +36,16 @@ npm run set-username            # give an existing account a login username
 npm run set-password            # reset an existing account's password
 npm run csrf:gate               # is it safe to switch on CSRF_ENFORCE? (local dev DB)
 npm run csrf:gate:prod          # same check against production (reads .env.production)
+npm run snapshot:dump           # full admin-view snapshot -> backend/snapshot.json (gitignored)
+npm run snapshot:dump:prod      # same, against production (reads .env.production)
 
 # frontend/
 npm run dev                     # Vite on :5173
 npm run build                   # tsc -b && vite build
 npm run lint                    # oxlint (not ESLint), scoped to this package's src/
 npm run test
+npm run reconcile               # requirement 7 harness; needs a snapshot:dump first. Exits 1
+                                # until requirement 7 is done — that is the expected state.
 ```
 
 There is no signup flow; accounts are created by CLI. Login accepts a username **or** an email.
@@ -113,6 +117,16 @@ fails to compile). `SnapshotView` is required rather than defaulted on purpose.
 This is not a cryptographic boundary and does not claim to be: rates are still served to every role
 (the trade screens need them) and current average cost is still on `stocks` (an Operator cannot
 price a sale without it), so profit remains approximable.
+
+**Journal entries are filtered on the same flag.** `mapJournalRow` omits any entry with a leg
+against an **Income** account when `includeMargin` is false — the whole row, never a zeroed amount,
+for the same reason activity omits rather than zeroes. The Income account ids are derived from the
+accounts already read in `getSnapshot`, not hardcoded to `'margin'`, because an admin can create
+more Income accounts and a hardcoded filter would leak through every one added later. This landed
+*before* anything posts an Income leg, deliberately: requirement 7 makes a sale credit `margin`, and
+journal entries were previously served to every role unfiltered, so the first voucher would have
+re-opened the exact hole closed on 2026-08-31. Note the visible consequence — `/transactions` is not
+admin-gated and lists journal entries, so an Operator no longer sees manual entries posted to Income.
 
 ### Transaction and concurrency discipline
 
@@ -261,6 +275,11 @@ reproducibility. Read `012`'s header before adding a fourth currency.
   on stringification). `activity.txn_date` and `cheques.due_date` both depend on that.
 - `stock_positions.avg_cost` is `numeric(24,12)` — `18,6` rounds an IRR unit cost enough to
   compound error on every re-weighting.
+- **`journal_entries.voucher_id` / `activity_id` exist but nothing writes them yet** (migration
+  `016`). The table is strictly two-legged and a sale needs four legs, so requirement 7 makes a deal
+  several balanced rows sharing a `voucher_id`; `activity_id` links a leg back to its source row.
+  `voucher_id` is intentionally not a foreign key — there is no voucher table, and adding one would
+  be the header/lines restructure that was explicitly not chosen.
 - A Currency Stock account's `code` must be a traded currency and must not already be taken; two
   accounts sharing a code both value the same position and double-count it as an asset.
 
@@ -311,11 +330,16 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-162 tests: 46 engine unit, 56 backend integration (real HTTP against real Postgres, no supertest —
-each file boots `http.createServer(createApp())` on an ephemeral port), 60 frontend unit (7 files
+178 tests: 46 engine unit, 60 backend integration (real HTTP against real Postgres, no supertest —
+each file boots `http.createServer(createApp())` on an ephemeral port), 72 frontend unit (8 files
 under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
 never a component, and anything touching `window` must be guarded at module load or it breaks the
 suite). No CI — `npm run test` is manual.
+
+**`npm run reconcile` is deliberately not part of `npm run test`** and is expected to exit 1 until
+requirement 7 is finished — see the requirement 7 section below. Same reasoning as `csrf:gate`: it
+asks a question about live data, and a knowingly-red check inside the suite trains everyone to
+ignore a red suite.
 
 Most of the app has no automated coverage: every React component and page, cheque lifecycle
 end-to-end, the auth routes, `deleteAccount`'s success path. Correctness there rests on `tsc`,

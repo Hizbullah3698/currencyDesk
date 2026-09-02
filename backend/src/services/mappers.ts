@@ -200,13 +200,47 @@ export interface JournalRow {
   salary_employee_id: string | null
   salary_period: string | null
   salary_kind: 'accrual' | 'payment' | null
+  voucher_id: string | null
+  activity_id: string | null
   created_at: Date
   created_by: string | null
   updated_at: Date
   updated_by: string | null
 }
 
-export function mapJournalRow(row: JournalRow, names: UserNameMap): JournalEntry {
+/**
+ * `includeMargin: false` OMITS any entry with a leg against an Income account — the whole row,
+ * not a zeroed or blanked amount, for the same reason mapActivityRow omits rather than zeroes:
+ * a zero is a claim, and the claim it makes ("this made nothing") is false.
+ *
+ * WHY THIS EXISTS BEFORE ANYTHING WRITES AN INCOME LEG. Requirement 7 makes a sale credit the
+ * `margin` account for its realised profit. Journal entries were, until this change, served to
+ * every role unfiltered — mapJournalRow took no view argument at all — while getSnapshot has
+ * stripped cost and margin from activity rows for non-admins since 2026-08-31. So the first
+ * commit that posted a margin leg would have handed every Operator the exact figure the API
+ * already declines to give them, reopening a hole that was found and closed once before. The
+ * filter is therefore landed first, deliberately, while it still guards nothing: the ordering is
+ * the point, not the code.
+ *
+ * `incomeAccountIds` is passed in rather than looked up here because getSnapshot has already read
+ * the accounts table by the time it maps journal rows, and a second query per row would be absurd.
+ *
+ * Note what this changes today, before any voucher exists: an Operator's Transactions page
+ * (`/transactions` is NOT admin-gated, and it lists journal entries) stops showing manual entries
+ * posted against Income. That is the intended consequence — such an entry discloses income just as
+ * plainly as a margin leg would — but it is a visible change, not a silent no-op.
+ *
+ * Returns null for an omitted row; getSnapshot drops the nulls.
+ */
+export function mapJournalRow(
+  row: JournalRow,
+  names: UserNameMap,
+  includeMargin: boolean,
+  incomeAccountIds: ReadonlySet<string>,
+): JournalEntry | null {
+  if (!includeMargin && (incomeAccountIds.has(row.debit_account) || incomeAccountIds.has(row.credit_account))) {
+    return null
+  }
   const entry: JournalEntry = {
     id: row.id,
     ref: row.ref,
@@ -225,6 +259,8 @@ export function mapJournalRow(row: JournalRow, names: UserNameMap): JournalEntry
   if (row.salary_employee_id && row.salary_kind) {
     entry.salary = { employeeId: row.salary_employee_id, period: row.salary_period ?? '', kind: row.salary_kind }
   }
+  if (row.voucher_id) entry.voucherId = row.voucher_id
+  if (row.activity_id) entry.activityId = row.activity_id
   return entry
 }
 

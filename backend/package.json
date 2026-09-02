@@ -15,7 +15,9 @@
     "csrf:gate": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/csrfGate.ts",
     "csrf:gate:prod": "cross-env DOTENV_CONFIG_PATH=.env.production NODE_OPTIONS=--conditions=development tsx src/scripts/csrfGate.ts",
     "pretest": "cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test NODE_OPTIONS=--conditions=development tsx src/scripts/setupTestDb.ts && cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test NODE_OPTIONS=--conditions=development tsx src/db/migrate.ts",
-    "test": "cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test vitest run"
+    "test": "cross-env DATABASE_URL=postgresql://currencydesk:currencydesk@localhost:5432/currencydesk_test vitest run",
+    "snapshot:dump": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/dumpSnapshot.ts",
+    "snapshot:dump:prod": "cross-env DOTENV_CONFIG_PATH=.env.production NODE_OPTIONS=--conditions=development tsx src/scripts/dumpSnapshot.ts"
   },
   "dependencies": {
     "@currencydesk/engine": "*",
