@@ -145,7 +145,7 @@ by a browser with scripting turned off.
 All eight points are now recorded. Each status below was checked against the actual software on
 2026-08-31, not assumed.
 
-**Summary: 7 of the 8 delivered. Requirement 7 (a true double-entry journal) is confirmed further work — see below.**
+**Summary: 7 of the 8 delivered. Requirement 7 (a true double-entry journal) is under way — the recording half is built and tested but deliberately not released, and the reports have not been switched over to it yet. See below.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
@@ -155,7 +155,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | ❌ **In scope — not started** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*What is missing:* trades and payments create no paired entries. They are stored as transaction records, and each account's debit/credit position is reconstructed at report time. Under the client's decision this does not meet the requirement — there is no journal entry to point at for an individual purchase. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** — stage 2 shipped 2026-08-31, so only stage 3 (enforcement on) now stands in front of it. Not to be started while that security work is half-finished. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. It is therefore the next concrete piece of work once stage 3 lands. <br><br>*Before any code:* a written scoping plan is required and must be reviewed — see the next-steps list. This is the largest remaining piece of work in the project. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — built, not released** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Progress 2026-09-03:* trades, receipts, payments and cheque clearing now DO write paired entries, grouped per deal — built, tested and reviewed, but **not released and not switched on**. <br><br>*What remains:* deals recorded before 2026-09-03 have no paired entries yet, and the reports still work each figure out the old way. Until both are done the requirement is not met. A checking tool compares the two pictures and currently reports them apart by exactly the pre-2026-09-03 history; it reaching agreement is the definition of done. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** — stage 2 shipped 2026-08-31, so only stage 3 (enforcement on) now stands in front of it. Not to be started while that security work is half-finished. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. It is therefore the next concrete piece of work once stage 3 lands. <br><br>*Release gate:* unchanged and now binding — this work writes to the books, so it must not be released until the security rollout's last step is settled, which cannot happen while the system sits idle. This is the largest remaining piece of work in the project. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -182,6 +182,119 @@ Worth noting because it represents real completed work, whether or not it maps t
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-03
+
+### Done
+
+*At a glance: the groundwork for a real accounting journal is built and every trade and payment now
+records its two sides properly. None of it is switched on yet, and none of it has been released.
+Two genuine faults were caught along the way by the checking tool built for exactly that purpose.*
+
+**Every deal now records both sides of itself.** Until today a purchase, a sale, a receipt or a
+payment was stored as a transaction record, and each account's position was worked out afresh
+whenever a report was run. There was no entry to point at for an individual deal — which is what
+the client asked for, and the largest remaining piece of work in the project.
+
+Each deal now also writes a set of paired accounting entries, grouped so the whole deal can be
+pointed at as one thing. A purchase records the currency gained against the cash paid and the
+balance owed. A sale records the currency leaving at what it actually cost, the customer owing the
+sale price, and the difference as the desk's profit. Receipts and payments record the money moving
+against the customer's balance.
+
+Three things in that were less obvious than they sound.
+
+*Selling at a loss.* A sale below what the currency cost the desk is perfectly ordinary and the
+system has always allowed it. Profit and loss are opposite sides of the books, not one figure that
+can go negative, so a loss is now recorded the other way round. Recorded as a plain negative
+instead, it would have refused the sale outright — the sale would simply have failed for the
+dealer, with no obvious reason why.
+
+*Cheques still move nothing until they clear.* A deal settled by cheque records no money movement
+on the day, because the money has not moved. That is how the system has always behaved; the new
+entries follow the same rule rather than inventing a second one. Clearing the cheque is what
+records it. Getting this wrong would not have produced an error — it would have quietly counted
+the same money twice, once when the cheque was taken and again when it cleared.
+
+*One name per thing.* Every currency the desk trades has an account holding it, and the obvious way
+to find that account is wrong for the desk's most-traded currency for historical reasons. That
+lookup is now written once, in one place, with a test that fails against the wrong version. The
+same discipline settled a second question: a deal is already identified by its transaction record,
+which staff already see, so no second reference number was invented for it.
+
+**A checking tool was built first, and it earned its place immediately.** Before any of the above
+was written, a tool was built to answer one question: *if the new entries were the only source,
+would every account still show the figure the system reports today?* The whole point of this work is
+that no reported number may change, and that is the only way to know.
+
+It was deliberately built before it could pass, and confirmed to fail, on the principle that a check
+never seen failing is not known to be checking anything.
+
+It then caught two real faults.
+
+*The first was in the checking tool itself.* It measured "today" at the current moment, while the
+system always measures a day to its end. Because a deal dated today is treated as happening at
+midday, a check run in the morning silently ignored every deal recorded that day — and reported a
+gap of nearly 47,000 rupees that the system itself would never have shown. A tool that does not
+measure the way the thing it is checking measures is only checking its own arithmetic.
+
+*The second was the serious one, and it invalidated an assumption the plan was built on.* The plan
+said the new entries would sit inert until a later stage switched the reports over to them. That was
+wrong: two parts of the reporting already read that same store, because until now everything in it
+was a standalone entry. So the moment a deal wrote its new entries, its cash was counted twice —
+once from the transaction record and once from the new entry. Measured on a real purchase, cash
+read 60,000 rupees against an actual 30,000, and profit 1,660 against 800.
+
+This was caught on the very first deal put through the new code, before anything was released. Had
+the plan been followed on trust, it would have gone out and every cash, bank and profit figure would
+have been wrong from the first deal a dealer booked. The fix makes the new entries genuinely
+invisible to the existing reports, in one shared place rather than four copies of the same rule.
+
+**Journal entries now carry their own date.** They previously had only the date they were keyed in,
+while reports are cut on the date a deal was struck. A backdated deal would have had its two halves
+land in different months. Given its own date rather than borrowing one, because manual entries,
+opening balances and the corrections planned later have no deal to borrow from.
+
+**Profit is no longer reachable by an Operator through the back door.** Profit figures are stripped
+from what an Operator's screen receives, but accounting entries were sent to every role unfiltered.
+Since a sale now records its profit as one side of an entry, that would have handed Operators the
+exact figure the system refuses them — reopening a hole closed on 2026-08-31 through a different
+door. The filter was deliberately built *before* the entry that needed it. One visible consequence:
+an Operator no longer sees hand-written accounting entries posted against income on the transaction
+list.
+
+**None of this is live.** Nothing has been released, and the database change behind it has not been
+applied to the live system. Seven changes are finished and waiting.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The reporting already read the accounting store, so new entries were counted twice — cash read 60,000 against an actual 30,000, profit 1,660 against 800 | **Would have been serious.** Every cash, bank and profit figure wrong from the first deal booked. The plan explicitly assumed this could not happen | Fixed. Caught by the checking tool on the first deal, before release |
+| The checking tool measured "today" at the current moment rather than to the end of the day, so it ignored deals dated today and invented a 47,000 rupee gap | Would have hidden the real result behind an artefact of the measurement | Fixed |
+| A sale below cost would have been refused outright rather than recorded as a loss | Real: an ordinary trade would simply have failed, with nothing explaining why | Fixed — a loss is recorded on the opposite side, as the books require |
+| Accounting entries were sent to every role unfiltered, while profit is stripped from what an Operator receives | Would have reopened a hole closed on 2026-08-31, by a different route, the moment a sale recorded its profit | Fixed before the entry that needed it existed |
+| The obvious way to find a currency's holding account is wrong for the desk's most-traded currency | Would have failed at the moment of writing, on the busiest currency, not at review | Fixed — written once, with a test that fails against the wrong version |
+| One test failed once and could not be reproduced in four further runs | Unknown. Two likely causes were checked and ruled out | **Open — recorded, not chased.** Written down with what was ruled out so a second occurrence is diagnosable |
+| The security rollout's final step is still unvalidated, and this work writes to the books | Real, and knowingly deferred. The check cannot pass while nobody is using the system | **Open — deliberate.** Must be settled before this is released |
+
+### Next — in priority order
+
+1. **Do not release until the security rollout's last step is settled.** For the earlier groundwork
+   this was optional, because nothing it wrote could affect a figure. It is not optional now: this
+   work writes to the books. The check cannot pass while the system is idle, so this waits on the
+   client actually using it.
+2. **Carry the existing deals over.** Deals recorded before today have no paired entries. Every
+   figure needed to create them is already stored, so they can be brought over rather than leaving
+   the reports handling two shapes forever. Not started.
+3. **Switch the reports over.** The last step: retire the four separate ways each figure is
+   currently worked out, one at a time, re-running the checking tool between each until it reports
+   agreement. That is the definition of this requirement being finished.
+4. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+   started.
+5. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+   balance; the PDF export question; the pre-existing sessions; the misleading error message; and
+   preview copies writing to the live database.
 
 ## 2026-09-02
 
