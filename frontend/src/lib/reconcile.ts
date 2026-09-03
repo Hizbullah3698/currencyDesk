@@ -9,14 +9,16 @@
 // It answers exactly one question: **if the journal were the only source, would every account
 // still show the number the app reports today?**
 //
-// Today the answer is a resounding no, and that is the point of building it now. Nothing posts a
-// voucher yet, so a journal-only balance sheet is missing every trade and every settlement. The
-// harness is expected to fail loudly against real data before phase 3 exists — a harness that has
-// never been seen failing is not known to be checking anything, which is the same discipline this
-// project applies to regression tests.
+// It was built before it could pass, and confirmed failing against real data, on the principle that
+// a check never seen failing is not known to be checking anything.
 //
-// As phase 5 retires each reconstruction, its accounts come into agreement one group at a time.
-// The harness reaching zero is the definition of requirement 7 being finished.
+// As of phase 4 it reports RECONCILED at the current date: vouchers are posted live and history is
+// backfilled, so the journal alone reproduces every reported figure. Disagreements at HISTORICAL
+// dates are no longer a blanket expected gap and must each be attributed to a cause. The one known
+// cause is the asOfT defect in computeBalanceSheet's Customer branch, logged 2026-09-02 and left to
+// phase 5 — there the journal is right and the report is wrong, not the other way round.
+//
+// The harness reaching zero at every date is the definition of requirement 7 being finished.
 
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
 import { ledgerBalance } from './reports'
