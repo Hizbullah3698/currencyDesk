@@ -64,15 +64,35 @@ separately on **Neon**.
 |---|---|---|
 | **Live screen** | `currency-desk.vercel.app` | What staff use |
 | **Live server** | `currency-desk-backend-jf1x.vercel.app` | Handles the live data |
-| **Test copies** | Temporary preview addresses | Created automatically for work in progress |
+| **Test copies** | *None — switched off 2026-09-03* | See below |
 
-**Important:** the preview copies are wired to the **same live database** as production. They are a
-preview of the *software*, not of the data. Anything recorded through a preview address is a real
-entry in the real books. This is currently a known risk rather than a designed feature — see
-Part 3.
+Only work merged into the main line of development reaches the live addresses, and merging is what
+releases it — there is no separate "publish" step.
 
-Only work merged into the main line of development reaches the live addresses. Work in progress
-gets a preview address and does not affect staff.
+**Test copies used to be able to write to the real books, and no longer can.** Until 2026-09-03 the
+hosting automatically built a temporary copy of the software for any branch of work in progress.
+Those copies were not as separate as the name suggests — there were two distinct ways a person
+looking at one could change real customer records:
+
+- The temporary **server** copy was handed the live database's own address, so it could read and
+  write the real books directly.
+- The temporary **screen** copy was pointed at the **live** server. So opening a test address to
+  look at a screen change was not previewing anything — it was operating the real system on real
+  data, through software nobody had reviewed. This was the likelier of the two accidents, because
+  clicking a test link feels harmless.
+
+Both are now closed, in two independent ways:
+
+1. **Temporary copies are no longer built at all.** The hosting is set to build only the live line
+   of work. A branch still registers as an attempted deployment, but it is cancelled before
+   anything is built and its address serves nothing.
+2. **The server refuses to start as a test copy** unless someone has explicitly declared its
+   database separate from the live one. This second guard exists because the first is a setting in
+   a hosting dashboard — one click from being switched back on by someone who does not know this
+   history. A setting does not survive the person who made it; code does.
+
+Verified on 2026-09-03 by pushing a throwaway branch: both projects recorded the attempt, cancelled
+it without building, and served nothing at the resulting addresses.
 
 ## The database
 
@@ -266,6 +286,31 @@ list.
 **None of this is live.** Nothing has been released, and the database change behind it has not been
 applied to the live system. Seven changes are finished and waiting.
 
+**Test copies can no longer touch the real books — and there turned out to be two ways they could,
+not one.** This was recorded on 2026-08-31 as a known risk and carried since. Before starting the
+next piece of work — which rewrites historical records — it was investigated properly, because
+iterating on that code with this unresolved meant any branch could write real entries outside a
+reviewed release.
+
+The recorded risk described a temporary *server* copy holding the live database's address. That was
+real. The second path was not recorded and is the likelier accident: the temporary *screen* copy was
+pointed at the **live** server, so opening a test address to look at a screen change was operating
+the real system on real data through unreviewed software. Clicking a test link feels harmless, which
+is exactly what makes it dangerous.
+
+Both are closed. Temporary copies are no longer built at all, and separately the server now refuses
+to start as a test copy unless someone has explicitly declared its database separate. The second
+guard exists because the first is a hosting setting — one click from returning, with nothing in the
+code to notice. Verified by pushing a throwaway branch: both projects cancelled the attempt without
+building and served nothing.
+
+Worth recording how close this came to going wrong: the first version of the hosting command was
+written **backwards**. The setting's convention is inverted from the obvious reading — exiting zero
+*skips* a build — so the proposed command would have stopped the live system deploying while
+leaving test copies building freely. The client caught it by reading the settings page rather than
+trusting the instruction, and applied a built-in preset instead of free text, which removes the
+chance of anyone getting the direction wrong again.
+
 ### Found
 
 | Finding | Severity | Status |
@@ -277,6 +322,8 @@ applied to the live system. Seven changes are finished and waiting.
 | The obvious way to find a currency's holding account is wrong for the desk's most-traded currency | Would have failed at the moment of writing, on the busiest currency, not at review | Fixed — written once, with a test that fails against the wrong version |
 | One test failed once and could not be reproduced in four further runs | Unknown. Two likely causes were checked and ruled out | **Open — recorded, not chased.** Written down with what was ruled out so a second occurrence is diagnosable |
 | The security rollout's final step is still unvalidated, and this work writes to the books | Real, and knowingly deferred. The check cannot pass while nobody is using the system | **Open — deliberate.** Must be settled before this is released |
+| Temporary copies of the software could write to the real books by **two** separate routes; only one had been recorded since 2026-08-31 | Real. The unrecorded route — a test screen pointed at the live server — needed nothing but someone opening a test link | **Closed.** Copies are no longer built, and the server independently refuses to start as one |
+| The first version of the hosting command to disable them was written backwards, and would have stopped the live system deploying while leaving test copies building | Would have been a self-inflicted outage while leaving the risk open | Caught by the client before it was applied, by reading the settings page rather than trusting the instruction |
 
 ### Next — in priority order
 
@@ -293,8 +340,9 @@ applied to the live system. Seven changes are finished and waiting.
 4. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
    started.
 5. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
-   balance; the PDF export question; the pre-existing sessions; the misleading error message; and
-   preview copies writing to the live database.
+   balance; the PDF export question; the pre-existing sessions; and the misleading error message.
+   **Test copies writing to the live books is now CLOSED** — see the addition to today's entry
+   below and the rewritten note in Part 1.
 
 ## 2026-09-02
 

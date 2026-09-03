@@ -309,6 +309,40 @@ migration.
 Local dev sidesteps all of this: `vite.config.ts` proxies `/api` to `:3001`, so the browser sees
 same-origin and `FRONTEND_ORIGIN` stays unset.
 
+### Preview deployments are off, and there were two paths to the live books — not one
+
+Both Vercel projects have **Ignored Build Step → "Only build production"**. A branch push still
+registers a deployment, but it is `CANCELED` before any build runs and its URL serves nothing.
+Verified 2026-09-03 with a throwaway branch.
+
+This closed **two** independent routes from a preview to the live database. The second one had gone
+unrecorded for weeks, and was the likelier accident:
+
+1. **Preview backend → live database.** `DATABASE_URL` was one Vercel variable scoped
+   `Production, Preview` — a single value covering both — so a preview backend booted against
+   production Neon with write access. (How to tell scoping apart at a glance: one row spanning two
+   environments is *one shared value*; genuinely separate values appear as separate rows, which is
+   what `VITE_API_BASE_URL` looks like on the frontend project.)
+2. **Preview frontend → live backend.** `VITE_API_BASE_URL` is set for Preview *and* Production and
+   both point at `currency-desk-backend-jf1x.vercel.app`. So opening a preview URL to review a UI
+   change was not previewing anything — it was driving the live system on live data through
+   unreviewed code. No preview backend needed to exist for this.
+
+**`config/guardPreviewDatabase.ts` is the backstop**, imported from `config/env.ts` so every entry
+path hits it — serverless function, local server, and every CLI script alike. It refuses to boot
+when `VERCEL_ENV === 'preview'` unless `PREVIEW_DB_ISOLATED === 'true'`. It exists because the build
+setting above is a dashboard toggle, one click from returning, with nothing in the repo to notice.
+
+It is a **tripwire, not a verification** — nothing in a preview can tell a Neon branch from
+production by looking at a URL, so the flag is a human assertion. What it guarantees is that
+re-adding `DATABASE_URL` to Preview is no longer enough on its own. Note the flag fails **closed**
+on a typo, the opposite of `csrfEnforce`, because the cost of guessing wrong is writing to real
+customer records.
+
+**If previews are ever wanted again**, both paths must be fixed together: give Preview its own Neon
+branch *and* repoint Preview's `VITE_API_BASE_URL` at a preview backend. Fixing only the first
+produces a preview that looks isolated and is not, which is worse than having none.
+
 ## Theming
 
 All color is CSS custom properties in `frontend/src/index.css` under `@theme`, overridden in
