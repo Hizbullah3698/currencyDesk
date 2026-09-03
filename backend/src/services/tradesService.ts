@@ -4,20 +4,11 @@ import { appError } from './transact.js'
 import { getAccount, settlementIdFor, settlementName, stockAccountIdFor } from './accountHelpers.js'
 import { insertCheque } from './chequeHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
+import { purchaseSides, saleSides } from './voucherPostings.js'
 
 /** The seeded Income account that carries trading margin. A literal id, matching how salaryService
  *  names 'salaryExpense'/'salaryPayable' — these are CORE_ACCOUNT_IDS entries the schema guarantees. */
 const MARGIN_ACCOUNT = 'margin'
-
-/**
- * Settlement leg of a voucher. Cheque-settled deals post NOTHING to bank or cash at deal time —
- * the money moves when the cheque clears, which is exactly what ledgerBalance() already models by
- * skipping Cheque-method activity and counting cleared cheques instead. Posting the cash here
- * would recognise money the desk has not received.
- */
-function cashLegAmount(method: string, paidNow: number): number {
-  return method === 'Cheque' ? 0 : paidNow
-}
 
 export interface TradeInput {
   customerId: string
@@ -130,25 +121,27 @@ export async function purchase(client: PoolClient, input: TradeInput, actorId: s
   )
   await client.query('UPDATE accounts SET payable = payable + $1, updated_at = now() WHERE id = $2', [ledgerOutstanding, input.customerId])
 
-  // Paired postings (requirement 7 phase 3). Currency bought is an asset gained, paid for in cash
-  // or bank now and/or owed to the customer: one debit, up to two credits.
+  // Paired postings (requirement 7). The leg shape lives in voucherPostings.ts so the backfill
+  // produces exactly this and cannot drift from it.
   //
   // Nothing reads these rows yet, so this must not be able to fail a trade that would otherwise
   // succeed — see buildVoucherLegs returning null when a currency has no stock account.
   const stockAccount = await stockAccountIdFor(client, code)
-  const legs = buildVoucherLegs(
-    [{ account: stockAccount, amount: pkrValue }],
-    [
-      { account: settlementAccountId, amount: cashLegAmount(input.method, paidNow) },
-      { account: input.customerId, amount: ledgerOutstanding },
-    ],
-  )
+  const shape = purchaseSides({
+    stockAccount,
+    settlementAccount: settlementAccountId,
+    customerId: input.customerId,
+    customerName: cust.name,
+    method: input.method,
+    currency: code,
+    amount,
+    pkrValue,
+    paidNow,
+    ledgerOutstanding,
+  })
+  const legs = buildVoucherLegs(shape.debits, shape.credits)
   if (legs) {
-    await postVoucher(
-      client,
-      { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Purchase — ${amount} ${code} from ${cust.name}`, legs },
-      actorId,
-    )
+    await postVoucher(client, { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: shape.narration, legs }, actorId)
   }
 }
 
@@ -206,32 +199,25 @@ export async function sale(client: PoolClient, input: TradeInput, actorId: strin
   )
   await client.query('UPDATE accounts SET receivable = receivable + $1, updated_at = now() WHERE id = $2', [ledgerOutstanding, input.customerId])
 
-  // Paired postings (requirement 7 phase 3). Currency leaves at its weighted-average cost, the
-  // customer owes or pays the sale value, and the difference is the desk's margin.
-  //
-  // THE MARGIN LEG SWITCHES SIDES ON A LOSS. sellCalc does not clamp margin, nothing rejects a sale
-  // below weighted-average cost, and the existing reports already handle a negative one — so a loss
-  // is an ordinary outcome here, not an error. A loss is a DEBIT to Income reducing it, never a
-  // negative credit, which postVoucher would refuse outright. On a loss the stock still leaves at
-  // full cost and the shortfall is debited to margin, so the two sides still meet.
+  // Paired postings (requirement 7). The leg shape — including why a loss debits margin rather
+  // than crediting a negative — lives in voucherPostings.ts, so the backfill produces exactly this.
   const stockAccount = await stockAccountIdFor(client, input.currency)
-  const cash = cashLegAmount(input.method, paidNow)
-  const legs = buildVoucherLegs(
-    [
-      { account: settlementAccountId, amount: cash },
-      { account: input.customerId, amount: ledgerOutstanding },
-      { account: MARGIN_ACCOUNT, amount: margin < 0 ? -margin : 0 },
-    ],
-    [
-      { account: stockAccount, amount: cost },
-      { account: MARGIN_ACCOUNT, amount: margin > 0 ? margin : 0 },
-    ],
-  )
+  const shape = saleSides({
+    stockAccount,
+    settlementAccount: settlementAccountId,
+    customerId: input.customerId,
+    customerName: cust.name,
+    marginAccount: MARGIN_ACCOUNT,
+    method: input.method,
+    currency: input.currency,
+    amount,
+    cost,
+    margin,
+    paidNow,
+    ledgerOutstanding,
+  })
+  const legs = buildVoucherLegs(shape.debits, shape.credits)
   if (legs) {
-    await postVoucher(
-      client,
-      { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Sale — ${amount} ${input.currency} to ${cust.name}`, legs },
-      actorId,
-    )
+    await postVoucher(client, { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: shape.narration, legs }, actorId)
   }
 }

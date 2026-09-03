@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { appError } from './transact.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
+import { chequeClearingSides } from './voucherPostings.js'
 import { shortDate } from './chequeHelpers.js'
 
 export async function depositCheque(client: PoolClient, id: string, actorId: string | null): Promise<void> {
@@ -40,24 +41,21 @@ export async function clearCheque(client: PoolClient, id: string, actorId: strin
       await client.query('UPDATE accounts SET payable = payable - $1, updated_at = now() WHERE id = $2', [q.amount, q.customer_id])
     }
 
-    // Clearing is where a cheque finally moves money, which is why it is the only transition that
-    // posts anything — deposit and return change status alone. Inward: the bank gains and the
-    // customer owes less. Outward: the reverse.
+    // Clearing is the only cheque transition that posts anything — see chequeClearingSides.
     //
     // activityId is null. This is a transition on the cheque, not a new deal, and writes no
     // activity row; linking it to the originating trade would attach it to a different event on a
     // different date. Its own date is the day it cleared, which is also the day ledgerBalance()
     // counts it on.
-    const legs = buildVoucherLegs(
-      [{ account: q.direction === 'Inward' ? q.bank_account_id : q.customer_id, amount: q.amount }],
-      [{ account: q.direction === 'Inward' ? q.customer_id : q.bank_account_id, amount: q.amount }],
-    )
+    const shape = chequeClearingSides({
+      direction: q.direction,
+      bankAccountId: q.bank_account_id,
+      customerId: q.customer_id,
+      amount: q.amount,
+    })
+    const legs = buildVoucherLegs(shape.debits, shape.credits)
     if (legs) {
-      await postVoucher(
-        client,
-        { activityId: null, txnDate: q.cleared_on, narration: `Cheque cleared — ${q.direction.toLowerCase()}`, legs },
-        actorId,
-      )
+      await postVoucher(client, { activityId: null, txnDate: q.cleared_on, narration: shape.narration, legs }, actorId)
     }
   }
 }

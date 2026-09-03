@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg'
 import { appError } from './transact.js'
 import { getAccount, settlementIdFor, settlementName } from './accountHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
+import { settlementSides } from './voucherPostings.js'
 import { insertCheque } from './chequeHelpers.js'
 
 // A receive/pay moves PKR against a customer's receivable/payable — there is no foreign
@@ -69,19 +70,20 @@ export async function receive(client: PoolClient, input: SettleInput, actorId: s
     const { rowCount } = await client.query('UPDATE accounts SET receivable = receivable - $1, updated_at = now() WHERE id = $2 AND receivable >= $1', [input.amount, input.customerId])
     if (rowCount === 0) throw appError(409, 'Amount exceeds the outstanding receivable — it may have just changed.')
 
-    // Money in, and the customer owes that much less. Deliberately inside the same `!chequeHeld`
-    // branch as the balance move: a receipt taken by cheque shifts nothing until the cheque clears,
-    // so posting anything here would recognise money the desk does not have. clearCheque posts it.
-    const legs = buildVoucherLegs(
-      [{ account: settlementAccountId, amount: input.amount }],
-      [{ account: input.customerId, amount: input.amount }],
-    )
+    // Inside the same `!chequeHeld` branch as the balance move — a receipt taken by cheque shifts
+    // nothing until the cheque clears. settlementSides states that rule too, so a caller that
+    // forgot this guard still could not recognise money that has not moved.
+    const shape = settlementSides({
+      direction: 'receive',
+      settlementAccount: settlementAccountId,
+      customerId: input.customerId,
+      customerName: cust.name,
+      method: input.method,
+      amount: input.amount,
+    })
+    const legs = buildVoucherLegs(shape.debits, shape.credits)
     if (legs) {
-      await postVoucher(
-        client,
-        { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Payment received — ${cust.name}`, legs },
-        actorId,
-      )
+      await postVoucher(client, { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: shape.narration, legs }, actorId)
     }
   }
 }
@@ -128,16 +130,17 @@ export async function pay(client: PoolClient, input: SettleInput, actorId: strin
     if (rowCount === 0) throw appError(409, 'Amount exceeds the outstanding payable — it may have just changed.')
 
     // The mirror of receive: money out, and the desk owes that much less.
-    const legs = buildVoucherLegs(
-      [{ account: input.customerId, amount: input.amount }],
-      [{ account: settlementAccountId, amount: input.amount }],
-    )
+    const shape = settlementSides({
+      direction: 'pay',
+      settlementAccount: settlementAccountId,
+      customerId: input.customerId,
+      customerName: cust.name,
+      method: input.method,
+      amount: input.amount,
+    })
+    const legs = buildVoucherLegs(shape.debits, shape.credits)
     if (legs) {
-      await postVoucher(
-        client,
-        { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Payment made — ${cust.name}`, legs },
-        actorId,
-      )
+      await postVoucher(client, { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: shape.narration, legs }, actorId)
     }
   }
 }
