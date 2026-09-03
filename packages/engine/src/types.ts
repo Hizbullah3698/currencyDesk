@@ -153,6 +153,8 @@ export interface JournalEntry {
   voucherId?: string
   /** The activity row that produced this leg, when one did. Absent on manual entries. */
   activityId?: string
+  /** The cheque whose clearing produced this leg. A leg carries this or `activityId`, never both. */
+  chequeId?: string
   /**
    * The day this entry belongs to, 'YYYY-MM-DD' — the journal's counterpart to
    * `Activity.txnDate`, and distinct from `createdAt` (when it was keyed in). Its own stored

@@ -45,7 +45,7 @@ describe('settlements and cheque clearing post vouchers', () => {
 
   async function legs() {
     const { rows } = await pool.query(
-      `SELECT debit_account, credit_account, amount::float8 AS amount, txn_date, activity_id, narration
+      `SELECT debit_account, credit_account, amount::float8 AS amount, txn_date, activity_id, cheque_id, narration
        FROM journal_entries WHERE voucher_id IS NOT NULL ORDER BY amount DESC`,
     )
     return rows as any[]
@@ -132,6 +132,29 @@ describe('settlements and cheque clearing post vouchers', () => {
 
     const { rows: bank } = await pool.query<{ id: string }>("SELECT id FROM accounts WHERE type = 'Bank' ORDER BY created_at LIMIT 1")
     expect(rows[0].debit_account).toBe(bank[0].id)
+  })
+
+  it('links the clearing voucher to its cheque, so a backfill can tell it already exists', async () => {
+    // Migration 018's whole purpose. Without this, "does this cheque already have its voucher?" has
+    // no key to ask on — clearing writes no activity row — and the phase 4 backfill could not be
+    // safely re-run after a partial failure without giving cleared cheques a second voucher.
+    const chequeId = await depositedInwardCheque()
+    expect((await admin.post(`/api/cheques/${chequeId}/clear`, {})).status).toBe(200)
+
+    const rows = await legs()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].cheque_id).toBe(chequeId)
+  })
+
+  it('sets cheque_id only on clearing vouchers, never on a settlement voucher', async () => {
+    // A leg carries activity_id or cheque_id, never both and never the wrong one — otherwise the
+    // backfill's two EXISTS checks would each match records belonging to the other.
+    await pool.query('UPDATE accounts SET receivable = 50000 WHERE id = $1', [customerId])
+    expect((await admin.post('/api/settlements/receive', settle({}))).status).toBe(200)
+
+    const rows = await legs()
+    expect(rows[0].cheque_id).toBeNull()
+    expect(rows[0].activity_id).not.toBeNull()
   })
 
   it('carries no activity link, because clearing writes no activity row', async () => {

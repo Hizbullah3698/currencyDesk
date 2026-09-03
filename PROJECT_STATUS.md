@@ -325,6 +325,17 @@ chance of anyone getting the direction wrong again.
 | Temporary copies of the software could write to the real books by **two** separate routes; only one had been recorded since 2026-08-31 | Real. The unrecorded route — a test screen pointed at the live server — needed nothing but someone opening a test link | **Closed.** Copies are no longer built, and the server independently refuses to start as one |
 | The first version of the hosting command to disable them was written backwards, and would have stopped the live system deploying while leaving test copies building | Would have been a self-inflicted outage while leaving the risk open | Caught by the client before it was applied, by reading the settings page rather than trusting the instruction |
 
+### Must happen before the next release, in this order
+
+*Structural database changes are applied by hand and must land **before** the software that needs
+them — see Part 1. Two of the three below are harmless if that order slips; the third is not.*
+
+| # | Change | If it is released without this |
+|---|---|---|
+| 016 | Groups accounting entries per deal | Already applied to the live system |
+| 017 | Gives accounting entries their own date | Already applied to the live system |
+| **018** | **Links an entry to the cheque that produced it** | **Not yet applied. Unlike the two above this one is load-bearing: the software writes to this field on every deal, so releasing first would fail every purchase, sale, receipt and payment against an unknown field.** |
+
 ### Next — in priority order
 
 1. **Do not release until the security rollout's last step is settled.** For the earlier groundwork

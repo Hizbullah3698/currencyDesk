@@ -55,7 +55,7 @@ export async function clearCheque(client: PoolClient, id: string, actorId: strin
     })
     const legs = buildVoucherLegs(shape.debits, shape.credits)
     if (legs) {
-      await postVoucher(client, { activityId: null, txnDate: q.cleared_on, narration: shape.narration, legs }, actorId)
+      await postVoucher(client, { activityId: null, chequeId: id, txnDate: q.cleared_on, narration: shape.narration, legs }, actorId)
     }
   }
 }

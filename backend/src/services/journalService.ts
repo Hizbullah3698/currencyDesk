@@ -75,6 +75,13 @@ export interface VoucherInput {
    */
   activityId: string | null
   /**
+   * The cheque whose clearing produced this voucher, when one did. A leg carries this OR
+   * `activityId`, never both — see migration 018. Written from the same release that adds the
+   * column, not only by the backfill: a cheque cleared in between would otherwise hold a voucher
+   * the backfill could not see, and be given a second one.
+   */
+  chequeId?: string | null
+  /**
    * 'YYYY-MM-DD', COPIED from that activity row at write time rather than joined at read time.
    * The caller must read it back from its own INSERT (the column defaults to CURRENT_DATE, so the
    * stored value is not knowable before the row exists) and hand it over. Migration 017's header
@@ -132,8 +139,8 @@ export async function postVoucher(client: PoolClient, input: VoucherInput, actor
     await client.query(
       `INSERT INTO journal_entries
          (narration, debit_account, credit_account, debit_label, credit_label, amount,
-          voucher_id, activity_id, txn_date, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::date, $10, $10)`,
+          voucher_id, activity_id, cheque_id, txn_date, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::date, $11, $11)`,
       [
         leg.narration ?? input.narration,
         leg.debitAccount,
@@ -143,6 +150,7 @@ export async function postVoucher(client: PoolClient, input: VoucherInput, actor
         leg.amount,
         voucherId,
         input.activityId,
+        input.chequeId ?? null,
         input.txnDate,
         actorId,
       ],
