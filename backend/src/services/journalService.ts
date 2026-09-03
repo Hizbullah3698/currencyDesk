@@ -64,8 +64,16 @@ export interface VoucherLeg {
 }
 
 export interface VoucherInput {
-  /** The activity row this voucher records. Every leg is linked back to it. */
-  activityId: string
+  /**
+   * The activity row this voucher records, or null when there is no such row.
+   *
+   * Clearing a cheque is the case that needs null: it moves a customer balance and a bank balance,
+   * so it is a real posting, but it is a transition on the cheque rather than a new deal and writes
+   * no activity row. Linking it to the originating trade instead would be wrong twice over — it is
+   * a different economic event, on a different date. Migration 016 left the column nullable for
+   * this and for the correction vouchers that come later.
+   */
+  activityId: string | null
   /**
    * 'YYYY-MM-DD', COPIED from that activity row at write time rather than joined at read time.
    * The caller must read it back from its own INSERT (the column defaults to CURRENT_DATE, so the

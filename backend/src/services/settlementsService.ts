@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { appError } from './transact.js'
 import { getAccount, settlementIdFor, settlementName } from './accountHelpers.js'
+import { buildVoucherLegs, postVoucher } from './journalService.js'
 import { insertCheque } from './chequeHelpers.js'
 
 // A receive/pay moves PKR against a customer's receivable/payable — there is no foreign
@@ -55,15 +56,33 @@ export async function receive(client: PoolClient, input: SettleInput, actorId: s
     chequeId = inserted.id
   }
 
-  await client.query(
+  // RETURNING the stored txn_date so the voucher copies what was written rather than re-deriving
+  // the COALESCE above — same reasoning as tradesService.
+  const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, customer_id, customer_name, amount, pkr_value, method, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('receive', $1, $2, $3, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9, $9)`,
+     VALUES ('receive', $1, $2, $3, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9, $9)
+     RETURNING id, txn_date`,
     [input.customerId, cust.name, input.amount, input.method, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
   )
 
   if (!chequeHeld) {
     const { rowCount } = await client.query('UPDATE accounts SET receivable = receivable - $1, updated_at = now() WHERE id = $2 AND receivable >= $1', [input.amount, input.customerId])
     if (rowCount === 0) throw appError(409, 'Amount exceeds the outstanding receivable — it may have just changed.')
+
+    // Money in, and the customer owes that much less. Deliberately inside the same `!chequeHeld`
+    // branch as the balance move: a receipt taken by cheque shifts nothing until the cheque clears,
+    // so posting anything here would recognise money the desk does not have. clearCheque posts it.
+    const legs = buildVoucherLegs(
+      [{ account: settlementAccountId, amount: input.amount }],
+      [{ account: input.customerId, amount: input.amount }],
+    )
+    if (legs) {
+      await postVoucher(
+        client,
+        { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Payment received — ${cust.name}`, legs },
+        actorId,
+      )
+    }
   }
 }
 
@@ -97,14 +116,28 @@ export async function pay(client: PoolClient, input: SettleInput, actorId: strin
     chequeId = inserted.id
   }
 
-  await client.query(
+  const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, customer_id, customer_name, amount, pkr_value, method, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('pay', $1, $2, $3, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9, $9)`,
+     VALUES ('pay', $1, $2, $3, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9, $9)
+     RETURNING id, txn_date`,
     [input.customerId, cust.name, input.amount, input.method, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
   )
 
   if (!chequeHeld) {
     const { rowCount } = await client.query('UPDATE accounts SET payable = payable - $1, updated_at = now() WHERE id = $2 AND payable >= $1', [input.amount, input.customerId])
     if (rowCount === 0) throw appError(409, 'Amount exceeds the outstanding payable — it may have just changed.')
+
+    // The mirror of receive: money out, and the desk owes that much less.
+    const legs = buildVoucherLegs(
+      [{ account: input.customerId, amount: input.amount }],
+      [{ account: settlementAccountId, amount: input.amount }],
+    )
+    if (legs) {
+      await postVoucher(
+        client,
+        { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Payment made — ${cust.name}`, legs },
+        actorId,
+      )
+    }
   }
 }
