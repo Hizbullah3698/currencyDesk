@@ -337,7 +337,7 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-182 tests: 46 engine unit, 64 backend integration (real HTTP against real Postgres, no supertest —
+225 tests: 46 engine unit, 107 backend integration (real HTTP against real Postgres, no supertest —
 each file boots `http.createServer(createApp())` on an ephemeral port), 72 frontend unit (8 files
 under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
 never a component, and anything touching `window` must be guarded at module load or it breaks the
@@ -348,22 +348,26 @@ requirement 7 is finished — see the requirement 7 section below. Same reasonin
 asks a question about live data, and a knowingly-red check inside the suite trains everyone to
 ignore a red suite.
 
-### Known flaky test — one occurrence, not root-caused
+### The settings cache outlives a database reset — a solved flake worth not re-creating
 
-`idleTimeout.test.ts > "rejects values outside the allowed range, and non-integers"` failed **once**
-on 2026-09-03 during the requirement 7 phase 3 work, on a `PATCH /api/settings` returning something
-other than the expected `400`. It did not reproduce in four subsequent full runs and passes in
-isolation.
+`settingsService` caches `idle_timeout_minutes` for **30 seconds per process**, and vitest runs every
+test file in one worker. So the cache outlives the `TRUNCATE` that is supposed to give each file a
+clean slate, and `applySessionIdleTimeout` reads it on *every authenticated request* — meaning every
+file that logs in warms it for the next one.
 
-Two mechanisms were checked and **neither explains it**: the login rate limiter (every test file
-calls `resetBusinessData`, which clears `rate_limit_hits`, and the file makes ~11 logins against a
-cap of 20 per 15 minutes), and cross-file state (`fileParallelism: false`, and every file resets).
-The suspected but **unconfirmed** cause is partial-run state bleeding into the test database — that
-session ran individual test files repeatedly, including mutation runs that threw mid-test.
+That made the suite intermittently red on 2026-09-03: `idleTimeout.test.ts` asserts the stored
+value, but whether a previous file's cached entry was still inside its 30-second window depended on
+how long the preceding files took. Two different tests in that one file failed on two separate runs,
+neither reproducible in isolation — there is no preceding file to leave a warm cache. It surfaced
+that day only because five new test files landed ahead of it and shifted the timing.
 
-Recorded so a second occurrence is diagnosable rather than a repeat mystery. If it recurs, capture
-the full assertion output and which `bad` value failed before re-running, because a re-run is what
-destroyed the evidence the first time.
+`resetBusinessData` now calls `invalidateSettingsCache()`. **Any future per-process cache needs the
+same treatment** — a database reset cannot reach process memory, and the failure it produces looks
+like a defect in whichever test happens to read the stale value.
+
+Recorded also because the first hypothesis was wrong: `app_settings` was the one table the fixture
+never reset, which looked like an obvious culprit and was not — corrupting the row does not fail the
+suite. The fixture resets it now as hygiene, not as the fix.
 
 Most of the app has no automated coverage: every React component and page, cheque lifecycle
 end-to-end, the auth routes, `deleteAccount`'s success path. Correctness there rests on `tsc`,

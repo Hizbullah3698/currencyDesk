@@ -1,4 +1,8 @@
 import 'dotenv/config'
+// After dotenv so a local .env can exercise it, and imported HERE rather than from app.ts because
+// this module is what every entry path loads first — the serverless function, the local server and
+// every CLI script alike. A guard reachable from only one of those is a guard with a way around it.
+import './guardPreviewDatabase.js'
 
 // A stray leading/trailing space typed or pasted into a dashboard env var field (Vercel/Render/
 // Railway all just store the raw string) is invisible in most UIs but not harmless: a cookie
