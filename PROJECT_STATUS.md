@@ -347,8 +347,18 @@ rather than assumed.
 With the change applied to the copy, the carry-over recorded four deals and the difference between
 the accounting record and the reported figures fell from **PKR 13,912,192 to PKR 4,992**.
 
-That remaining 4,992 is not a fault in the carry-over. It is a real, pre-existing disagreement in
-the live books, and it is now the one thing blocking this work — see the open item below.
+That remaining 4,992 is not a fault in the carry-over. It was a genuine disagreement inside the live
+books: a hand-written entry moving PKR 4,992 out of the bank to a customer on 2026-08-29 that never
+updated that customer's balance.
+
+**Resolved the same day, and it turned out not to need the client at all.** The entry was practice
+data recorded by the account holder while testing that the system worked — not a real customer
+transaction. It is a correct posting, so the accounting record's **PKR 9,608 is the right figure**,
+and the **PKR 14,600** still showing on screen is precisely what the separate fault below produces.
+What looked like two problems is one: a hand-written entry against a customer does not move that
+customer's balance, and this is what that looks like from the outside. The carry-over needs no
+special handling for it — reproducing the accounting record faithfully is exactly what gives the
+correct figure.
 
 *A cosmetic effect worth knowing about in advance.* Every accounting entry takes the next reference
 number in sequence, so carrying over a batch consumes a block of them and the next hand-written
@@ -371,7 +381,7 @@ finishes.
 | One test failed once and could not be reproduced in four further runs | Unknown. Two likely causes were checked and ruled out | **Open — recorded, not chased.** Written down with what was ruled out so a second occurrence is diagnosable |
 | The security rollout's final step is still unvalidated, and this work writes to the books | Real, and knowingly deferred. The check cannot pass while nobody is using the system | **Open — deliberate.** Must be settled before this is released |
 | **A hand-written accounting entry against a customer never updates that customer's balance.** Found on Ahmed khan: PKR 4,992 recorded on 2026-08-29, balance untouched ever since | **Real, live and ongoing** — not historical. Any hand-written entry against a customer today creates the same split between the accounting record and the balance staff see | **Open — its own item below**, deliberately not folded into the carry-over work |
-| The live books disagree with themselves by PKR 4,992 on one customer, because of the entry above | Blocks the carry-over from being run on the live system: the correct figure is a question of fact about 2026-08-29, not something to decide from the code | **Open — with the client.** Nothing will be run or corrected until they answer |
+| The live books disagree with themselves by PKR 4,992 on one customer, because of the entry above | Looked like it needed the client to adjudicate. It did not | **Closed 2026-09-03.** The entry was practice data recorded during testing by the account holder, not a real customer transaction. It is a correct posting, so **PKR 9,608 is the right figure** and the 14,600 on screen is exactly what the bug above produces. The two findings are one root cause, not two |
 | The carry-over program failed against a copy of the live books because a structural database change had not been applied | Working as intended — it failed cleanly and saved nothing. Demonstrates the ordering rule rather than assuming it | Confirmed safe. The change must be applied to the live system first |
 | Temporary copies of the software could write to the real books by **two** separate routes; only one had been recorded since 2026-08-31 | Real. The unrecorded route — a test screen pointed at the live server — needed nothing but someone opening a test link | **Closed.** Copies are no longer built, and the server independently refuses to start as one |
 | The first version of the hosting command to disable them was written backwards, and would have stopped the live system deploying while leaving test copies building | Would have been a self-inflicted outage while leaving the risk open | Caught by the client before it was applied, by reading the settings page rather than trusting the instruction |
@@ -389,31 +399,25 @@ them — see Part 1. Two of the three below are harmless if that order slips; th
 
 ### Next — in priority order
 
-1. **Waiting on the client: which figure is right for Ahmed khan?** A hand-written entry of PKR
-   4,992 on 2026-08-29 — money out of the bank to him — never updated his balance. His account
-   shows the desk owes him **PKR 14,600**; the accounting record says **PKR 9,608**. Everything else
-   agrees. If the payment really happened the on-screen figure is stale; if it did not, the entry is
-   the mistake. **Nothing is run or corrected on the live system until this is answered** — the
-   carry-over would faithfully reproduce whichever version is wrong.
-2. **Fix hand-written entries not updating customer balances** *(separate from the accounting work,
+1. **Fix hand-written entries not updating customer balances** *(separate from the accounting work,
    and still happening)*. Recording an entry by hand against a customer writes the accounting record
    but leaves the balance staff see untouched. That is what produced the 4,992 above, and it will
    produce another one the next time someone does it. Independent of everything else on this list.
-3. **Do not release until the security rollout's last step is settled.** For the earlier groundwork
+2. **Do not release until the security rollout's last step is settled.** For the earlier groundwork
    this was optional, because nothing it wrote could affect a figure. It is not optional now: this
    work writes to the books. The check cannot pass while the system is idle, so this waits on the
    client actually using it.
-4. **Run the carry-over on the live system.** Written, tested, and rehearsed end to end against a
+3. **Run the carry-over on the live system.** Written, tested, and rehearsed end to end against a
    full copy of the live books — where it took the disagreement between the accounting record and
-   the reported figures from PKR 13,912,192 down to PKR 4,992. **Blocked on items 1 and 3**, and on
+   the reported figures from PKR 13,912,192 down to PKR 4,992. **Blocked on item 2**, and on
    applying the outstanding structural database change first, which the rehearsal proved is a hard
    prerequisite rather than a precaution.
-5. **Switch the reports over.** The last step: retire the four separate ways each figure is
+4. **Switch the reports over.** The last step: retire the four separate ways each figure is
    currently worked out, one at a time, re-running the checking tool between each until it reports
    agreement. That is the definition of this requirement being finished.
-6. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+5. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
    started.
-7. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+6. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
    balance; the PDF export question; the pre-existing sessions; and the misleading error message.
    **Test copies writing to the live books is now CLOSED** — see the addition to today's entry
    below and the rewritten note in Part 1.
