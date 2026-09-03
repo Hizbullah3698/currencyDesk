@@ -348,6 +348,23 @@ requirement 7 is finished — see the requirement 7 section below. Same reasonin
 asks a question about live data, and a knowingly-red check inside the suite trains everyone to
 ignore a red suite.
 
+### Known flaky test — one occurrence, not root-caused
+
+`idleTimeout.test.ts > "rejects values outside the allowed range, and non-integers"` failed **once**
+on 2026-09-03 during the requirement 7 phase 3 work, on a `PATCH /api/settings` returning something
+other than the expected `400`. It did not reproduce in four subsequent full runs and passes in
+isolation.
+
+Two mechanisms were checked and **neither explains it**: the login rate limiter (every test file
+calls `resetBusinessData`, which clears `rate_limit_hits`, and the file makes ~11 logins against a
+cap of 20 per 15 minutes), and cross-file state (`fileParallelism: false`, and every file resets).
+The suspected but **unconfirmed** cause is partial-run state bleeding into the test database — that
+session ran individual test files repeatedly, including mutation runs that threw mid-test.
+
+Recorded so a second occurrence is diagnosable rather than a repeat mystery. If it recurs, capture
+the full assertion output and which `bad` value failed before re-running, because a re-run is what
+destroyed the evidence the first time.
+
 Most of the app has no automated coverage: every React component and page, cheque lifecycle
 end-to-end, the auth routes, `deleteAccount`'s success path. Correctness there rests on `tsc`,
 `oxlint`, and manual verification in the running app.
