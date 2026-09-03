@@ -82,6 +82,12 @@ export interface VoucherInput {
    */
   chequeId?: string | null
   /**
+   * Marks this as the opening balance for an account, reusing the column createAccount already
+   * sets for customer, bank and cash opening balances. Doubles as the backfill's idempotency key:
+   * "does this account already have its opening entry?" is an EXISTS on this column.
+   */
+  openingFor?: string | null
+  /**
    * 'YYYY-MM-DD', COPIED from that activity row at write time rather than joined at read time.
    * The caller must read it back from its own INSERT (the column defaults to CURRENT_DATE, so the
    * stored value is not knowable before the row exists) and hand it over. Migration 017's header
@@ -139,8 +145,8 @@ export async function postVoucher(client: PoolClient, input: VoucherInput, actor
     await client.query(
       `INSERT INTO journal_entries
          (narration, debit_account, credit_account, debit_label, credit_label, amount,
-          voucher_id, activity_id, cheque_id, txn_date, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::date, $11, $11)`,
+          voucher_id, activity_id, cheque_id, opening_for, txn_date, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $12)`,
       [
         leg.narration ?? input.narration,
         leg.debitAccount,
@@ -151,6 +157,7 @@ export async function postVoucher(client: PoolClient, input: VoucherInput, actor
         voucherId,
         input.activityId,
         input.chequeId ?? null,
+        input.openingFor ?? null,
         input.txnDate,
         actorId,
       ],

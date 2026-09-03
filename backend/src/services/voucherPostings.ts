@@ -156,3 +156,32 @@ export function chequeClearingSides(input: {
     narration: `Cheque cleared — ${input.direction.toLowerCase()}`,
   }
 }
+
+/**
+ * Currency the desk held before the recorded ledger begins.
+ *
+ * The one legitimately unjournalled figure on the balance sheet: a position predating the activity
+ * history has no originating purchase to credit against, so `computeBalanceSheet` recovers it by
+ * unwinding activity and attributes it to equity through a presentation-only plug. Phase 4 turns
+ * that untracked exception into a real entry — Dr Currency Stock / Cr Capital — which is exactly
+ * what createAccount already does for customer, bank and cash opening balances.
+ *
+ * IT MUST BE POSTED AS AN INERT VOUCHER, not a bare pair. `openingStockEquity` is computed from
+ * openingStock() and is independent of the journal, while `unexplained = rawDiff −
+ * openingStockEquity`. A plain entry would credit Capital through ledgerBalance(), drive rawDiff to
+ * zero, and leave unexplained at −openingStockEquity — turning a balanced sheet into one reporting a
+ * genuine imbalance. Carrying a voucher_id keeps isVoucherLeg() excluding it until phase 5 retires
+ * the plug alongside the other reconstructions.
+ */
+export function openingStockSides(input: {
+  stockAccount: string
+  capitalAccount: string
+  currency: string
+  value: number
+}): VoucherShape {
+  return {
+    debits: [{ account: input.stockAccount, amount: input.value }],
+    credits: [{ account: input.capitalAccount, amount: input.value }],
+    narration: `Opening currency stock — ${input.currency}`,
+  }
+}
