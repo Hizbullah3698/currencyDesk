@@ -311,6 +311,54 @@ leaving test copies building freely. The client caught it by reading the setting
 trusting the instruction, and applied a built-in preset instead of free text, which removes the
 chance of anyone getting the direction wrong again.
 
+**Deals recorded before the accounting work began have now been carried over — rehearsed against a
+copy of the live books, and stopped there.**
+
+Every deal from today onward records both of its sides automatically. Deals recorded *before* that
+did not, so they were carried over by a one-off program. It was run against the local copy first,
+then against a full copy of the live books taken for the purpose, and it has **not** been run
+against the live system — see the open item below.
+
+The program was deliberately built to be cautious in three ways.
+
+*It reports before it writes.* Run normally it does the entire job, prints exactly what it would
+record, and then throws it all away. Actually saving requires a second, explicit instruction. A
+program that writes to the real books should do so because someone read the plan and agreed, not
+because someone typed a command.
+
+*It can be run twice safely.* Each pass skips anything already carried over, so an interruption is
+recovered by running it again rather than by unpicking half-finished work by hand.
+
+*It describes nothing twice.* It does not decide for itself what a purchase or a sale looks like —
+it asks the same piece of the system the live screens ask. Writing that description a second time
+inside the carry-over program is how the two would quietly stop agreeing, and the disagreement would
+not show up as an error, just as wrong books.
+
+**The rehearsal against real data earned its place immediately.** A full copy of the live books was
+taken and restored locally, checked figure by figure against the original — every count and every
+total matched, down to the last fraction of a rupee. Then the carry-over program was run against it.
+
+The first attempt **failed outright**, and that was the point: the live system is missing one
+structural database change the program depends on. It failed cleanly, saved nothing, and said
+exactly what was missing. Run against the live system without that change applied first, it would
+have done the same — which is precisely the ordering rule recorded in Part 1, now demonstrated
+rather than assumed.
+
+With the change applied to the copy, the carry-over recorded four deals and the difference between
+the accounting record and the reported figures fell from **PKR 13,912,192 to PKR 4,992**.
+
+That remaining 4,992 is not a fault in the carry-over. It is a real, pre-existing disagreement in
+the live books, and it is now the one thing blocking this work — see the open item below.
+
+*A cosmetic effect worth knowing about in advance.* Every accounting entry takes the next reference
+number in sequence, so carrying over a batch consumes a block of them and the next hand-written
+entry continues from a much higher number. Nothing is lost and nothing is wrong — but a jump from
+JV-016 to JV-020 looks like missing records if you are not expecting it.
+
+**A separate fault was found while investigating, unrelated to this work and still live.** Recorded
+below as its own item so it is not mistaken for part of the carry-over and forgotten when this work
+finishes.
+
 ### Found
 
 | Finding | Severity | Status |
@@ -322,6 +370,9 @@ chance of anyone getting the direction wrong again.
 | The obvious way to find a currency's holding account is wrong for the desk's most-traded currency | Would have failed at the moment of writing, on the busiest currency, not at review | Fixed — written once, with a test that fails against the wrong version |
 | One test failed once and could not be reproduced in four further runs | Unknown. Two likely causes were checked and ruled out | **Open — recorded, not chased.** Written down with what was ruled out so a second occurrence is diagnosable |
 | The security rollout's final step is still unvalidated, and this work writes to the books | Real, and knowingly deferred. The check cannot pass while nobody is using the system | **Open — deliberate.** Must be settled before this is released |
+| **A hand-written accounting entry against a customer never updates that customer's balance.** Found on Ahmed khan: PKR 4,992 recorded on 2026-08-29, balance untouched ever since | **Real, live and ongoing** — not historical. Any hand-written entry against a customer today creates the same split between the accounting record and the balance staff see | **Open — its own item below**, deliberately not folded into the carry-over work |
+| The live books disagree with themselves by PKR 4,992 on one customer, because of the entry above | Blocks the carry-over from being run on the live system: the correct figure is a question of fact about 2026-08-29, not something to decide from the code | **Open — with the client.** Nothing will be run or corrected until they answer |
+| The carry-over program failed against a copy of the live books because a structural database change had not been applied | Working as intended — it failed cleanly and saved nothing. Demonstrates the ordering rule rather than assuming it | Confirmed safe. The change must be applied to the live system first |
 | Temporary copies of the software could write to the real books by **two** separate routes; only one had been recorded since 2026-08-31 | Real. The unrecorded route — a test screen pointed at the live server — needed nothing but someone opening a test link | **Closed.** Copies are no longer built, and the server independently refuses to start as one |
 | The first version of the hosting command to disable them was written backwards, and would have stopped the live system deploying while leaving test copies building | Would have been a self-inflicted outage while leaving the risk open | Caught by the client before it was applied, by reading the settings page rather than trusting the instruction |
 
@@ -338,19 +389,31 @@ them — see Part 1. Two of the three below are harmless if that order slips; th
 
 ### Next — in priority order
 
-1. **Do not release until the security rollout's last step is settled.** For the earlier groundwork
+1. **Waiting on the client: which figure is right for Ahmed khan?** A hand-written entry of PKR
+   4,992 on 2026-08-29 — money out of the bank to him — never updated his balance. His account
+   shows the desk owes him **PKR 14,600**; the accounting record says **PKR 9,608**. Everything else
+   agrees. If the payment really happened the on-screen figure is stale; if it did not, the entry is
+   the mistake. **Nothing is run or corrected on the live system until this is answered** — the
+   carry-over would faithfully reproduce whichever version is wrong.
+2. **Fix hand-written entries not updating customer balances** *(separate from the accounting work,
+   and still happening)*. Recording an entry by hand against a customer writes the accounting record
+   but leaves the balance staff see untouched. That is what produced the 4,992 above, and it will
+   produce another one the next time someone does it. Independent of everything else on this list.
+3. **Do not release until the security rollout's last step is settled.** For the earlier groundwork
    this was optional, because nothing it wrote could affect a figure. It is not optional now: this
    work writes to the books. The check cannot pass while the system is idle, so this waits on the
    client actually using it.
-2. **Carry the existing deals over.** Deals recorded before today have no paired entries. Every
-   figure needed to create them is already stored, so they can be brought over rather than leaving
-   the reports handling two shapes forever. Not started.
-3. **Switch the reports over.** The last step: retire the four separate ways each figure is
+4. **Run the carry-over on the live system.** Written, tested, and rehearsed end to end against a
+   full copy of the live books — where it took the disagreement between the accounting record and
+   the reported figures from PKR 13,912,192 down to PKR 4,992. **Blocked on items 1 and 3**, and on
+   applying the outstanding structural database change first, which the rehearsal proved is a hard
+   prerequisite rather than a precaution.
+5. **Switch the reports over.** The last step: retire the four separate ways each figure is
    currently worked out, one at a time, re-running the checking tool between each until it reports
    agreement. That is the definition of this requirement being finished.
-4. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+6. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
    started.
-5. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+7. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
    balance; the PDF export question; the pre-existing sessions; and the misleading error message.
    **Test copies writing to the live books is now CLOSED** — see the addition to today's entry
    below and the rewritten note in Part 1.
