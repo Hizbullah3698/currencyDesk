@@ -407,17 +407,29 @@ them — see Part 1. Two of the three below are harmless if that order slips; th
    this was optional, because nothing it wrote could affect a figure. It is not optional now: this
    work writes to the books. The check cannot pass while the system is idle, so this waits on the
    client actually using it.
-3. **Run the carry-over on the live system.** Written, tested, and rehearsed end to end against a
-   full copy of the live books — where it took the disagreement between the accounting record and
-   the reported figures from PKR 13,912,192 down to PKR 4,992. **Blocked on item 2**, and on
-   applying the outstanding structural database change first, which the rehearsal proved is a hard
-   prerequisite rather than a precaution.
-4. **Switch the reports over.** The last step: retire the four separate ways each figure is
+3. **Clear the practice data from the live system before the client starts trading.** The desk
+   currently holds two test customers, four test purchases and three accounting entries recorded
+   while checking the system worked. There is **no existing way to do this** — nothing in the app
+   clears data, and the only similar code is a test fixture that is unsafe to point at the live
+   system for a specific reason: it empties the accounts table outright, which bypasses the database
+   guard protecting the structural accounts rather than being stopped by it. A purpose-built,
+   report-first routine is needed. Gates item 4.
+4. **Run the carry-over on the live system — held back deliberately, not unfinished.** The work is
+   written, tested, rehearsed end to end against a full copy of the live books, and then run against
+   the live system in report-only mode, which produced output identical to the rehearsal line for
+   line. The structural database change it depends on **has been applied**. It is ready.
+   <br><br>It is not being run for one reason: **the live system still holds practice data from
+   testing, and a wipe is planned before the client begins real trading.** Carrying over records
+   that are about to be deleted would be work undone the same week. Once the desk is cleared, this
+   becomes a no-op until real deals exist, and can simply be run again — it was built to be
+   re-runnable, so nothing is wasted by waiting.
+   <br><br>Read this as *waiting for the right moment*, not as *not ready*.
+5. **Switch the reports over.** The last step: retire the four separate ways each figure is
    currently worked out, one at a time, re-running the checking tool between each until it reports
    agreement. That is the definition of this requirement being finished.
-5. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+6. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
    started.
-6. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+7. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
    balance; the PDF export question; the pre-existing sessions; and the misleading error message.
    **Test copies writing to the live books is now CLOSED** — see the addition to today's entry
    below and the rewritten note in Part 1.
