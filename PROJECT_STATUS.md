@@ -369,6 +369,53 @@ JV-016 to JV-020 looks like missing records if you are not expecting it.
 below as its own item so it is not mistaken for part of the carry-over and forgotten when this work
 finishes.
 
+**The desk was cleared, and the practice data is gone.** The live system held two test customers,
+four test purchases and three accounting entries recorded while checking things worked. All of it is
+removed. What remains is the structural chart of accounts the client fills in themselves — Bank,
+Cash, Capital, one stock account per traded currency, Expenses, Salary Expense, Margin, Salary
+Payable — with every currency position at zero and entry and cheque numbering restarted, so their
+first real record is JV-001.
+
+There was no way to do this, and the obvious way would have been dangerous. The nearest existing
+code empties the accounts table wholesale, which — because of how the database applies its own
+protections — would have stepped straight past the guard shielding the structural accounts instead
+of being stopped by it. The routine written for this removes rows one table at a time in dependency
+order, which leaves that guard armed and doing its job throughout. The safe-looking bulk operation
+was the dangerous one.
+
+It reports before it writes and requires two separate confirmations to commit, the second being the
+name of the database it is pointed at — so running it against the wrong system is something you have
+to type your way into rather than something you can do by having the wrong window in focus. Both
+refusals were tested. Nine checks run before anything is committed, including that the structural
+accounts, the logins, the sessions and the settings are all still exactly as they were; any failure
+undoes everything. Logins and sessions are never written to at all — read twice, to prove they were
+not touched.
+
+Verified afterwards independently of the routine's own report: nothing left in deals, entries,
+cheques, non-structural accounts or currency positions; 13 structural accounts, 6 currency rows, the
+schema, both logins, all sessions and the settings all present and unchanged.
+
+**The fault that let a hand-written entry break a customer's balance is fixed and live.** This was
+found earlier the same day and is the one thing that would have damaged the client's real books
+rather than merely being untidy: recording an entry by hand against a customer wrote the accounting
+record and left the balance staff read off the screen untouched. The two then disagreed for good. It
+was live, it was reachable in two clicks from the Journal page, and it would have done the same to a
+real customer the first time anyone used it.
+
+The fix had a decision inside it that "make it work like the others" does not answer. A customer
+carries two figures at once — what they owe the desk, and what the desk owes them — and a
+hand-written entry says only which direction the net moves, not which of the two should change. The
+rule chosen is to settle whatever is outstanding in the opposite direction first and let anything
+left over cross to the other side. It reproduces the correct figure on the one real case that
+existed, arrived at by a completely different route than the one that first established it, and it
+makes it impossible for either figure to go negative.
+
+Deployed the same day, before the client's first trade. The one thing not done was exercising it
+against the live system, which would have meant creating a customer, posting an entry and deleting
+it — spending the client's JV-001 to re-prove something nine tests and four deliberate sabotage
+runs already cover.
+
+
 ### Found
 
 | Finding | Severity | Status |
@@ -382,6 +429,8 @@ finishes.
 | The security rollout's final step is still unvalidated, and this work writes to the books | Real, and knowingly deferred. The check cannot pass while nobody is using the system | **Open — deliberate.** Must be settled before this is released |
 | **A hand-written accounting entry against a customer never updates that customer's balance.** Found on Ahmed khan: PKR 4,992 recorded on 2026-08-29, balance untouched ever since | **Real, live and ongoing** — not historical. Any hand-written entry against a customer today creates the same split between the accounting record and the balance staff see | **Open — its own item below**, deliberately not folded into the carry-over work |
 | The live books disagree with themselves by PKR 4,992 on one customer, because of the entry above | Looked like it needed the client to adjudicate. It did not | **Closed 2026-09-03.** The entry was practice data recorded during testing by the account holder, not a real customer transaction. It is a correct posting, so **PKR 9,608 is the right figure** and the 14,600 on screen is exactly what the bug above produces. The two findings are one root cause, not two |
+| A hand-written entry against a customer left that customer's balance untouched, so the books and the screen disagreed from that moment on | **The most serious fault found today** — live, reachable in two clicks, and it would have damaged the client's real records rather than practice ones | **Fixed and deployed 2026-09-03.** Nine tests, four sabotage runs, all caught. Reproduces the correct figure on the one real case by an independent route |
+| The live system held practice data from testing, which the client would have started from | Would have handed them someone else's test records as their opening books | **Cleared 2026-09-03**, verified independently of the clearing routine's own report |
 | The carry-over program failed against a copy of the live books because a structural database change had not been applied | Working as intended — it failed cleanly and saved nothing. Demonstrates the ordering rule rather than assuming it | Confirmed safe. The change must be applied to the live system first |
 | Temporary copies of the software could write to the real books by **two** separate routes; only one had been recorded since 2026-08-31 | Real. The unrecorded route — a test screen pointed at the live server — needed nothing but someone opening a test link | **Closed.** Copies are no longer built, and the server independently refuses to start as one |
 | The first version of the hosting command to disable them was written backwards, and would have stopped the live system deploying while leaving test copies building | Would have been a self-inflicted outage while leaving the risk open | Caught by the client before it was applied, by reading the settings page rather than trusting the instruction |
@@ -399,37 +448,28 @@ them — see Part 1. Two of the three below are harmless if that order slips; th
 
 ### Next — in priority order
 
-1. **Fix hand-written entries not updating customer balances** *(separate from the accounting work,
-   and still happening)*. Recording an entry by hand against a customer writes the accounting record
-   but leaves the balance staff see untouched. That is what produced the 4,992 above, and it will
-   produce another one the next time someone does it. Independent of everything else on this list.
-2. **Do not release until the security rollout's last step is settled.** For the earlier groundwork
-   this was optional, because nothing it wrote could affect a figure. It is not optional now: this
-   work writes to the books. The check cannot pass while the system is idle, so this waits on the
-   client actually using it.
-3. **Clear the practice data from the live system before the client starts trading.** The desk
-   currently holds two test customers, four test purchases and three accounting entries recorded
-   while checking the system worked. There is **no existing way to do this** — nothing in the app
-   clears data, and the only similar code is a test fixture that is unsafe to point at the live
-   system for a specific reason: it empties the accounts table outright, which bypasses the database
-   guard protecting the structural accounts rather than being stopped by it. A purpose-built,
-   report-first routine is needed. Gates item 4.
-4. **Run the carry-over on the live system — held back deliberately, not unfinished.** The work is
+1. **Finish the security rollout.** Its last step has never been switched on, and it is the oldest
+   outstanding item in the project. The readiness check cannot give a verdict while nobody is using
+   the system — it deliberately answers "inconclusive" rather than a false all-clear on an idle
+   desk — so it can only be settled once the client has traded for a normal day. Note this is no
+   longer a release gate: the software that records both sides of every deal is already live. It is
+   a security control that remains unvalidated, which is a different and more honest thing to say.
+2. **The carry-over is finished and idle.** The work is
    written, tested, rehearsed end to end against a full copy of the live books, and then run against
    the live system in report-only mode, which produced output identical to the rehearsal line for
    line. The structural database change it depends on **has been applied**. It is ready.
-   <br><br>It is not being run for one reason: **the live system still holds practice data from
-   testing, and a wipe is planned before the client begins real trading.** Carrying over records
-   that are about to be deleted would be work undone the same week. Once the desk is cleared, this
-   becomes a no-op until real deals exist, and can simply be run again — it was built to be
-   re-runnable, so nothing is wasted by waiting.
+   <br><br>**The desk has since been cleared, so there is now nothing to carry over.** This
+   sits idle until real deals exist, at which point it can simply be run — it was built to be
+   re-runnable. Better still: the software that records both sides of a deal automatically is
+   already live, so every real deal from the client's first onward is recorded properly as it
+   happens, and this may never need to run at all.
    <br><br>Read this as *waiting for the right moment*, not as *not ready*.
-5. **Switch the reports over.** The last step: retire the four separate ways each figure is
+3. **Switch the reports over.** The last step: retire the four separate ways each figure is
    currently worked out, one at a time, re-running the checking tool between each until it reports
    agreement. That is the definition of this requirement being finished.
-6. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+4. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
    started.
-7. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+5. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
    balance; the PDF export question; the pre-existing sessions; and the misleading error message.
    **Test copies writing to the live books is now CLOSED** — see the addition to today's entry
    below and the rewritten note in Part 1.
