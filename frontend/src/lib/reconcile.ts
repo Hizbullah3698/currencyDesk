@@ -20,7 +20,7 @@
 
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
 import { ledgerBalance } from './reports'
-import { marginLedger, stampTime, stockAsOf } from './engine'
+import { activityDate, marginLedger, stampTime, stockAsOf } from './engine'
 
 export interface Snapshot {
   accounts: Account[]
@@ -62,24 +62,35 @@ export const TOLERANCE = 0.005
 /**
  * Net debit position from journal entries alone.
  *
- * Cut on `createdAt`, matching what ledgerBalance() already does with journal entries today.
+ * CUT ON THE ENTRY'S OWN DATE, not on when it was keyed in — `txnDate` where present, falling back
+ * to `createdAt`. This is the measuring instrument, so the change deserves stating rather than
+ * slipping in with the phase 4 logic it is about to validate.
  *
- * RESOLVED, BUT NOT YET SWITCHED. Building this harness surfaced that reports cut activity on
- * `activityDate()` — the day the deal was struck — while `journal_entries` had no equivalent
- * column, so a voucher for a backdated trade would have landed in the wrong period and silently
- * undone requirement 1. Migration 017 gives journal entries their own `txn_date` (its own column,
- * not a join through `activity_id`, which would leave manual entries and reversal vouchers with no
- * date at all).
+ * Why it has to change for phase 4: backfilled vouchers are written *now* for deals struck months
+ * ago. Cut on `createdAt` they would all pile up on the day the backfill ran, so at any historical
+ * date the journal would look empty while the reports showed the real figure — the harness would
+ * report drift at every past date after a *perfect* backfill, and be useless exactly when it is
+ * needed most.
  *
- * This function still cuts on `createdAt` on purpose. Switching the cut-off moves reported figures,
- * which the requirement 7 acceptance test forbids — the harness has to keep measuring against what
- * the app reports *today*. Both sides move to `txnDate` together in phase 5, as the
- * reconstructions are retired.
+ * The alternative was backdating `created_at` on backfilled rows. Rejected: that column means "when
+ * this was keyed in", and writing a false value into it to make a measurement come out right is the
+ * kind of thing this harness exists to catch, not to do.
+ *
+ * It reuses the engine's `activityDate()` rather than describing the rule again. That helper's
+ * parameter is structural — `{ txnDate?, createdAt }` — which journal entries now satisfy, and it
+ * carries the local-noon pinning that stops a bare 'YYYY-MM-DD' sliding a day across a timezone
+ * offset. The hazard is identical for both record types, so the handling should be too.
+ *
+ * NOTE THIS DOES NOT DESYNC FROM `currentNet`. ledgerBalance() still cuts journal entries on
+ * `createdAt`, and moving it would change reported figures — which the acceptance test forbids. The
+ * two only disagree for rows where `txnDate` differs from the `createdAt` day, and those are
+ * exactly the voucher legs that ledgerBalance already excludes via isVoucherLeg(). Phase 5 moves
+ * that side over when the reports switch to the journal.
  */
 export function journalOnlyNet(accountId: string, journalEntries: JournalEntry[], keep: (iso: string) => boolean): number {
   let net = 0
   for (const e of journalEntries) {
-    if (!keep(e.createdAt)) continue
+    if (!keep(activityDate(e))) continue
     if (e.debitAccount === accountId) net += e.amount
     if (e.creditAccount === accountId) net -= e.amount
   }

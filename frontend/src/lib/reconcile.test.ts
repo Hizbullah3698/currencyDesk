@@ -47,6 +47,49 @@ describe('journalOnlyNet', () => {
   })
 })
 
+// The cut-date change made for phase 4. Everything above this point uses entries with no txnDate,
+// so it exercises only the fallback — these cover the behaviour that actually changed.
+describe('journalOnlyNet cuts on the entry date, not when it was keyed in', () => {
+  const backfilled = (txnDate: string, createdAt: string): JournalEntry => ({
+    ...entry('b1', 'cash', 'capital', 1000, createdAt),
+    txnDate,
+  })
+
+  it('counts a backfilled entry at the date of the deal, not the day it was written', () => {
+    // The case phase 4 creates: a voucher written TODAY for a deal struck in June. Cut at the end
+    // of July it must count — cut on createdAt it would not, and the harness would report drift at
+    // every historical date after a perfect backfill.
+    const e = backfilled('2026-06-01', '2026-09-03T10:00:00.000Z')
+    const keep = (iso: string) => new Date(iso).getTime() <= T('2026-07-31T23:59:59.999Z')
+    expect(journalOnlyNet('cash', [e], keep)).toBe(1000)
+  })
+
+  it('still excludes it before the deal happened', () => {
+    const e = backfilled('2026-06-01', '2026-09-03T10:00:00.000Z')
+    const keep = (iso: string) => new Date(iso).getTime() <= T('2026-05-31T23:59:59.999Z')
+    expect(journalOnlyNet('cash', [e], keep)).toBe(0)
+  })
+
+  it('falls back to createdAt when an entry has no date of its own', () => {
+    // Manual entries, opening balances and salary postings written before migration 017.
+    const e = entry('m1', 'cash', 'capital', 500, '2026-04-10T00:00:00.000Z')
+    const before = (iso: string) => new Date(iso).getTime() <= T('2026-04-09T23:59:59.999Z')
+    const after = (iso: string) => new Date(iso).getTime() <= T('2026-04-10T23:59:59.999Z')
+    expect(journalOnlyNet('cash', [e], before)).toBe(0)
+    expect(journalOnlyNet('cash', [e], after)).toBe(500)
+  })
+
+  it('pins a bare date to local noon, so no timezone offset slides it a day', () => {
+    // Same hazard activityDate() exists for. A bare 'YYYY-MM-DD' parsed as UTC lands on the wrong
+    // side of a midnight cut in any offset zone; noon is far enough from both boundaries.
+    const e = backfilled('2026-06-15', '2026-09-03T10:00:00.000Z')
+    const endOfThatDay = new Date(2026, 5, 15, 23, 59, 59, 999).getTime()
+    const endOfDayBefore = new Date(2026, 5, 14, 23, 59, 59, 999).getTime()
+    expect(journalOnlyNet('cash', [e], (iso) => new Date(iso).getTime() <= endOfThatDay)).toBe(1000)
+    expect(journalOnlyNet('cash', [e], (iso) => new Date(iso).getTime() <= endOfDayBefore)).toBe(0)
+  })
+})
+
 describe('reconcile', () => {
   it('reports agreement when the journal is the only source of a balance', () => {
     // Expense and Capital carry no stored column and no activity, so the app already derives them
