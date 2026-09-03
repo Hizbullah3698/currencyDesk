@@ -38,6 +38,10 @@ npm run csrf:gate               # is it safe to switch on CSRF_ENFORCE? (local d
 npm run csrf:gate:prod          # same check against production (reads .env.production)
 npm run snapshot:dump           # full admin-view snapshot -> backend/snapshot.json (gitignored)
 npm run snapshot:dump:prod      # same, against production (reads .env.production)
+npm run backfill:vouchers       # requirement 7 phase 4; DRY RUN unless given -- --apply
+npm run backfill:vouchers:prod  # same, against production
+npm run reset:business          # clear the desk to blank books; DRY RUN unless given
+                                # -- --apply --confirm=<database name>. Destructive.
 
 # frontend/
 npm run dev                     # Vite on :5173
@@ -208,6 +212,94 @@ and `unexplained`. The distinction is easy to collapse back into a bug:
 Currency stock is valued with `stockAsOf(...)`, not the live `stk()` position — every other row is
 cut at `asOfT`, so valuing stock at today mixes two dates on any historical sheet.
 
+### Requirement 7 — paired postings, and what keeps them inert
+
+Every trade, settlement and cheque clearing writes **journal vouchers** as well as everything it
+already did. This is live. The reports do **not** read them yet.
+
+- **`services/voucherPostings.ts` is the single description of what legs each movement produces.**
+  Pure — no database, no lookups. Callers resolve accounts and figures; it decides the shape and the
+  narration. The live posting path and the phase 4 backfill both read from it, which is the whole
+  point: a backfill that described the shapes a second time would produce historical vouchers
+  differing from live ones in some case nobody thought to check, and that difference would not
+  surface as an error, just as wrong books. **Add a new movement type here, not at a call site.**
+- **`buildVoucherLegs` allocates one side across the other, greedily, in the order given.** On a
+  part-paid sale there is no fact of the matter about which rupees covered cost and which covered
+  profit, so something has to decide; consuming debits in order against credits in order settles the
+  cost of goods before recognising profit and keeps every figure a whole number carried from
+  `buyCalc`/`sellCalc`. It returns `null` when a side with money on it has no account — the caller's
+  policy is then to post no voucher and let the trade succeed anyway.
+- **A voucher cannot be unbalanced**, because each row is one debit against one credit for one
+  amount. There is no balance check in `postVoucher` because there is no way to express an
+  imbalance.
+- **A sale's margin leg switches sides on a loss.** `sellCalc` does not clamp margin and nothing
+  rejects selling below weighted-average cost, so a loss is ordinary. It posts as a **debit** to
+  Income; a negative credit would make `postVoucher` refuse and fail the trade.
+- **Zero-amount legs are dropped, not posted** — a breakeven sale has a margin of exactly 0, and
+  `journal_entries` carries `CHECK (amount > 0)`.
+
+**`isVoucherLeg()` in the engine is what keeps all of this invisible to the reports**, and it is
+load-bearing. `ledgerBalance()` and `marginLedger()` have always read `journal_entries`
+indiscriminately, because until vouchers existed every row there was standalone — so the moment a
+trade also posted a voucher its cash was counted twice, once from the activity row and once from the
+journal row. Measured before the fix: cash reported PKR 60,000 against an actual 30,000. Four
+readers exclude voucher legs — `ledgerBalance`, `marginLedger`, the Transactions page and the
+Journal page. **Phase 5 removes the callers, not the function**: the reports stop excluding vouchers
+and start excluding the activity rows and stored columns instead.
+
+**Opening currency stock is journalled too** (`services/openingStockService.ts`), Dr Currency Stock /
+Cr Capital, matching what `createAccount` does for customer and bank opening balances. It carries a
+`voucher_id` **specifically so `isVoucherLeg` excludes it** — `openingStockEquity` is computed from
+`openingStock()` independently of the journal and `unexplained = rawDiff − openingStockEquity`, so a
+visible entry would credit Capital, drive `rawDiff` to zero, and make a balanced sheet report an
+imbalance that is not there. Idempotent via `opening_for`.
+
+**`npm run reconcile` is the acceptance test.** It asks whether a journal-only balance sheet matches
+what the app reports, per account, at five dates. It cuts journal entries on `txnDate` falling back
+to `createdAt` — *not* `createdAt` alone, because backfilled vouchers are written today for deals
+struck months ago and would otherwise all pile onto the backfill date. `ledgerBalance()` still cuts
+on `createdAt`; the two only disagree for voucher legs, which `ledgerBalance` already excludes.
+
+### Whoever writes a customer's journal entry moves that balance exactly once
+
+A customer carries **two** stored columns at the same time — `receivable` (they owe the desk) and
+`payable` (the desk owes them) — not one signed figure.
+
+`postJournal` moves them, using an allocation rule, because a bare `Dr customer X` says only which
+way the net shifts and not which column should change: **settle whatever is outstanding in the
+opposite direction first, then let the remainder cross over.** Each direction is one atomic
+`UPDATE` with no read-modify-write — SQL evaluates every `SET` expression against the pre-update row
+— so there is no race window and no `SELECT ... FOR UPDATE`, which is stronger than the
+lock-then-update the settlement paths use. Neither column can go negative under it, so no
+`AND receivable >= $1` guard is needed.
+
+**`postVoucher` must NOT do this, and deliberately does not.** Trades, settlements and cheque
+clearing update the balance themselves *before* the voucher is written — the voucher is the journal
+side of an operation whose balance move is already handled. Adding it there would double-count every
+trade. The question to ask at a new call site is not "is this a customer journal entry" but **"has
+anything else already moved this balance"**.
+
+This existed as a live fault until 2026-09-03: `postJournal` wrote the entry and nothing else, so
+the books and the on-screen figure diverged permanently the moment anyone used the Journal page
+against a customer.
+
+### Clearing the desk
+
+`npm run reset:business` removes business data and leaves blank books — for go-live, not a feature
+of the app, and not reachable from it.
+
+**Never TRUNCATE `accounts` to do this.** Migration 009's `protect_core_accounts` trigger is
+`BEFORE UPDATE OR DELETE ... FOR EACH ROW`, and TRUNCATE does not fire row-level DELETE triggers, so
+it walks straight past the guard and takes the structural chart of accounts with it. The test
+fixture's TRUNCATE+reseed is right for a disposable database and exactly the wrong instinct here.
+Targeted DELETEs in FK order leave the guard armed as a backstop. Stock positions are **zeroed, not
+deleted** — `lockStock()` needs a row per traded currency.
+
+Two gates, because it is destructive rather than additive: `--apply` **and**
+`--confirm=<database name>` matching the connected database. Nine assertions run inside the
+transaction before commit. `users` and `session` are never written — only read, twice, to prove they
+were not touched.
+
 ### Auth
 
 Sessions, not JWT (`express-session` + `connect-pg-simple`, table `session`, httpOnly cookie,
@@ -282,11 +374,15 @@ reproducibility. Read `012`'s header before adding a fourth currency.
   from a trade must **copy** the date from that activity row at write time, never join to it at
   read time. Reports do **not** cut on it yet — `ledgerBalance()` still uses `created_at`, and
   switching that moves reported figures, which requirement 7's acceptance test forbids.
-- **`journal_entries.voucher_id` / `activity_id` exist but nothing writes them yet** (migration
-  `016`). The table is strictly two-legged and a sale needs four legs, so requirement 7 makes a deal
-  several balanced rows sharing a `voucher_id`; `activity_id` links a leg back to its source row.
-  `voucher_id` is intentionally not a foreign key — there is no voucher table, and adding one would
-  be the header/lines restructure that was explicitly not chosen.
+- **`journal_entries.voucher_id` / `activity_id` / `cheque_id`** (migrations `016`, `018`). The
+  table is strictly two-legged and a sale needs four legs, so a deal is several balanced rows
+  sharing a `voucher_id`. `activity_id` links a leg to the deal that produced it; `cheque_id` to the
+  cheque whose clearing produced it — a leg carries one or the other, never both, and manual
+  entries, opening balances and salary postings carry neither. `voucher_id` is intentionally **not**
+  a foreign key (there is no voucher table, and adding one would be the header/lines restructure
+  that was explicitly not chosen); `cheque_id` **is** one, because cheques are a real table and a
+  leg pointing at a missing one is a bug worth failing on. All three are written today — see the
+  requirement 7 section.
 - A Currency Stock account's `code` must be a traded currency and must not already be taken; two
   accounts sharing a code both value the same position and double-count it as an asset.
 
@@ -371,16 +467,23 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-225 tests: 46 engine unit, 107 backend integration (real HTTP against real Postgres, no supertest —
-each file boots `http.createServer(createApp())` on an ephemeral port), 72 frontend unit (8 files
+259 tests: 46 engine unit, 137 backend integration (real HTTP against real Postgres, no supertest —
+each file boots `http.createServer(createApp())` on an ephemeral port), 76 frontend unit (8 files
 under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
 never a component, and anything touching `window` must be guarded at module load or it breaks the
 suite). No CI — `npm run test` is manual.
 
-**`npm run reconcile` is deliberately not part of `npm run test`** and is expected to exit 1 until
-requirement 7 is finished — see the requirement 7 section below. Same reasoning as `csrf:gate`: it
-asks a question about live data, and a knowingly-red check inside the suite trains everyone to
+**`npm run reconcile` is deliberately not part of `npm run test`.** Same reasoning as `csrf:gate`:
+it asks a question about live data, and a knowingly-red check inside the suite trains everyone to
 ignore a red suite.
+
+It exits 1 while requirement 7 is unfinished, but **that is no longer a blanket "expected" —
+attribute every difference before accepting it.** One known cause remains, logged 2026-09-02 and
+left to phase 5: `computeBalanceSheet`'s Customer branch reads the stored `receivable`/`payable`
+columns with **no `asOfT`**, so it reports the current balance at every historical date. Its
+signature is a Customer row whose *Reported* figure is identical at every date while *Journal only*
+moves — there the journal is right and the report is wrong. Anything not matching that signature is
+unexplained and is a finding.
 
 ### The settings cache outlives a database reset — a solved flake worth not re-creating
 
