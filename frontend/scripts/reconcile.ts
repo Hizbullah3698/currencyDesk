@@ -81,11 +81,17 @@ function main(): void {
 
   const worst = Math.max(...failed.map(({ r }) => r.worst))
   console.log(`VERDICT: NOT RECONCILED — ${failed.length} of ${results.length} dates disagree, largest single gap PKR ${pkr(worst)}.`)
-  console.log(
-    'Expected while requirement 7 is unfinished: nothing posts a voucher yet, so every trade and\n' +
-      'settlement is missing from the journal. This becomes the acceptance test for phase 5, which\n' +
-      'retires the four reconstructions one at a time until this reports RECONCILED.',
-  )
+  console.log('Vouchers are posted live and history is backfilled, so this is NO LONGER a blanket')
+  console.log('expected gap. Attribute every remaining difference to a specific cause before')
+  console.log('accepting it.')
+  console.log('')
+  console.log('One known cause, logged 2026-09-02 and left to phase 5: computeBalanceSheet reads a')
+  console.log('customer’s stored receivable/payable columns with no asOfT, so it reports the')
+  console.log('CURRENT balance at every historical date. Its signature is a Customer row whose')
+  console.log('Reported figure is identical at every date while Journal only moves — there the')
+  console.log('journal is right and the report is wrong.')
+  console.log('')
+  console.log('Anything not matching that signature is unexplained. Treat it as a finding.')
   process.exit(1)
 }
 
