@@ -31,6 +31,77 @@ export async function postJournal(client: PoolClient, input: JournalInput, actor
      VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
     [input.narration.trim() || 'Journal entry', input.debitAccount, input.creditAccount, debitAcc.name, creditAcc.name, input.debitAmount, actorId],
   )
+
+  // A journal entry against a customer has to move that customer's balance too. Until 2026-09-03
+  // it did not, and the two drifted apart silently from the moment anyone posted one: the entry
+  // went into the books while the figure staff read off the screen stayed where it was. Found on
+  // real data — a hand-written entry of PKR 4,992 left one customer showing 14,600 owed when the
+  // books said 9,608.
+  //
+  // WHY IT WAS MISSED. Every other path that moves a customer balance writes an activity row in the
+  // same breath (tradesService, settlementsService, chequeService), so the balance update sits
+  // visibly beside it. This one writes only a journal entry, so there was nothing next to it to
+  // suggest anything else was owed.
+  if (debitAcc.type === 'Customer') await applyDebitToCustomer(client, input.debitAccount, input.debitAmount)
+  if (creditAcc.type === 'Customer') await applyCreditToCustomer(client, input.creditAccount, input.creditAmount)
+}
+
+// ---------------------------------------------------------------------------
+// Moving a customer's stored balance from a journal entry
+// ---------------------------------------------------------------------------
+//
+// THE INVARIANT: whoever writes a customer's journal entry ensures that customer's balance moves
+// exactly once.
+//
+// postVoucher must NOT do this and deliberately does not. Trades, settlements and cheque clearing
+// update the balance themselves BEFORE the voucher is written — the voucher is the journal side of
+// an operation whose balance move is already handled. Adding this there would double-count every
+// single trade. A future call site that looks like these will be tempting to treat the same way;
+// the question to ask is not "is this a customer journal entry" but "has anything else already
+// moved this balance".
+//
+// WHY AN ALLOCATION RULE IS NEEDED AT ALL. A customer carries two columns, not one signed figure:
+// `receivable` (they owe the desk) and `payable` (the desk owes them), at the same time. The other
+// paths never face this because each knows its own direction — a purchase creates a payable, a
+// receipt reduces a receivable. A hand-written `Dr customer 4,992` says only "net shift of 4,992
+// towards them owing us"; it does not say whether that reduces what the desk owes or increases what
+// it is owed. Both give the same net and different figures on screen, where the two are shown
+// separately as "Owed to you" and "You owe".
+//
+// THE RULE: settle what is outstanding in the opposite direction first, then let the remainder
+// cross over. It mirrors the greedy allocation buildVoucherLegs already uses, so it is not a new
+// idea in this codebase, and on the one real occurrence it reproduces the independently-established
+// correct figure: receivable 1,000 / payable 15,600, debited 4,992, gives payable 10,608 and a net
+// of −9,608.
+//
+// A property worth keeping: neither column can go negative, because the reduction is capped at what
+// is there and the remainder moves to the other column. No `AND receivable >= $1` guard is needed,
+// unlike the settlement paths.
+//
+// Both are ONE statement with no read-modify-write. SQL evaluates every SET expression against the
+// pre-update row, so `payable` on the right-hand side is the old value in both lines — atomic, and
+// no SELECT ... FOR UPDATE required.
+
+async function applyDebitToCustomer(client: PoolClient, accountId: string, amount: number): Promise<void> {
+  await client.query(
+    `UPDATE accounts SET
+       receivable = receivable + GREATEST($1 - payable, 0),
+       payable    = GREATEST(payable - $1, 0),
+       updated_at = now()
+     WHERE id = $2`,
+    [amount, accountId],
+  )
+}
+
+async function applyCreditToCustomer(client: PoolClient, accountId: string, amount: number): Promise<void> {
+  await client.query(
+    `UPDATE accounts SET
+       payable    = payable + GREATEST($1 - receivable, 0),
+       receivable = GREATEST(receivable - $1, 0),
+       updated_at = now()
+     WHERE id = $2`,
+    [amount, accountId],
+  )
 }
 
 // ---------------------------------------------------------------------------
