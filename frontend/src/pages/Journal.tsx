@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SquarePen } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import { isVoucherLeg } from '@/lib/engine'
 import { ACCOUNT_TYPES } from '@/lib/types'
 import { fmt } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
@@ -18,6 +19,9 @@ export function Journal() {
   const [creditAmount, setCreditAmount] = useState('')
   const [narration, setNarration] = useState('')
   const [error, setError] = useState('')
+  // Voucher legs are the bookkeeping behind a trade, not free-form postings — this page is for
+  // entries someone recorded by hand, and a trade already has its own place in the app.
+  const posted = state.journalEntries.filter((e) => !isVoucherLeg(e))
   const [posting, setPosting] = useState(false)
 
   const options = state.accounts.slice().sort((a, b) => ACCOUNT_TYPES.indexOf(a.type) - ACCOUNT_TYPES.indexOf(b.type) || a.name.localeCompare(b.name))
@@ -122,8 +126,8 @@ export function Journal() {
 
       <Card className="mt-5 max-w-[820px] overflow-hidden">
         <div className="border-b border-border px-[13px] py-2.5 text-body font-semibold">Posted entries</div>
-        {state.journalEntries.length === 0 && <EmptyState category="neutral" icon={SquarePen} title="No journal entries posted yet" description="Free-form debit/credit postings you record will show up here." className="py-8" />}
-        {state.journalEntries.map((e) => (
+        {posted.length === 0 && <EmptyState category="neutral" icon={SquarePen} title="No journal entries posted yet" description="Free-form debit/credit postings you record will show up here." className="py-8" />}
+        {posted.map((e) => (
           <div key={e.id} className="border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
             <div className="flex items-baseline gap-2.5">
               <div className="tabular min-w-[52px] text-meta font-normal text-muted-60">{e.ref}</div>

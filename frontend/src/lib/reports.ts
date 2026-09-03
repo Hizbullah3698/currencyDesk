@@ -1,5 +1,5 @@
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
-import { activityDate, currencyCodes, currencyMeta, marginLedger, openingStock, stampTime, stockAsOf } from './engine'
+import { activityDate, currencyCodes, currencyMeta, isVoucherLeg, marginLedger, openingStock, stampTime, stockAsOf } from './engine'
 import { fmtAmount, fmtQuote } from './format'
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,9 @@ export function ledgerBalance(
 ): number {
   let net = 0
   journalEntries.forEach((e) => {
+    // Voucher legs are excluded until phase 5 — counting them here as well as the activity row's
+    // own settlement leg double-counts every cash and bank movement. See isVoucherLeg().
+    if (isVoucherLeg(e)) return
     if (!keep(e.createdAt)) return
     if (e.debitAccount === accountId) net += e.amount
     if (e.creditAccount === accountId) net -= e.amount

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { activityDate, auditLine, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
+import { activityDate, auditLine, isVoucherLeg, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
 import { fmt, fmtAmount, fmtRate, txnAmountParts, type TxnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
@@ -78,7 +78,9 @@ export function Transactions() {
       audit: auditLine(q),
       customerId: q.customerId,
     }))
-    const journalRows: Row[] = state.journalEntries.map((e) => ({
+    // Voucher legs are the bookkeeping behind a trade, not events in their own right — the trade
+    // already appears in this list as its activity row. Listing both would show one deal twice.
+    const journalRows: Row[] = state.journalEntries.filter((e) => !isVoucherLeg(e)).map((e) => ({
       id: e.id,
       ref: e.ref,
       type: 'journal',

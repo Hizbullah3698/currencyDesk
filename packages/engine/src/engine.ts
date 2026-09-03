@@ -309,6 +309,31 @@ export interface MarginAdjRow {
   amount: number
 }
 
+/**
+ * True for a journal row that is one leg of a trade's voucher, rather than an entry in its own
+ * right (a manual posting, an opening balance, a salary accrual).
+ *
+ * WHY EVERY READER HAS TO ASK. Requirement 7 phase 3 was scoped on the premise that "nothing reads
+ * vouchers yet". That premise was wrong, and the reconciliation harness caught it on the first
+ * trade posted through the new code: `ledgerBalance()` and `marginLedger()` have always read
+ * `journal_entries` indiscriminately, because until now every row in that table was a standalone
+ * entry. So the moment a trade also posted a voucher, its cash leg was counted twice — once from
+ * the activity row's settlement leg and once from the new journal row — and its margin twice over
+ * as well. Measured on a real purchase: cash reported PKR 60,000 against an actual 30,000.
+ *
+ * This predicate is what keeps vouchers genuinely inert until phase 5 retires the reconstructions
+ * that double-count them. It exists once, here, rather than as four copies of `e.voucherId != null`
+ * scattered across the readers — the same rule that put the currency-stock account lookup in one
+ * place.
+ *
+ * PHASE 5 REMOVES THE CALLERS, NOT THIS FUNCTION. When the reports switch to reading the journal as
+ * the source of truth, they stop excluding voucher legs and start excluding the activity and stored
+ * columns instead.
+ */
+export function isVoucherLeg(entry: JournalEntry): boolean {
+  return entry.voucherId != null
+}
+
 export function marginLedger(accounts: Account[], activity: Activity[], journalEntries: JournalEntry[], stocks: Stocks, keep: (iso: string) => boolean) {
   const sales = activity.filter((t) => t.type === 'sale' && keep(activityDate(t)))
   const byCurrency: MarginCurrencyRow[] = currencyCodes(stocks).map((code) => {
@@ -327,7 +352,7 @@ export function marginLedger(accounts: Account[], activity: Activity[], journalE
   const incomeIds = accounts.filter((a) => a.type === 'Income').map((a) => a.id)
   const adjRows: MarginAdjRow[] = []
   let journalAdj = 0
-  journalEntries.filter((e) => keep(e.createdAt)).forEach((e) => {
+  journalEntries.filter((e) => keep(e.createdAt) && !isVoucherLeg(e)).forEach((e) => {
     const dr = incomeIds.indexOf(e.debitAccount) >= 0
     const cr = incomeIds.indexOf(e.creditAccount) >= 0
     if (!dr && !cr) return
