@@ -19,7 +19,9 @@
     "snapshot:dump": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/dumpSnapshot.ts",
     "snapshot:dump:prod": "cross-env DOTENV_CONFIG_PATH=.env.production NODE_OPTIONS=--conditions=development tsx src/scripts/dumpSnapshot.ts",
     "backfill:vouchers": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/backfillVouchers.ts",
-    "backfill:vouchers:prod": "cross-env DOTENV_CONFIG_PATH=.env.production NODE_OPTIONS=--conditions=development tsx src/scripts/backfillVouchers.ts"
+    "backfill:vouchers:prod": "cross-env DOTENV_CONFIG_PATH=.env.production NODE_OPTIONS=--conditions=development tsx src/scripts/backfillVouchers.ts",
+    "reset:business": "cross-env NODE_OPTIONS=--conditions=development tsx src/scripts/resetBusinessData.ts",
+    "reset:business:prod": "cross-env DOTENV_CONFIG_PATH=.env.production NODE_OPTIONS=--conditions=development tsx src/scripts/resetBusinessData.ts"
   },
   "dependencies": {
     "@currencydesk/engine": "*",
