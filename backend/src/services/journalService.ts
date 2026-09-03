@@ -143,3 +143,72 @@ export async function postVoucher(client: PoolClient, input: VoucherInput, actor
 
   return voucherId
 }
+
+/** One side of a deal: an account and what it takes. A null account means the desk has no account
+ *  to post this side to — see buildVoucherLegs. */
+export interface VoucherSide {
+  account: string | null
+  amount: number
+}
+
+/**
+ * Half a paisa. Below this a figure is not a posting, it is floating-point residue from splitting
+ * one total across several legs.
+ */
+const LEG_TOLERANCE = 0.005
+
+/**
+ * Turns the debit and credit sides of a deal into balanced two-leg rows, or null if the deal
+ * cannot be represented.
+ *
+ * WHY THIS IS SHARED RATHER THAN WRITTEN PER CALLER. A purchase has one debit (currency stock)
+ * against up to two credits (cash, the customer); a sale is the mirror, up to three debits against
+ * up to two credits. Both are the same problem — allocate one side across the other — and writing
+ * it twice is how the two quietly stop agreeing.
+ *
+ * ALLOCATION IS GREEDY, IN THE ORDER GIVEN, and that ordering is a real choice. On a part-paid sale
+ * there is no fact of the matter about which rupees of the cash covered cost and which covered
+ * profit, so something has to decide. Consuming the debits in order against the credits in order
+ * settles the cost of goods before recognising profit, which is the conventional reading, and it
+ * keeps every posted figure a whole number carried straight from buyCalc/sellCalc. A proportional
+ * split would instead invent amounts that correspond to nothing and reintroduce rounding.
+ *
+ * RETURNS NULL when a side with money on it has no account. In practice that is a traded currency
+ * with no Currency Stock account behind it — the gap stockAccountIdFor documents. The caller's
+ * policy is that the trade still succeeds and simply posts no voucher, because refusing a trade
+ * over bookkeeping nothing reads yet would be a regression. Posting a half-voucher instead is not
+ * an option: it would be the one thing this table cannot represent, an unbalanced entry.
+ */
+export function buildVoucherLegs(debits: VoucherSide[], credits: VoucherSide[]): VoucherLeg[] | null {
+  const dr = debits.filter((s) => s.amount > LEG_TOLERANCE)
+  const cr = credits.filter((s) => s.amount > LEG_TOLERANCE)
+  if (dr.length === 0 || cr.length === 0) return []
+  if (dr.some((s) => !s.account) || cr.some((s) => !s.account)) return null
+
+  const drTotal = dr.reduce((t, s) => t + s.amount, 0)
+  const crTotal = cr.reduce((t, s) => t + s.amount, 0)
+  if (Math.abs(drTotal - crTotal) > LEG_TOLERANCE) {
+    // Not a data problem — the caller described a deal whose two sides do not agree, which means
+    // the posting map itself is wrong. Loud, because a silent remainder here becomes a balance
+    // sheet that does not balance months later.
+    throw appError(500, `Voucher sides disagree: debits ${drTotal}, credits ${crTotal}.`)
+  }
+
+  const legs: VoucherLeg[] = []
+  const remaining = dr.map((s) => s.amount)
+  let i = 0
+  for (const credit of cr) {
+    let left = credit.amount
+    while (left > LEG_TOLERANCE && i < dr.length) {
+      if (remaining[i] <= LEG_TOLERANCE) {
+        i++
+        continue
+      }
+      const take = Math.min(left, remaining[i])
+      legs.push({ debitAccount: dr[i].account!, creditAccount: credit.account!, amount: take })
+      remaining[i] -= take
+      left -= take
+    }
+  }
+  return legs
+}

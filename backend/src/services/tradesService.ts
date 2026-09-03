@@ -1,8 +1,23 @@
 import type { PoolClient } from 'pg'
 import { CURRENCIES, buyCalc, sellCalc, pkrPerUnit } from '@currencydesk/engine'
 import { appError } from './transact.js'
-import { getAccount, settlementIdFor, settlementName } from './accountHelpers.js'
+import { getAccount, settlementIdFor, settlementName, stockAccountIdFor } from './accountHelpers.js'
 import { insertCheque } from './chequeHelpers.js'
+import { buildVoucherLegs, postVoucher } from './journalService.js'
+
+/** The seeded Income account that carries trading margin. A literal id, matching how salaryService
+ *  names 'salaryExpense'/'salaryPayable' — these are CORE_ACCOUNT_IDS entries the schema guarantees. */
+const MARGIN_ACCOUNT = 'margin'
+
+/**
+ * Settlement leg of a voucher. Cheque-settled deals post NOTHING to bank or cash at deal time —
+ * the money moves when the cheque clears, which is exactly what ledgerBalance() already models by
+ * skipping Cheque-method activity and counting cleared cheques instead. Posting the cash here
+ * would recognise money the desk has not received.
+ */
+function cashLegAmount(method: string, paidNow: number): number {
+  return method === 'Cheque' ? 0 : paidNow
+}
 
 export interface TradeInput {
   customerId: string
@@ -104,12 +119,37 @@ export async function purchase(client: PoolClient, input: TradeInput, actorId: s
      ON CONFLICT (code) DO UPDATE SET available = $2, avg_cost = $3, updated_at = now()`,
     [code, newAvail, newAvg],
   )
-  await client.query(
+  // RETURNING the stored txn_date rather than re-deriving the COALESCE above in app code: the
+  // column defaults to CURRENT_DATE, so the value is not knowable until the row exists, and one
+  // fact should not have two ways of being computed. The voucher copies what was actually stored.
+  const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, currency, customer_id, customer_name, amount, rate, pkr_value, method, paid_now, outstanding, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('purchase', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::date, CURRENT_DATE), $14, $14)`,
+     VALUES ('purchase', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::date, CURRENT_DATE), $14, $14)
+     RETURNING id, txn_date`,
     [code, input.customerId, cust.name, amount, rate, pkrValue, input.method, paidNow, ledgerOutstanding, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
   )
   await client.query('UPDATE accounts SET payable = payable + $1, updated_at = now() WHERE id = $2', [ledgerOutstanding, input.customerId])
+
+  // Paired postings (requirement 7 phase 3). Currency bought is an asset gained, paid for in cash
+  // or bank now and/or owed to the customer: one debit, up to two credits.
+  //
+  // Nothing reads these rows yet, so this must not be able to fail a trade that would otherwise
+  // succeed — see buildVoucherLegs returning null when a currency has no stock account.
+  const stockAccount = await stockAccountIdFor(client, code)
+  const legs = buildVoucherLegs(
+    [{ account: stockAccount, amount: pkrValue }],
+    [
+      { account: settlementAccountId, amount: cashLegAmount(input.method, paidNow) },
+      { account: input.customerId, amount: ledgerOutstanding },
+    ],
+  )
+  if (legs) {
+    await postVoucher(
+      client,
+      { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Purchase — ${amount} ${code} from ${cust.name}`, legs },
+      actorId,
+    )
+  }
 }
 
 export async function sale(client: PoolClient, input: TradeInput, actorId: string | null): Promise<void> {
@@ -157,10 +197,41 @@ export async function sale(client: PoolClient, input: TradeInput, actorId: strin
   }
 
   await client.query('UPDATE stock_positions SET available = available - $1, updated_at = now() WHERE code = $2', [amount, input.currency])
-  await client.query(
+  // RETURNING the stored txn_date for the same reason as purchase() above.
+  const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, currency, customer_id, customer_name, amount, rate, pkr_value, cost, margin, method, paid_now, outstanding, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('sale', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::date, CURRENT_DATE), $16, $16)`,
+     VALUES ('sale', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::date, CURRENT_DATE), $16, $16)
+     RETURNING id, txn_date`,
     [input.currency, input.customerId, cust.name, amount, rate, saleValue, cost, margin, input.method, paidNow, ledgerOutstanding, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
   )
   await client.query('UPDATE accounts SET receivable = receivable + $1, updated_at = now() WHERE id = $2', [ledgerOutstanding, input.customerId])
+
+  // Paired postings (requirement 7 phase 3). Currency leaves at its weighted-average cost, the
+  // customer owes or pays the sale value, and the difference is the desk's margin.
+  //
+  // THE MARGIN LEG SWITCHES SIDES ON A LOSS. sellCalc does not clamp margin, nothing rejects a sale
+  // below weighted-average cost, and the existing reports already handle a negative one — so a loss
+  // is an ordinary outcome here, not an error. A loss is a DEBIT to Income reducing it, never a
+  // negative credit, which postVoucher would refuse outright. On a loss the stock still leaves at
+  // full cost and the shortfall is debited to margin, so the two sides still meet.
+  const stockAccount = await stockAccountIdFor(client, input.currency)
+  const cash = cashLegAmount(input.method, paidNow)
+  const legs = buildVoucherLegs(
+    [
+      { account: settlementAccountId, amount: cash },
+      { account: input.customerId, amount: ledgerOutstanding },
+      { account: MARGIN_ACCOUNT, amount: margin < 0 ? -margin : 0 },
+    ],
+    [
+      { account: stockAccount, amount: cost },
+      { account: MARGIN_ACCOUNT, amount: margin > 0 ? margin : 0 },
+    ],
+  )
+  if (legs) {
+    await postVoucher(
+      client,
+      { activityId: posted[0].id, txnDate: posted[0].txn_date, narration: `Sale — ${amount} ${input.currency} to ${cust.name}`, legs },
+      actorId,
+    )
+  }
 }
