@@ -148,6 +148,21 @@ export function reconcile(snap: Snapshot, asOfT: number): ReconResult {
 }
 
 /**
+ * Snaps a moment to the end of its local day, which is the ONLY cut the app ever makes: every
+ * branch of the engine's `rangeBounds()` ends a period at 23:59:59.999, never at the current time.
+ *
+ * Reproducing that is not a detail. `activityDate()` pins a bare 'YYYY-MM-DD' to local NOON, so a
+ * cut taken at `Date.now()` on a morning run silently excludes every deal dated today — which made
+ * this harness report a currency-stock gap of PKR 46,800 that the app itself would never show. A
+ * harness that does not cut the way the thing it audits cuts is measuring its own arithmetic.
+ */
+function endOfDay(t: number): number {
+  const d = new Date(t)
+  d.setHours(23, 59, 59, 999)
+  return d.getTime()
+}
+
+/**
  * Dates to reconcile at.
  *
  * Never only today. The two most recently fixed reporting defects were both cases where a past
@@ -164,15 +179,15 @@ export function reconciliationDates(snap: Snapshot): { label: string; t: number 
     ...snap.journalEntries.map((e) => stampTime(e.createdAt)),
   ].filter((n) => Number.isFinite(n)).sort((a, b) => a - b)
 
-  const now = Date.now()
+  const now = endOfDay(Date.now())
   if (stamps.length === 0) return [{ label: 'today', t: now }]
 
   const first = stamps[0]
   const last = stamps[stamps.length - 1]
-  const at = (f: number) => first + (last - first) * f
+  const at = (f: number) => endOfDay(first + (last - first) * f)
 
   return [
-    { label: 'before any activity', t: first - 86_400_000 },
+    { label: 'before any activity', t: endOfDay(first - 86_400_000) },
     { label: 'a quarter through', t: at(0.25) },
     { label: 'halfway', t: at(0.5) },
     { label: 'three quarters through', t: at(0.75) },
