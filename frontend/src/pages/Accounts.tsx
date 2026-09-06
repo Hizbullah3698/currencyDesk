@@ -91,6 +91,7 @@ export function Accounts() {
         )}
       </div>
 
+      {visible.length > 0 && (
       <div className="mb-5 flex items-center gap-2.5">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts" className="w-[250px] flex-none" />
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
@@ -114,7 +115,9 @@ export function Accounts() {
           })}
         </div>
       </div>
+      )}
 
+      {rows.length > 0 && (
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-0 flex-1">Account</div>
@@ -140,16 +143,26 @@ export function Accounts() {
           )
         })}
       </Card>
+      )}
+
       {rows.length === 0 &&
         (visible.length === 0 ? (
           <EmptyState
             category="neutral"
             icon={Wallet}
             title="No accounts yet."
-            // The built-in accounts the books are kept on are still there and still working —
-            // they simply have nothing posted against them yet. Said plainly, because an empty
-            // list would otherwise read as though the chart of accounts were missing.
-            description="Customers, banks and expense accounts you add will appear here. The desk's built-in accounts stay out of the way until something is posted against them."
+            // Names Bank, Cash and the currency positions specifically. They exist and are
+            // working right now — they are simply not shown until something is posted against
+            // them — and without saying so an empty list reads as though the chart of accounts
+            // were missing rather than merely unused.
+            description="Bank, Cash and your currency positions appear here once the first transaction is recorded. Add a customer, bank or expense account of your own to get started."
+            action={
+              isAdmin ? (
+                <Button variant="primary" className="px-3.5 py-2" onClick={() => openNew('Customer')}>
+                  New account
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
           <EmptyState category="neutral" icon={SearchX} title="No accounts match this filter." />

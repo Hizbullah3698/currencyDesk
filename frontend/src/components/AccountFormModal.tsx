@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { CORE_ACCOUNT_IDS, CURRENCY_LIST } from '@/lib/engine'
 import { ACCOUNT_TYPES } from '@/lib/types'
@@ -48,7 +48,7 @@ function initialForm(mode: 'new' | 'edit', editAccount: Account | undefined, def
 /** The one type-aware account form, shared by the Accounts list and the customer detail
  * page's edit pencil — same fields, same validation, same type-lock rules, everywhere it opens. */
 export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', onClose }: { mode: 'new' | 'edit'; editId?: string; defaultType?: AccountType; onClose: () => void }) {
-  const { state, isAdmin, saveAccount, deleteAccount, archiveAccount, typeLockedFor, typeLockReason } = useStore()
+  const { state, isAdmin, saveAccount, deleteAccount, archiveAccount, accountHasActivity } = useStore()
   const editAccount = editId ? state.accounts.find((a) => a.id === editId) : undefined
   const [form, setForm] = useState(() => initialForm(mode, editAccount, defaultType))
   const [error, setError] = useState('')
@@ -64,6 +64,37 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
   // Delete button is gated on `!editAccount.system`. So this is set on any failure rather than
   // matched against the server's wording, which would break the moment a message is reworded.
   const [archiveOffered, setArchiveOffered] = useState(false)
+  // Retyping an account with history asks at the MOMENT OF CHANGE, not with a banner that sits on
+  // the form whether or not anyone intends to retype anything. The type the admin picked is held
+  // here until they confirm; `form.type` is not touched until then, so backing out needs no undo.
+  const [pendingType, setPendingType] = useState<AccountType | null>(null)
+  const [typeConfirmName, setTypeConfirmName] = useState('')
+
+  /** Whether picking a different type needs confirming. Core accounts never reach this — their
+   * buttons stay disabled, because the API and migration 009's trigger both refuse a core retype
+   * outright and no amount of confirming changes that. An account nothing points at yet has
+   * nothing to misroute, so it retypes freely. */
+  const retypeNeedsConfirm = mode === 'edit' && !!editAccount && isAdmin && accountHasActivity(editAccount.id)
+
+  function pickType(t: AccountType) {
+    if (t === form.type) return
+    if (retypeNeedsConfirm && editAccount && t !== editAccount.type) {
+      setTypeConfirmName('')
+      setPendingType(t)
+      return
+    }
+    setForm((f) => ({ ...f, type: t }))
+  }
+
+  function confirmRetype() {
+    if (!pendingType) return
+    // typeOverride is what the API's own guard reads (updateAccount refuses a retype of an
+    // account with history unless it is set), so the confirmation gesture is what sets it —
+    // it is never on by default.
+    setForm((f) => ({ ...f, type: pendingType, typeOverride: true }))
+    setPendingType(null)
+    setTypeConfirmName('')
+  }
 
   async function save() {
     setBusy(true)
@@ -91,7 +122,8 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
     onClose()
   }
 
-  const locked = mode === 'edit' && typeLockedFor(editAccount) && !form.typeOverride
+  // The only genuinely immovable case. Everything else is a confirmation, not a lock.
+  const coreLocked = mode === 'edit' && !!editAccount && CORE_ACCOUNT_IDS.includes(editAccount.id)
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink/35 px-5 pb-5 pt-[70px]" onClick={onClose}>
@@ -105,46 +137,69 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
         <div className="flex flex-col gap-2.5 p-3.5">
           <div>
             <label className="mb-1 block text-meta font-semibold text-muted-70">Account type</label>
-            {locked ? (
-              <div className="inline-flex h-[30px] items-center rounded-control border border-border-input bg-surface-sunken px-2.5 text-body font-semibold text-muted-70">{form.type}</div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {ACCOUNT_TYPES.map((t) => (
+            <div className="flex flex-wrap gap-1.5">
+              {ACCOUNT_TYPES.map((t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={coreLocked}
+                  aria-pressed={form.type === t}
+                  onClick={() => pickType(t)}
+                  className={cn('text-meta', form.type === t && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                >
+                  {t}
+                </Button>
+              ))}
+            </div>
+            {coreLocked && (
+              // One quiet line, not a warning badge: this is a statement of fact about a built-in
+              // account, and there is no path — override or otherwise — that changes it.
+              <div className="mt-1.5 text-meta font-normal text-muted-60">
+                Built-in account. Its type is fixed because other parts of the app resolve it by id.
+              </div>
+            )}
+            {pendingType && editAccount && (
+              <div className="mt-2 rounded-panel border border-negative bg-negative-bg px-3 py-2.5">
+                <div className="text-body font-semibold text-negative">
+                  Change {editAccount.name} from {editAccount.type} to {pendingType}?
+                </div>
+                <div className="mt-1 text-meta font-normal leading-[1.45] text-muted-70">
+                  This account already has history, and type is how the rest of the system finds an account: trades resolve cash and
+                  bank settlement by type, salary posts against the salary accounts, sales credit Margin / Income, and every report
+                  groups accounts by type. Existing entries keep their amounts but move to a different part of the books, and nothing
+                  will warn you if something stops matching.
+                </div>
+                <label className="mt-2 block text-meta font-semibold text-muted-70">Type {editAccount.name} to confirm</label>
+                <Input
+                  value={typeConfirmName}
+                  onChange={(e) => setTypeConfirmName(e.target.value)}
+                  placeholder={editAccount.name}
+                  className="mt-1 h-[30px] text-body"
+                  autoFocus
+                />
+                <div className="mt-2 flex items-center gap-2">
                   <Button
-                    key={t}
-                    type="button"
                     variant="secondary"
                     size="sm"
-                    disabled={mode === 'edit' && !!editAccount && CORE_ACCOUNT_IDS.includes(editAccount.id)}
-                    aria-pressed={form.type === t}
-                    onClick={() => setForm((f) => ({ ...f, type: t }))}
-                    className={cn('text-meta', form.type === t && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                    onClick={() => {
+                      setPendingType(null)
+                      setTypeConfirmName('')
+                    }}
                   >
-                    {t}
+                    Keep {editAccount.type}
                   </Button>
-                ))}
-              </div>
-            )}
-            {mode === 'edit' && editAccount && typeLockedFor(editAccount) && (
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded-data border border-locked-border bg-locked-bg px-1.5 py-0.5 text-meta font-semibold text-locked-text">
-                  <Lock size={11} strokeWidth={2.4} aria-hidden="true" />
-                  {typeLockReason(editAccount)}
-                </span>
-              </div>
-            )}
-            {mode === 'edit' && editAccount && !CORE_ACCOUNT_IDS.includes(editAccount.id) && typeLockedFor(editAccount) && !form.typeOverride && isAdmin && (
-              <Button variant="outlineDestructive" size="sm" className="mt-1.5 border-dashed text-meta" onClick={() => setForm((f) => ({ ...f, typeOverride: true }))}>
-                Admin override — change type anyway
-              </Button>
-            )}
-            {form.typeOverride && (
-              <div className="mt-2 rounded-control border border-negative-border border-l-[3px] border-l-negative bg-negative-bg px-2.5 py-2">
-                <div className="mb-0.5 text-meta font-bold text-negative-deep">Admin override active</div>
-                <div className="text-meta font-normal leading-[1.45] text-negative-deep">Only for correcting a data-entry error. The type change is recorded against your name.</div>
-                <Button variant="secondary" size="sm" className="mt-1.5 text-meta" onClick={() => setForm((f) => ({ ...f, typeOverride: false, type: editAccount?.type || f.type }))}>
-                  Cancel override
-                </Button>
+                  <Button
+                    variant="outlineDestructive"
+                    size="sm"
+                    className="border-solid"
+                    disabled={typeConfirmName.trim().toLowerCase() !== editAccount.name.trim().toLowerCase()}
+                    onClick={confirmRetype}
+                  >
+                    Change to {pendingType}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

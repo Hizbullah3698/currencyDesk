@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Account, AccountType, Activity, Cheque, JournalEntry, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
-import { CORE_ACCOUNT_IDS } from './engine'
 import { useAuth } from './auth'
 import { apiUrl } from './apiBase'
 import { getCsrfToken, isCsrfError, isMutatingMethod, requestHeaders } from './csrf'
@@ -121,8 +120,6 @@ interface StoreCtx {
   /** The set behind `accountHasActivity`, exposed so a memo can depend on a stable value rather
    * than on that function, which is a new closure every render. */
   inUseAccountIds: Set<string>
-  typeLockedFor: (a?: Account) => boolean
-  typeLockReason: (a?: Account) => string
 
   saveAccount: (
     mode: 'new' | 'edit',
@@ -310,13 +307,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const accountHasActivity = (id: string) => inUseAccountIds.has(id)
 
-  const typeLockedFor = (a?: Account) => !!a && (CORE_ACCOUNT_IDS.includes(a.id) || accountHasActivity(a.id))
-  const typeLockReason = (a?: Account) => {
-    if (!a) return ''
-    if (CORE_ACCOUNT_IDS.includes(a.id)) return "Type is locked — other parts of the app depend on this account by id."
-    if (accountHasActivity(a.id)) return 'Type is locked — this account has transaction history.'
-    return ''
-  }
+  // NOTE: `typeLockedFor` / `typeLockReason` lived here until 2026-09-07 and are deliberately
+  // gone rather than left unused. They described a standing lock on the Edit Account form — a
+  // badge plus an "Admin override" link, both permanently on screen whether or not anyone
+  // intended to retype anything. That is now a confirmation asked at the moment of change
+  // (AccountFormModal's `pickType`), so a helper still phrasing it as a lock would only invite
+  // the banner back. The two facts they combined are still enforced, separately and where they
+  // belong: CORE_ACCOUNT_IDS disables the buttons outright (the API and migration 009's trigger
+  // refuse a core retype regardless), and `accountHasActivity` decides whether a change needs
+  // confirming.
 
   // Every mutating action funnels through one of these two — both apply a successful response's
   // fresh snapshot to `state` (the server's response is always the source of truth; nothing here
@@ -348,8 +347,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     employees,
     accountHasActivity,
     inUseAccountIds,
-    typeLockedFor,
-    typeLockReason,
 
     saveAccount: (mode, id, form) => (mode === 'new' ? mutateString('POST', '/api/accounts', form) : mutateString('PATCH', `/api/accounts/${id}`, form)),
     deleteAccount: (id) => mutateString('DELETE', `/api/accounts/${id}`),
