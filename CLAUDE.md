@@ -326,7 +326,7 @@ readable cross-site cookie, which this two-origin deployment makes awkward), ech
 | Stage | Change | Status |
 |---|---|---|
 | 1 | Backend issues the token and validates it *when sent*; a missing token is allowed and logged | **Shipped** |
-| 2 | Frontend sends `X-CSRF-Token` on every mutating request | Not started |
+| 2 | Frontend sends `X-CSRF-Token` on every mutating request | **Shipped and live since 2026-08-31** — `lib/csrf.ts` `requestHeaders()`, used by `store.tsx` and `settings.ts`. Re-confirmed 2026-09-06 by grepping the bundle actually served in production |
 | 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | Not started |
 
 Each stage must be confirmed live in production before the next begins. Running 3 before 2 has

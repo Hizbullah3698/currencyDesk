@@ -165,7 +165,7 @@ by a browser with scripting turned off.
 All eight points are now recorded. Each status below was checked against the actual software on
 2026-08-31, not assumed.
 
-**Summary: 7 of the 8 delivered. Requirement 7 (a true double-entry journal) is under way — the recording half is built and tested but deliberately not released, and the reports have not been switched over to it yet. See below.**
+**Summary: 7 of the 8 delivered. Requirement 7 (a true double-entry journal) is under way — the recording half is released and live in production since 2026-09-03, and the reports have not been switched over to it yet. See below.**
 
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
@@ -175,7 +175,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — built, not released** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Progress 2026-09-03:* trades, receipts, payments and cheque clearing now DO write paired entries, grouped per deal — built, tested and reviewed, but **not released and not switched on**. <br><br>*What remains:* deals recorded before 2026-09-03 have no paired entries yet, and the reports still work each figure out the old way. Until both are done the requirement is not met. A checking tool compares the two pictures and currently reports them apart by exactly the pre-2026-09-03 history; it reaching agreement is the definition of done. <br><br>*Sequencing:* **gated behind completion of the CSRF rollout** — stage 2 shipped 2026-08-31, so only stage 3 (enforcement on) now stands in front of it. Not to be started while that security work is half-finished. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. It is therefore the next concrete piece of work once stage 3 lands. <br><br>*Release gate:* unchanged and now binding — this work writes to the books, so it must not be released until the security rollout's last step is settled, which cannot happen while the system sits idle. This is the largest remaining piece of work in the project. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains, in order:* **(a)** the security rollout's final step is still unvalidated — `npm run csrf:gate:prod` cannot give a verdict until the desk has been used for a normal day, and as of 2026-09-06 the client has not recorded a single deal. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead. A checking tool compares the two pictures; it reaching agreement is the definition of this requirement being done. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -202,6 +202,93 @@ Worth noting because it represents real completed work, whether or not it maps t
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-06
+
+### Done
+
+*At a glance: no code was written and none needed to be. This was a status check before starting
+new work, and it found the project exactly where the last session left it — except that the
+tracker itself had drifted out of step with reality in two places, both now corrected.*
+
+**Nothing has happened on the live system since 2026-09-03.** The desk was cleared that day and has
+not been used since. Checked against the live database rather than read off this document: no
+deals, no accounting entries, no cheques. What is there is what the clearing left behind — the
+thirteen structural accounts, six currency positions all at zero, both logins, and the settings.
+
+Two independent signs point the same way. Since that recording began on 2026-08-31, not one request
+has reached the live server without a security token; and the newest sign-in session on record was
+last touched on the same day. As far as the system can tell, **nobody has signed in to the live desk
+since before the clearing.** The client has not started trading.
+
+**The accounting work released on 2026-09-03 is confirmed live.** The tracker said in one place
+that it was released and in another that it was not, so it was checked against the hosting record
+rather than believed: the copy of the server currently answering the live address was built from
+the main line of work seconds after the last change of that day was committed, and nothing has been
+released since. The structural database change it depends on was applied three hours before that
+release, so the ordering rule held. Every deal the client records from their first onward will be
+written with both of its sides automatically.
+
+*One limit worth stating.* The hosting's own command-line tool no longer reports which exact
+version of the code a release was built from, and the alternative route to that figure needs a
+credential this session was not permitted to read. So the conclusion rests on the release being
+built from the main line, created seconds after the final change, with nothing newer since — which
+is strong, but is reasoning from timing rather than reading the version directly. Recorded because
+"confirmed" and "inferred from three facts that agree" are different claims.
+
+**The security rollout's final step is still waiting, and the readiness check says so correctly.**
+Run against the live system, it reports **inconclusive**: no request has arrived without a token,
+but no real business has been recorded either, and an empty result from an idle desk is not
+evidence of anything. This is the check behaving exactly as designed — it was deliberately built to
+refuse a false all-clear rather than flatter an unused system. Widening the window would not help;
+there is no business activity in the database at any date.
+
+Separately confirmed that enforcement is genuinely still off on the live server, by reading the
+hosting's own settings rather than the local copy of them: the setting that would switch it on is
+not present at all.
+
+**Two entries in this document were out of step with the system and are now fixed.**
+
+*The requirement 7 row said the work was built but not released, and that it must not be released
+until the security rollout finished.* Both were true when written and neither is true now — the
+recording half was released on 2026-09-03, and the same day's log entry in Part 3 explicitly
+retired that release gate. The row has been rewritten to match: released and live, the gate
+dropped, and what actually remains stated in order — validate the security step once real trading
+gives it something to measure, then switch the reports over.
+
+*The developer guide said the frontend half of the security rollout had not been started.* It has
+been live since 2026-08-31, which Part 3 of this document has recorded correctly all along. Checked
+by reading the actual JavaScript being served to staff, not just the source, before changing the
+line.
+
+Both were stale rather than wrong-headed — the kind of drift that happens when a document is
+updated in one place and not another. Worth fixing promptly all the same: the requirement 7 row is
+the line anyone would read first to decide what to do next, and it would have sent them to finish a
+release that is already finished.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The requirement 7 row claimed the accounting work was unreleased and gated behind the security rollout, while Part 3 of the same document recorded it as released and the gate as dropped | Real but documentary. Anyone reading the summary table first would have set out to release something already live, and treated a dropped gate as binding | **Fixed 2026-09-06** — row rewritten from the live system, with the correction stated rather than quietly applied |
+| The developer guide listed the frontend half of the security rollout as "not started" when it has been live since 2026-08-31 | Real. It understates how far the rollout has got, and the next step is the one that can lock users out — a wrong picture of what has shipped is exactly the wrong thing to have there | **Fixed 2026-09-06**, after confirming against the code actually being served |
+| The exact version of the code behind the live release could not be read directly | Low. Three independent facts agree on the answer; none of them is the answer itself | **Open — noted, not chased.** Readable from the hosting dashboard if it ever matters |
+| The live database's address is still a single shared setting covering both the live system and any test copy | Real but already contained — test copies are no longer built, and the server refuses to start as one unless someone declares its database separate. The shared setting is the shape of the old risk, not the risk itself | **Open — carried.** Closing it properly means giving test copies their own database, which is only worth doing if test copies are ever wanted again |
+
+### Next — in priority order
+
+Unchanged from 2026-09-03. Nothing here is blocked on work to be done; the first item is blocked on
+the client using the system.
+
+1. **Finish the security rollout.** The readiness check can only give a verdict once the desk has
+   been used for a normal day. Re-run it then. Nothing else about it needs building.
+2. **Switch the reports over** (the last step of requirement 7): retire the four separate ways each
+   figure is currently worked out, one at a time, re-running the checking tool between each until
+   it reports agreement.
+3. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+   started.
+4. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+   balance; the PDF export question; the pre-existing sessions; and the misleading error message.
 
 ## 2026-09-03
 
