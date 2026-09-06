@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg'
 import { CORE_ACCOUNT_IDS, CURRENCIES, type AccountType } from '@currencydesk/engine'
 import { appError } from './transact.js'
-import { accountHasActivity, getAccount } from './accountHelpers.js'
+import { accountHasActivity, describeAccountReferences, getAccount } from './accountHelpers.js'
 
 export interface AccountForm {
   type: AccountType
@@ -169,18 +169,61 @@ export async function updateAccount(client: PoolClient, id: string, form: Accoun
   await client.query('UPDATE cheques SET party = $1 WHERE customer_id = $2', [name, id])
 }
 
+// ---------------------------------------------------------------------------
+// WHY `is_system` AND NOT `CORE_ACCOUNT_IDS` GOVERNS DELETION
+// ---------------------------------------------------------------------------
+//
+// Two different sets answering two different questions, and conflating them is the bug this
+// replaced.
+//
+//   CORE_ACCOUNT_IDS (7 ids)  "something resolves this by literal id" — salary posts against
+//                             'salaryExpense'/'salaryPayable', opening balances against
+//                             'capital', Cash settlement against 'cash' with 'bank' as the Bank
+//                             fallback. That is what makes RETYPING them unsafe, which is what
+//                             migration 009's trigger enforces. Deliberately unchanged.
+//
+//   is_system (13 accounts)   "this is the structural chart of accounts" — true for everything
+//                             migrations 008/012/014 seed, false for everything the desk creates
+//                             afterwards. This is the right predicate for DELETION.
+//
+// The gap between the two is the six Currency Stock accounts, and it turned dangerous when
+// requirement 7 went live. Migration 012 left them out of CORE_ACCOUNT_IDS because "nothing
+// resolves them by literal id" — still true, and no longer the whole story. `stockAccountIdFor`
+// resolves them by `code`, so deleting one produces two silent faults rather than an error:
+//
+//   1. Every later trade in that currency posts NO voucher. buildVoucherLegs returns null on a
+//      side with no account and the caller's policy is that the trade still succeeds — right for
+//      a currency whose seed migration never ran, catastrophic for one an admin deleted, because
+//      it quietly drops the auditable record requirement 7 exists to produce.
+//   2. That currency's holding stops being an asset. computeBalanceSheet iterates Currency Stock
+//      ACCOUNTS and values each from stock_positions, so the position stays in the ledger, stays
+//      on the Stock page, and simply leaves the balance sheet.
+//
+// Neither shows up as an error, which is what makes the scaffold undeletable rather than merely
+// discouraged.
+// ---------------------------------------------------------------------------
+
 export async function deleteAccount(client: PoolClient, id: string): Promise<void> {
   const acc = await getAccount(client, id)
   if (!acc) throw appError(400, "This account can't be deleted.")
-  if (CORE_ACCOUNT_IDS.includes(id)) throw appError(400, "This account can't be deleted — other parts of the app depend on it by id.")
-  if (await accountHasActivity(client, id)) throw appError(400, "This account has transactions posted against it and can't be deleted.")
+  if (acc.is_system) throw appError(400, "This is a built-in account and can't be deleted — the desk's own books are kept on it.")
+  const reference = await describeAccountReferences(client, id)
+  if (reference) throw appError(400, `${acc.name} ${reference} and can't be deleted. Archive it instead — that hides it without losing the history.`)
+  // receivable/payable are STORED columns, not derived from the journal, so this is not implied
+  // by the reference check above. Through the app the two always move together — every path that
+  // touches a balance also writes a row that describeAccountReferences would find — but the
+  // 2026-09-03 fault was precisely these columns drifting out of step with the journal, and
+  // deleting an account carrying money is not the place to assume they cannot drift again.
+  if ((acc.receivable || 0) !== 0 || (acc.payable || 0) !== 0) {
+    throw appError(400, `${acc.name} still carries a balance. Settle it first, or archive the account to hide it without losing the history.`)
+  }
   await client.query('DELETE FROM accounts WHERE id = $1', [id])
 }
 
 export async function archiveAccount(client: PoolClient, id: string, actorId: string | null): Promise<void> {
   const acc = await getAccount(client, id)
   if (!acc) throw appError(400, "This account can't be archived.")
-  if (CORE_ACCOUNT_IDS.includes(id)) throw appError(400, "This account can't be archived — other parts of the app depend on it by id.")
+  if (acc.is_system) throw appError(400, "This is a built-in account and can't be archived — the desk's own books are kept on it.")
   await client.query('UPDATE accounts SET archived = true, archived_at = now(), archived_by = $2 WHERE id = $1', [id, actorId])
 }
 

@@ -48,11 +48,22 @@ function initialForm(mode: 'new' | 'edit', editAccount: Account | undefined, def
 /** The one type-aware account form, shared by the Accounts list and the customer detail
  * page's edit pencil — same fields, same validation, same type-lock rules, everywhere it opens. */
 export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', onClose }: { mode: 'new' | 'edit'; editId?: string; defaultType?: AccountType; onClose: () => void }) {
-  const { state, isAdmin, saveAccount, deleteAccount, typeLockedFor, typeLockReason } = useStore()
+  const { state, isAdmin, saveAccount, deleteAccount, archiveAccount, typeLockedFor, typeLockReason } = useStore()
   const editAccount = editId ? state.accounts.find((a) => a.id === editId) : undefined
   const [form, setForm] = useState(() => initialForm(mode, editAccount, defaultType))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Deletion is two clicks, never one. The old single-click Delete sat next to Cancel and Save
+  // and removed the account on the first press with nothing to catch a mis-click — the only
+  // destructive action in the app without a second gate.
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Set when a delete is refused, so Archive can be offered right where the refusal is read
+  // rather than left for the user to go and find. Every reason a delete is refused HERE — rows
+  // still pointing at the account, or a balance still on it — is one archiving solves, because
+  // the one refusal it does not solve (a built-in account) cannot reach this button at all: the
+  // Delete button is gated on `!editAccount.system`. So this is set on any failure rather than
+  // matched against the server's wording, which would break the moment a message is reworded.
+  const [archiveOffered, setArchiveOffered] = useState(false)
 
   async function save() {
     setBusy(true)
@@ -64,6 +75,17 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
   async function remove() {
     setBusy(true)
     const err = await deleteAccount(editId)
+    setBusy(false)
+    if (err) {
+      setConfirmingDelete(false)
+      setArchiveOffered(true)
+      return setError(err)
+    }
+    onClose()
+  }
+  async function archive() {
+    setBusy(true)
+    const err = await archiveAccount(editId)
     setBusy(false)
     if (err) return setError(err)
     onClose()
@@ -192,19 +214,65 @@ export function AccountFormModal({ mode, editId = '', defaultType = 'Customer', 
           <Field label="Notes">
             <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Anything worth remembering about this account" className="py-1.5 text-body" />
           </Field>
-          {error && <div className="text-body font-semibold text-negative">{error}</div>}
+          {error && (
+            <div className="flex flex-col gap-2">
+              <div className="text-body font-semibold text-negative">{error}</div>
+              {archiveOffered && (
+                <Button variant="secondary" className="self-start" disabled={busy} onClick={archive}>
+                  Archive {editAccount?.name} instead
+                </Button>
+              )}
+            </div>
+          )}
+          {confirmingDelete && (
+            <div className="rounded-panel border border-negative bg-negative-bg px-3 py-2.5">
+              <div className="text-body font-semibold text-negative">Delete {editAccount?.name}?</div>
+              <div className="mt-1 text-meta font-normal leading-[1.45] text-muted-70">
+                This removes the account from the books for good. It is only possible while nothing is posted against it — archiving hides an
+                account without losing anything.
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-end gap-2 border-t border-divider pt-2.5">
-            {mode === 'edit' && editAccount && !CORE_ACCOUNT_IDS.includes(editAccount.id) && (
-              <Button variant="outlineDestructive" className="mr-auto border-solid" disabled={busy} onClick={remove}>
-                Delete
-              </Button>
+            {/* is_system, NOT CORE_ACCOUNT_IDS. The seven core ids leave the six Currency Stock
+                accounts unguarded, and deleting one of those posts no voucher on every later trade
+                in that currency and drops the holding off the balance sheet — both silently. See
+                accountsService.deleteAccount for the full reasoning. */}
+            {mode === 'edit' && editAccount && !editAccount.system && isAdmin && (
+              confirmingDelete ? (
+                <>
+                  <Button variant="secondary" className="mr-auto" disabled={busy} onClick={() => setConfirmingDelete(false)}>
+                    Keep account
+                  </Button>
+                  <Button variant="outlineDestructive" className="border-solid" disabled={busy} onClick={remove}>
+                    {busy ? 'Deleting…' : 'Delete permanently'}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outlineDestructive"
+                  className="mr-auto border-solid"
+                  disabled={busy}
+                  onClick={() => {
+                    setError('')
+                    setArchiveOffered(false)
+                    setConfirmingDelete(true)
+                  }}
+                >
+                  Delete
+                </Button>
+              )
             )}
-            <Button variant="secondary" disabled={busy} onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" disabled={busy} onClick={save}>
-              {busy ? 'Saving…' : mode === 'new' ? 'Create account' : 'Save changes'}
-            </Button>
+            {!confirmingDelete && (
+              <>
+                <Button variant="secondary" disabled={busy} onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button variant="primary" disabled={busy} onClick={save}>
+                  {busy ? 'Saving…' : mode === 'new' ? 'Create account' : 'Save changes'}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Card>

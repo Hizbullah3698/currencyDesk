@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Account, AccountType, Activity, Cheque, JournalEntry, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
 import { CORE_ACCOUNT_IDS } from './engine'
@@ -118,6 +118,9 @@ interface StoreCtx {
   customers: () => Account[]
   employees: () => Account[]
   accountHasActivity: (id: string) => boolean
+  /** The set behind `accountHasActivity`, exposed so a memo can depend on a stable value rather
+   * than on that function, which is a new closure every render. */
+  inUseAccountIds: Set<string>
   typeLockedFor: (a?: Account) => boolean
   typeLockReason: (a?: Account) => string
 
@@ -271,8 +274,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const customers = () => state.accounts.filter((a) => a.type === 'Customer')
   const employees = () => state.accounts.filter((a) => a.type === 'Employee')
 
-  const accountHasActivity = (id: string) =>
-    state.activity.some((t) => t.customerId === id) || state.cheques.some((q) => q.customerId === id) || state.journalEntries.some((e) => e.debitAccount === id || e.creditAccount === id)
+  // Every account id anything points at — the client-side twin of accountHelpers.ts's
+  // describeAccountReferences, over the SAME seven paths, so the screen and the server never
+  // disagree about which accounts are in use. The three that are easy to forget, and that were
+  // missing here until 2026-09-06: a trade's settlement account, a cheque's bank account, and a
+  // salary posting's employee (a salary accrual posts Dr salaryExpense / Cr salaryPayable, so
+  // the employee is never a leg and an employee with a year of payroll read as untouched).
+  //
+  // Built once per snapshot as a Set rather than scanned per account. The Accounts page now asks
+  // this for every account on every render to decide what to show, which is O(accounts × rows)
+  // as a per-id scan; it is also what makes the memo downstream able to depend on a stable value
+  // instead of a fresh closure.
+  //
+  // An Operator's snapshot omits journal entries with an Income leg, so this can under-report for
+  // an Income account on a non-admin screen. Harmless in practice: the only Income account is the
+  // built-in 'margin', which is a system account and therefore neither hidden nor deletable.
+  const inUseAccountIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const t of state.activity) {
+      if (t.customerId) ids.add(t.customerId)
+      if (t.settlementAccountId) ids.add(t.settlementAccountId)
+    }
+    for (const q of state.cheques) {
+      if (q.customerId) ids.add(q.customerId)
+      if (q.bankAccountId) ids.add(q.bankAccountId)
+    }
+    for (const e of state.journalEntries) {
+      ids.add(e.debitAccount)
+      ids.add(e.creditAccount)
+      if (e.salary) ids.add(e.salary.employeeId)
+      if (e.openingFor) ids.add(e.openingFor)
+    }
+    return ids
+  }, [state.activity, state.cheques, state.journalEntries])
+
+  const accountHasActivity = (id: string) => inUseAccountIds.has(id)
 
   const typeLockedFor = (a?: Account) => !!a && (CORE_ACCOUNT_IDS.includes(a.id) || accountHasActivity(a.id))
   const typeLockReason = (a?: Account) => {
@@ -311,6 +347,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     customers,
     employees,
     accountHasActivity,
+    inUseAccountIds,
     typeLockedFor,
     typeLockReason,
 

@@ -8,6 +8,10 @@ export async function getAccount(client: PoolClient, id: string | null | undefin
         id: string
         type: string
         name: string
+        // The structural chart-of-accounts flag — true for the 13 accounts migrations 008/012/014
+        // seed. It is the delete/archive predicate (see accountsService), which is why it is on
+        // this type at all: a caller that forgets it would silently offer to delete the scaffold.
+        is_system: boolean
         receivable: number
         payable: number
         monthly_salary: number | null
@@ -70,13 +74,87 @@ export async function stockAccountIdFor(client: PoolClient, code: string): Promi
   return rows[0]?.id ?? null
 }
 
-export async function accountHasActivity(client: PoolClient, id: string): Promise<boolean> {
-  const { rows } = await client.query(
-    `SELECT 1 FROM activity WHERE customer_id = $1
-     UNION ALL SELECT 1 FROM cheques WHERE customer_id = $1
-     UNION ALL SELECT 1 FROM journal_entries WHERE debit_account = $1 OR credit_account = $1
-     LIMIT 1`,
+/**
+ * Every way a row elsewhere can point at an account, counted in one pass.
+ *
+ * WHY ALL SEVEN AND NOT THE OBVIOUS THREE. Each of these columns is a plain
+ * `REFERENCES accounts(id)` with no ON DELETE clause, so Postgres defaults to NO ACTION and
+ * refuses the delete. Integrity was therefore never at risk — but a raw 23503 is not an
+ * appError, so handleMutation rethrows it and the global handler answers
+ * `500 Something went wrong`. Three of these columns were unchecked and each is genuinely
+ * reachable:
+ *
+ *   - `journal_entries.salary_employee_id` — salary accrual posts Dr salaryExpense / Cr
+ *     salaryPayable, so the EMPLOYEE IS NEVER A LEG. An employee with a full year of payroll
+ *     behind them looked completely unreferenced to the old three-column check.
+ *   - `cheques.bank_account_id` — a cheque names a bank account from the day it is taken, but
+ *     nothing journals against that bank until it clears.
+ *   - `activity.settlement_account_id` — a Cheque-method trade records no money movement on the
+ *     day by design, so the settlement account carries no voucher leg yet.
+ *
+ * `journal_entries.opening_for` is included for completeness; in practice it always accompanies
+ * a debit/credit leg on the same row, so it never fires alone.
+ *
+ * One query rather than seven, and deliberately not seven queries in a `Promise.all` — a single
+ * client runs one statement at a time.
+ */
+export interface AccountReferences {
+  trades: number
+  settlements: number
+  cheques: number
+  chequesDrawnOn: number
+  journalEntries: number
+  salaryPostings: number
+  openingBalances: number
+}
+
+export async function accountReferences(client: PoolClient, id: string): Promise<AccountReferences> {
+  const { rows } = await client.query<Record<keyof AccountReferences, number>>(
+    `SELECT
+       (SELECT count(*) FROM activity        WHERE customer_id           = $1)::int AS trades,
+       (SELECT count(*) FROM activity        WHERE settlement_account_id = $1)::int AS settlements,
+       (SELECT count(*) FROM cheques         WHERE customer_id           = $1)::int AS cheques,
+       (SELECT count(*) FROM cheques         WHERE bank_account_id       = $1)::int AS "chequesDrawnOn",
+       (SELECT count(*) FROM journal_entries WHERE debit_account = $1 OR credit_account = $1)::int AS "journalEntries",
+       (SELECT count(*) FROM journal_entries WHERE salary_employee_id    = $1)::int AS "salaryPostings",
+       (SELECT count(*) FROM journal_entries WHERE opening_for           = $1)::int AS "openingBalances"`,
     [id],
   )
-  return (rows.length ?? 0) > 0
+  return rows[0]
+}
+
+function count(n: number, singular: string, plural = singular + 's'): string {
+  return `${n} ${n === 1 ? singular : plural}`
+}
+
+/**
+ * A phrase naming what still points at this account, or null when nothing does.
+ *
+ * Reads as the middle of a sentence: `${name} ${phrase} and can't be deleted.` Naming the
+ * specific rows matters more than it looks — "this account has transactions posted against it"
+ * sends an admin hunting through a customer's trades for an employee whose only trace is a
+ * payroll posting they cannot see from the Accounts page at all.
+ */
+export async function describeAccountReferences(client: PoolClient, id: string): Promise<string | null> {
+  const r = await accountReferences(client, id)
+  const parts: string[] = []
+  if (r.trades > 0) parts.push(count(r.trades, 'transaction'))
+  if (r.settlements > 0) parts.push(count(r.settlements, 'transaction') + ' settled through it')
+  if (r.cheques > 0) parts.push(count(r.cheques, 'cheque'))
+  if (r.chequesDrawnOn > 0) parts.push(count(r.chequesDrawnOn, 'cheque') + ' drawn on it')
+  if (r.journalEntries > 0) parts.push(count(r.journalEntries, 'journal entry', 'journal entries'))
+  if (r.salaryPostings > 0) parts.push(count(r.salaryPostings, 'salary posting'))
+  if (parts.length === 0 && r.openingBalances > 0) parts.push('an opening balance')
+  if (parts.length === 0) return null
+  const listed = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]
+  return `has ${listed} against it`
+}
+
+/**
+ * Whether anything at all references this account. The type lock in `updateAccount` reads this,
+ * and `store.tsx` mirrors it client-side over the same seven paths so the screen and the server
+ * agree about which accounts are in use.
+ */
+export async function accountHasActivity(client: PoolClient, id: string): Promise<boolean> {
+  return (await describeAccountReferences(client, id)) !== null
 }
