@@ -333,8 +333,15 @@ Each stage must be confirmed live in production before the next begins. Running 
 fully propagated locks out every user still holding a cached pre-stage-2 bundle. Stage 3 is an env
 flag rather than a code change specifically so the lockout-capable step is revertible by flipping a
 variable; only the exact string `"true"` enables it, so a typo fails open. **The gate on starting
-stage 3** is the stage-1 log line `[csrf] mutating request with no token: METHOD /path` going quiet
-in production.
+stage 3** is `npm run csrf:gate:prod` reporting SAFE: zero rows in `csrf_missing_token` over a
+window in which `activity`/`journal_entries` show real traffic. Both halves are load-bearing — an
+empty table on an idle desk is `INCONCLUSIVE`, not a green light, which is why the check cannot be
+settled until the client has traded for a normal day. The stage-1 log line `[csrf] mutating request
+with no token: METHOD /path` is the convenient live view while tailing and **cannot** be the gate:
+Vercel's runtime logs are deployment-scoped and briefly retained (measured — a warning logged at
+13:40 was unretrievable by 16:05, and every push to main rotates the deployment), so a quiet log is
+indistinguishable between "no untokened requests", "this deployment is new" and "the entry aged
+out". See migration `013`'s header.
 
 `/me` returning the token (not just `/login`) is load-bearing: it is the only call a returning user
 makes without re-authenticating, so it is how a pre-middleware session acquires one. Already strict
