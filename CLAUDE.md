@@ -386,10 +386,10 @@ readable cross-site cookie, which this two-origin deployment makes awkward), ech
 |---|---|---|
 | 1 | Backend issues the token and validates it *when sent*; a missing token is allowed and logged | **Shipped** |
 | 2 | Frontend sends `X-CSRF-Token` on every mutating request | **Shipped and live since 2026-08-31** — `lib/csrf.ts` `requestHeaders()`, used by `store.tsx` and `settings.ts`. Re-confirmed 2026-09-06 by grepping the bundle actually served in production |
-| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | **Switched on and safe in production since 2026-09-09.** `csrf:gate:prod` returned SAFE (0 untokened requests against 7 real business writes); `CSRF_ENFORCE` is set on the backend project's Production environment; the live-aliased deployment was rebuilt with it; and a real signed-in sale (500 USD, Ahmed Khan) went through afterwards with no CSRF error. **What that sale proves is NO LOCKOUT, which is the risk this stage carries — it does not observe the flag. See below.** Roll back with `vercel env rm CSRF_ENFORCE production` + redeploy |
+| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | **Complete — verified armed in production 2026-09-09.** A `POST` to a routeless `/api` path, authenticated, with no `X-CSRF-Token`, returned `403 {"error":"Missing security token. Reload the page and try again."}`. That string is emitted from exactly one place: inside `if (env.csrfEnforce)`. With the flag off that branch warns and calls `next()`, which would have produced a 404. Roll back with `vercel env rm CSRF_ENFORCE production` + redeploy |
 
-**A successful trade does not prove enforcement is armed, and it is worth being exact about why.**
-Read the order in `csrfProtection`:
+**How stage 3 was actually verified, because the obvious check does not work.** A successful trade
+proves nothing about the flag. `env.csrfEnforce` is read **only** in the token-absent branch:
 
 ```text
 if (SAFE_METHODS || EXEMPT_PATHS)  next()
@@ -400,43 +400,52 @@ if (env.csrfEnforce)               403
 else                               warn → next()   // ← csrfEnforce is read ONLY here
 ```
 
-`env.csrfEnforce` is consulted **only** when the token is absent. A stage-2 client always sends one,
-so every request the app makes takes the `received !== null` path, which is byte-identical whether
-enforcement is on or off. A tokened request succeeding therefore tells you the rollout did not break
-anything — the whole risk of this stage — and tells you nothing about the flag's value.
+A stage-2 client always sends a token, so every request the app makes takes the `received !== null`
+path — byte-identical whether enforcement is on or off. A working trade proves **no lockout**, which
+is the risk this stage carries, and nothing more. Vercel also returns an encrypted envelope rather
+than plaintext for a stored variable, so the value cannot simply be read back.
 
-Two things also block reading the flag directly: an unauthenticated mutating request is passed
-through by design (so no external probe reaches the branch), and Vercel returns an encrypted
-envelope rather than plaintext for a stored variable, sensitive or not.
-
-**The probe that does discriminate** is a mutating request that is authenticated, carries no
-`X-CSRF-Token`, and has a deliberately invalid body — the bad body guarantees no mutation either
-way, because validation sits behind the middleware:
-
-- enforcement **on** → `403 {"error":"Missing security token. Reload the page and try again."}`
-- enforcement **off** → passes CSRF, reaches the route, fails validation → `400`
-
-Run from the browser console of a signed-in production tab:
+**The probe that does discriminate**, run from the console of a signed-in production tab, with a GET
+control alongside so a CORS or session failure cannot be misread as a result:
 
 ```js
-await (await fetch('/api/trades/purchase', {
+const API = 'https://currency-desk-backend-jf1x.vercel.app'
+await fetch(API + '/api/auth/me', { credentials: 'include' })          // control → 200
+await fetch(API + '/api/trades/__csrf_probe__', {                      // 403 armed / 404 not
   method: 'POST', credentials: 'include',
-  headers: { 'Content-Type': 'application/json' },
-  body: '{}',
-})).status   // 403 = armed, 400 = flag not taking effect
+  headers: { 'Content-Type': 'application/json' }, body: '{}',
+})
 ```
 
-Note it writes a `csrf_missing_token` row either way (`recordMissingToken` runs before the branch),
-so a later `csrf:gate:prod` will show 1 — expected, and not a regression.
+**Use a path with no route behind it.** An earlier draft of this used a real endpoint with an invalid
+body; that also works, but it enters `handleMutation` and opens a transaction before failing
+validation. A routeless path cannot touch the books at all, which is what you want when probing
+production.
 
-Each stage must be confirmed live in production before the next begins. Running 3 before 2 has
+**It writes one `csrf_missing_token` row** — `recordMissingToken` runs *before* the enforce branch,
+by design. So `csrf:gate:prod` reported `NOT SAFE — 1 request missing a token, POST
+/api/trades/__csrf_probe__` immediately afterwards. **That is the probe, not a regression**, and it
+ages out of the 48-hour window on its own. Check the `where` line before treating a NOT SAFE as real.
+
+**A trap in the gate's own output, now that the flag lives only on Vercel.** The
+`enforcement currently: …` line reflects whatever the *locally* loaded `.env.production` says, not
+the deployed environment. That file has no `CSRF_ENFORCE`, so the line reads `off` even though
+production is armed. Do not read it as the state of the live system; the probe above is what settles
+that.
+
+**The rollout is finished** — all three stages shipped and verified live, the last on 2026-09-09.
+What follows is the reasoning that produced them, kept because it explains why the pieces are shaped
+as they are and what to preserve.
+
+Each stage had to be confirmed live in production before the next began. Running 3 before 2 has
 fully propagated locks out every user still holding a cached pre-stage-2 bundle. Stage 3 is an env
 flag rather than a code change specifically so the lockout-capable step is revertible by flipping a
 variable; only the exact string `"true"` enables it, so a typo fails open. **The gate on starting
-stage 3** is `npm run csrf:gate:prod` reporting SAFE: zero rows in `csrf_missing_token` over a
-window in which `activity`/`journal_entries` show real traffic. Both halves are load-bearing — an
-empty table on an idle desk is `INCONCLUSIVE`, not a green light, which is why the check cannot be
-settled until the client has traded for a normal day. The stage-1 log line `[csrf] mutating request
+stage 3** was `npm run csrf:gate:prod` reporting SAFE: zero rows in `csrf_missing_token` over a
+window in which `activity`/`journal_entries` show real traffic — it returned SAFE with 0 untokened
+requests against 7 real business writes, and that is what the switch-on was made on. Both halves are
+load-bearing — an empty table on an idle desk is `INCONCLUSIVE`, not a green light, which is why the
+check could not be settled until the client had traded. The stage-1 log line `[csrf] mutating request
 with no token: METHOD /path` is the convenient live view while tailing and **cannot** be the gate:
 Vercel's runtime logs are deployment-scoped and briefly retained (measured — a warning logged at
 13:40 was unretrievable by 16:05, and every push to main rotates the deployment), so a quiet log is

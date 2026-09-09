@@ -175,7 +175,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains, in order:* **(a)** the security rollout's final step is still unvalidated — `npm run csrf:gate:prod` cannot give a verdict until the desk has been used for a normal day. **As of 2026-09-09 the client has started trading**, so this is no longer blocked: the check has real traffic to measure for the first time and should be re-run. (It was blocked on exactly this from 2026-09-03 to 2026-09-06, when the desk sat idle.) **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead. A checking tool compares the two pictures; it reaching agreement is the definition of this requirement being done. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens — confirmed on 2026-09-09, when the first real trades produced their paired entries as designed. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains:* ~~**(a)** the security rollout's final step~~ — **done 2026-09-09.** It was blocked from 2026-09-03 to 2026-09-06 on an idle desk; the client started trading on 2026-09-09, the readiness check returned SAFE on real traffic, the final step was switched on, and it was then proven to be actively refusing untokened requests. Nothing on the security work remains. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead. A checking tool compares the two pictures; it reaching agreement is the definition of this requirement being done. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens — confirmed on 2026-09-09, when the first real trades produced their paired entries as designed. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -355,25 +355,31 @@ carries. The danger of switching on rejection was that staff would be locked out
 they are not, and it has now been demonstrated with a real deal on real books rather than argued
 from configuration. **Staff are unaffected and the desk is working normally.**
 
-*What that deal does not tell us, stated plainly because the difference matters.* The rejection only
-comes into play for a request that arrives **without** a security token. The desk's own screens
-always send one, so a deal recorded from them takes a different path through the code entirely — a
-path that behaves identically whether rejection is switched on or off. So a successful deal proves
-nobody is locked out. It does not observe the switch, and cannot.
+*What that deal did not tell us, and why a second check was needed.* The rejection only comes into
+play for a request arriving **without** a security token. The desk's own screens always send one, so
+a deal recorded from them travels a different path through the code entirely — one that behaves
+identically whether rejection is switched on or off. A successful deal proves nobody is locked out.
+It cannot observe the switch.
 
-Saying otherwise would be the same kind of drift this document has had to correct twice already: a
-status that reads "verified working" resting on evidence that does not bear on it. The distinction is
-recorded rather than smoothed over.
+**So a second, deliberate check was run, and the rollout is now complete.** From a signed-in browser
+on the live system, a request was sent that deliberately omitted its security token and pointed at
+an address with nothing behind it — chosen so that nothing could be recorded whichever way it went.
+The server **refused it outright**, with the exact message it only produces when rejection is
+switched on. Had the switch not been taking effect, that request would have been let through and
+answered "no such address" instead. A normal read was made alongside it and succeeded, so the
+refusal was the protection acting and not a connection or sign-in problem.
 
-*What would settle the remaining half* is a deliberately malformed request sent without a security
-token from a signed-in browser: rejected means the switch is live, accepted-then-failing-validation
-means it is not. The exact one-line check is in the developer guide. It is safe to run — the
-malformed content guarantees nothing is recorded either way — and takes a few seconds. Nobody has
-run it yet.
+**That is the whole rollout finished.** The desk now refuses any instruction that does not carry
+proof it came from the desk's own screens — the protection this three-stage piece of work existed to
+build. Staff are unaffected: the same day's real deals went through normally.
 
-*Why this is not urgent.* The switch can only fail towards **off**, which is where the system was
-before. So the untested half cannot cause an outage; at worst the protection is not yet doing
-anything, which was the position all week. The half that could have hurt is the half now proven.
+*One housekeeping note so a later reader is not alarmed.* The deliberate check leaves a record of
+itself, by design — the system logs every untokened request whether it refuses it or not. So the
+readiness tool now reports **NOT SAFE, 1 request missing a token**. That entry is the check itself
+(its address is recorded alongside it and is the made-up one used above), not a real fault, and it
+disappears from the tool's two-day window on its own. A second trap worth knowing: that tool's
+"enforcement currently" line reads the developer's own local settings, not the live server's, so it
+says "off" even though the live server is armed. Neither is a problem; both would look like one.
 
 ### Found
 
@@ -387,7 +393,8 @@ anything, which was the position all week. The half that could have hurt is the 
 | Two search boxes on the Customers screen, and the more obvious one did nothing without Enter | Real | **Fixed 2026-09-09** |
 | The balance sheet listed accounts holding nothing | Real but cosmetic | **Fixed 2026-09-09**, presentation only — no figure moved |
 | A currency account's row opened a form with none of that currency's information in it | Real | **Fixed 2026-09-09** — it opens the currency ledger now |
-| Stage 3 of the security rollout is on and proven not to lock anyone out — a real 500 USD sale went through cleanly — but whether the rejection itself is armed is still untested | Low, and the two halves are worth separating. The half that could have caused an outage is settled. The untested half can only fail towards "off", which is where the system already was | **Open, narrowly.** One deliberately malformed request from a signed-in browser settles it; the command is in the developer guide. Not urgent, and safe to run |
+| The security rollout's final stage is complete — switched on, proven not to lock anyone out, and proven to be actively refusing untokened requests | n/a — this is the work finishing, recorded because it took two separate checks proving two different things, and only the second one settles it | **Closed 2026-09-09.** Both checks passed and both are cited in the developer guide |
+| The readiness tool now reports NOT SAFE, and its "enforcement currently" line says off | Neither is a fault. The first is the deliberate check's own footprint and clears itself within two days; the second reads local settings rather than the live server's | **Documented, not fixed.** Both are recorded in the developer guide so they are not mistaken for regressions |
 | Full deletion of an account with history is still refused | Working as designed. Raised with the client with the cost spelled out; they chose to keep it | **Closed — no change wanted.** Archiving is the route, and it now works properly |
 | The new archived switch clipped the last type filter mid-word | Cosmetic, and introduced by this session's own fix | **Fixed 2026-09-09**, found by looking at the screen rather than by reasoning about it |
 | With every customer archived, the Customers screen claimed none were on file, contradicting the header above it | Real, and pre-existing rather than introduced here — but the same fault as the one the client reported, so fixed alongside it | **Fixed 2026-09-09** |
@@ -396,11 +403,9 @@ anything, which was the position all week. The half that could have hurt is the 
 
 The list is unchanged from 2026-09-06 except that its first item is no longer blocked.
 
-1. **Close the last half-question on the security rollout.** It is switched on, and a real deal has
-   proven it locks nobody out — the risk that mattered. What remains is confirming the rejection is
-   genuinely armed, which takes one deliberately malformed request from a signed-in browser (the
-   command is in the developer guide, and it is safe to run). Not urgent: the untested half can only
-   fail towards "off".
+1. ~~Finish the security rollout.~~ **Done 2026-09-09** — switched on, proven not to lock anyone
+   out, and proven to be actively refusing untokened requests. Nothing remains on it. **The next
+   item is now first.**
    With that done, the rollout is finished.
 2. **Switch the reports over** (the last step of the accounting work): retire the four separate
    ways each figure is currently worked out, one at a time, re-running the checking tool between
