@@ -333,6 +333,42 @@ enforcement on is a one-variable change and revertible the same way, so the choi
 it now on a thin-but-clean result, or re-running the check after a fuller week and acting on a
 stronger one. **This is the client's call and has not been made.** Nothing has been switched on.
 
+**The security rollout's final step was switched on, and the decision is the client's, taken on the
+evidence.** The readiness check was re-run after a third deal was recorded and reported SAFE with
+more behind it than the first run: over 48 hours, **zero** requests reached the server without a
+security token, against **7 real business writes** — three trades across two customers and the four
+accounting entries they produced. The earlier reservation about thin traffic is materially reduced,
+though it is still one day.
+
+The setting was added to the live server's configuration and the running copy rebuilt to pick it up.
+The server is answering normally afterwards, which also confirms it started cleanly — it is written
+to refuse to start at all if its configuration is incomplete.
+
+*What was verified, and what was not.* The setting is present on the live environment, it was absent
+beforehand (checked first, so the change is a measured difference rather than an assumption), a new
+copy of the server was built after it and is the one the live address now points to, and that copy
+is healthy.
+
+**Whether the rejection is actually active could not be proven from outside, and this is a property
+of the design rather than a gap in the checking.** The protection deliberately ignores requests from
+someone not signed in, so that they fail with a plain "you are not signed in" rather than a
+confusing complaint about a security token they could not have had. It therefore only changes
+behaviour for a request that already carries a valid sign-in, and there is no way to produce one
+without signing in. The hosting also returns stored settings in encrypted form rather than as
+readable text, so the value could not simply be read back and compared.
+
+*Why that is tolerable rather than alarming.* The switch turns the protection on only for the exact
+value it was given; anything else leaves it off. So the one thing that cannot be confirmed can only
+fail in the harmless direction — towards this morning's behaviour, not towards an outage. **An
+unconfirmed setting here cannot lock anybody out.**
+
+**The one real confirmation is a single signed-in action, and it has not been done.** Sign in and
+record any deal. If it goes through, the protection is on and staff are unaffected — which is the
+whole question. If it is refused with a message about a security token, the setting is removed and
+the server rebuilt, about a minute's work, and the desk is back exactly where it was. **This should
+be done before the client next uses the desk in earnest, and it needs a sign-in, so it is the
+client's or the developer's to do.**
+
 ### Found
 
 | Finding | Severity | Status |
@@ -345,6 +381,7 @@ stronger one. **This is the client's call and has not been made.** Nothing has b
 | Two search boxes on the Customers screen, and the more obvious one did nothing without Enter | Real | **Fixed 2026-09-09** |
 | The balance sheet listed accounts holding nothing | Real but cosmetic | **Fixed 2026-09-09**, presentation only — no figure moved |
 | A currency account's row opened a form with none of that currency's information in it | Real | **Fixed 2026-09-09** — it opens the currency ledger now |
+| Stage 3 of the security rollout is on, but its being active has not been independently confirmed | Low. The unconfirmable direction is the harmless one — a wrong value leaves the protection off, which is where the system was this morning. It cannot cause a lockout | **Open — one signed-in deal settles it.** Roll back by removing the setting and rebuilding if that deal is refused |
 | Full deletion of an account with history is still refused | Working as designed. Raised with the client with the cost spelled out; they chose to keep it | **Closed — no change wanted.** Archiving is the route, and it now works properly |
 | The new archived switch clipped the last type filter mid-word | Cosmetic, and introduced by this session's own fix | **Fixed 2026-09-09**, found by looking at the screen rather than by reasoning about it |
 | With every customer archived, the Customers screen claimed none were on file, contradicting the header above it | Real, and pre-existing rather than introduced here — but the same fault as the one the client reported, so fixed alongside it | **Fixed 2026-09-09** |
@@ -353,11 +390,11 @@ stronger one. **This is the client's call and has not been made.** Nothing has b
 
 The list is unchanged from 2026-09-06 except that its first item is no longer blocked.
 
-1. **Finish the security rollout.** The readiness check has been run and says **SAFE** — see above.
-   What remains is a decision, not work: set `CSRF_ENFORCE=true` on the live server and redeploy.
-   Worth weighing first that the result rests on a single light day of trading; re-running the check
-   after a fuller week would say the same thing with more behind it. Either way the switch is one
-   variable and revertible.
+1. **Confirm the security rollout's final step is actually live.** It was switched on 2026-09-09 and
+   everything checkable was checked, but the one thing that proves it — a signed-in deal going
+   through — needs a sign-in and has not been done. Do this first, before the desk is used in
+   earnest. If the deal is refused with a security-token message, remove the setting and rebuild.
+   With that done, the rollout is finished.
 2. **Switch the reports over** (the last step of the accounting work): retire the four separate
    ways each figure is currently worked out, one at a time, re-running the checking tool between
    each until it reports agreement.

@@ -386,7 +386,20 @@ readable cross-site cookie, which this two-origin deployment makes awkward), ech
 |---|---|---|
 | 1 | Backend issues the token and validates it *when sent*; a missing token is allowed and logged | **Shipped** |
 | 2 | Frontend sends `X-CSRF-Token` on every mutating request | **Shipped and live since 2026-08-31** — `lib/csrf.ts` `requestHeaders()`, used by `store.tsx` and `settings.ts`. Re-confirmed 2026-09-06 by grepping the bundle actually served in production |
-| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | Not started |
+| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | **Switched on 2026-09-09**, after `csrf:gate:prod` returned SAFE (0 untokened requests against 7 real business writes). `CSRF_ENFORCE` is set on the backend project's Production environment and the deployment aliased to the live host was rebuilt with it. **Not independently verified as ACTIVE — see below.** Roll back with `vercel env rm CSRF_ENFORCE production` + redeploy |
+
+**Why stage 3 cannot be confirmed from outside, and why that is tolerable.** `csrfProtection` passes
+an unauthenticated mutating request straight through — deliberately, so it fails as a clean 401 from
+`requireAuth` rather than a confusing 403 about a token the caller could not have had. Enforcement
+therefore only changes behaviour for a request that *already has a session*, and no external probe
+can reach that state. Vercel returns an encrypted envelope rather than plaintext for a stored
+variable's value (sensitive or not), so the literal cannot be read back either.
+
+What makes this acceptable is the direction of the failure: `csrfEnforce` is
+`clean(process.env.CSRF_ENFORCE) === 'true'`, so anything other than exactly `true` leaves
+enforcement **off** — the status quo, not an outage. An unverified flag cannot lock anyone out. The
+real confirmation is one signed-in mutation: if a trade succeeds, stage-2 tokens are flowing under
+enforcement; if it returns "Missing security token", roll back with the command above.
 
 Each stage must be confirmed live in production before the next begins. Running 3 before 2 has
 fully propagated locks out every user still holding a cached pre-stage-2 bundle. Stage 3 is an env
