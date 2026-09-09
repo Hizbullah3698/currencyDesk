@@ -22,7 +22,7 @@
 
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
 import { ledgerBalance } from './reports'
-import { activityDate, marginLedger, stampTime, stockAsOf } from './engine'
+import { activityDate, customerBalanceAsOf, marginLedger, stampTime, stockAsOf } from './engine'
 
 export interface Snapshot {
   accounts: Account[]
@@ -115,7 +115,19 @@ export function currentNet(
   asOfT: number,
 ): { net: number; source: string } {
   if (account.type === 'Customer') {
-    return { net: (account.receivable || 0) - (account.payable || 0), source: 'receivable/payable columns' }
+    // MIRRORS computeBalanceSheet's Customer branch, including its guard — see the long comment
+    // there. This read the stored columns unconditionally until 2026-09-09, which was the same
+    // asOfT defect the report had, sitting in the tool that measures the report. Once the report
+    // was fixed, leaving this stale would have been worse than the original bug: the harness would
+    // keep reporting a difference at historical dates and its own footer would attribute it to a
+    // defect `computeBalanceSheet` no longer has, sending the next reader to fix something already
+    // fixed. A mirror that has stopped mirroring measures nothing.
+    const later =
+      snap.activity.some((t) => t.customerId === account.id && stampTime(activityDate(t)) > asOfT) ||
+      snap.cheques.some((q) => q.customerId === account.id && stampTime(q.updatedAt || q.createdAt) > asOfT)
+    if (!later) return { net: (account.receivable || 0) - (account.payable || 0), source: 'receivable/payable columns' }
+    const b = customerBalanceAsOf(account, snap.activity, snap.cheques, asOfT)
+    return { net: b.receivable - b.payable, source: 'customerBalanceAsOf replay' }
   }
   if (account.type === 'Currency Stock') {
     const { available, avgCost } = stockAsOf(account.code || 'AED', snap.stocks, snap.activity, asOfT)

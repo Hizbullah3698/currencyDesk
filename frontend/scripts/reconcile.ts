@@ -76,6 +76,15 @@ function main(): void {
   console.log('\n' + '═'.repeat(96))
   if (failed.length === 0) {
     console.log('VERDICT: RECONCILED — the journal alone reproduces every reported figure, at every date checked.')
+    console.log('')
+    console.log('READ THIS PRECISELY. It means the journal is a faithful replica of every reported')
+    console.log('figure: the PRECONDITION for phase 5, and the evidence that switching over can be')
+    console.log('done without moving a number.')
+    console.log('')
+    console.log('It does NOT mean phase 5 is done, and it does NOT mean requirement 7 is complete.')
+    console.log('The reports still derive their figures independently — the balance sheet from')
+    console.log('stored columns, activity replay and stock positions, not from the journal. Phase 5')
+    console.log('is retiring those reconstructions one at a time, re-running this between each.')
     process.exit(0)
   }
 
@@ -85,13 +94,12 @@ function main(): void {
   console.log('expected gap. Attribute every remaining difference to a specific cause before')
   console.log('accepting it.')
   console.log('')
-  console.log('One known cause, logged 2026-09-02 and left to phase 5: computeBalanceSheet reads a')
-  console.log('customer’s stored receivable/payable columns with no asOfT, so it reports the')
-  console.log('CURRENT balance at every historical date. Its signature is a Customer row whose')
-  console.log('Reported figure is identical at every date while Journal only moves — there the')
-  console.log('journal is right and the report is wrong.')
+  console.log('There is NO known-and-accepted cause any more. The last one — computeBalanceSheet')
+  console.log('reading a customer’s stored receivable/payable with no asOfT, so it reported the')
+  console.log('current balance at every historical date — was fixed on 2026-09-09, and this harness')
+  console.log('was reporting RECONCILED at every date immediately afterwards.')
   console.log('')
-  console.log('Anything not matching that signature is unexplained. Treat it as a finding.')
+  console.log('So every difference above is unexplained by default. Treat it as a finding.')
   process.exit(1)
 }
 
