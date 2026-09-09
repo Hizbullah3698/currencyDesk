@@ -132,3 +132,21 @@ export function fmtLongDate(iso: string): string {
   if (isNaN(d.getTime())) return iso
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+
+/**
+ * A reference short enough to read at a glance.
+ *
+ * Activity and cheque rows have no human reference of their own, so the row id stood in — and
+ * that is a 36-character uuid. Printed in full it overran a 64px column and shunted Type and
+ * Party hard against it, which is the collision in the 2026-09-09 report; the columns were the
+ * symptom, the id was the cause. Eight hex characters is what every git short-hash and every
+ * other ledger uses for the same job, and the full value stays on the row's `title` for anyone
+ * who needs to quote it.
+ *
+ * Journal entries DO have a real reference (`JV-1`), which is already short and already meaningful
+ * — those pass through untouched rather than being sliced into nonsense.
+ */
+export function shortRef(id: string): string {
+  const s = id.toUpperCase()
+  return s.length > 12 ? s.slice(0, 8) : s
+}

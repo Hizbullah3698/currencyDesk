@@ -144,8 +144,10 @@ describe('computeBalanceSheet — reconciliation', () => {
     // Unwinding March's purchase leaves a zero opening position, so nothing is legitimately
     // unjournalled, and February's sheet has no stock on it at all.
     expect(asOfFebruary.openingStockEquity).toBeCloseTo(0, 2)
-    const stockGroup = asOfFebruary.groups.find((g) => g.title === 'Currency Stock')
-    expect(stockGroup?.rows[0]?.dr ?? 0).toBeCloseTo(0, 2)
+    // The group is ABSENT, not present-and-zero. This assertion used to read
+    // `stockGroup?.rows[0]?.dr ?? 0`, which passed either way and so tested nothing once zero
+    // rows began being suppressed — stating which of the two is true is the point.
+    expect(asOfFebruary.groups.find((g) => g.title === 'Currency Stock')).toBeUndefined()
   })
 
   it('does not treat customer/bank opening balances as unexplained — those are journalled against Capital', () => {
@@ -179,5 +181,89 @@ describe('computeBalanceSheet — reconciliation', () => {
     expect(result.unexplained).toBeCloseTo(0, 2)
     expect(result.balanced).toBe(true)
     expect(result.diags).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Zero rows are not printed
+// ---------------------------------------------------------------------------
+// The client's "it shows all", 2026-09-09: a desk with two purchases on it printed the four
+// untraded currency positions, both empty expense accounts and an unused salary payable as blank
+// lines around the few figures that carried anything.
+//
+// This is PRESENTATION ONLY and these tests exist to hold it to that — every figure the sheet
+// reports, and the balanced/unexplained verdict, must be identical with and without the empty
+// rows, because a zero contributes zero.
+// ---------------------------------------------------------------------------
+
+describe('computeBalanceSheet — empty rows', () => {
+  const TRADED: Account[] = [
+    ...BASE_ACCOUNTS,
+    account('currency', 'Currency Stock', 'Currency stock (AED)', { code: 'AED' }),
+    account('currencyUSD', 'Currency Stock', 'Currency stock (USD)', { code: 'USD' }),
+    account('currencyJPY', 'Currency Stock', 'Currency stock (JPY)', { code: 'JPY' }),
+    account('expense', 'Expense', 'General expenses'),
+    account('salaryPayable', 'Payable', 'Salaries payable'),
+    account('cust', 'Customer', 'Wazir', { receivable: 0, payable: 250_200 }),
+  ]
+  // One position held, two currencies untouched.
+  const stocks: Stocks = { AED: { available: 0, avgCost: 0 }, USD: { available: 900, avgCost: 278 }, JPY: { available: 0, avgCost: 0 } }
+
+  it('drops accounts with nothing on either side, and the groups left empty by that', () => {
+    const result = computeBalanceSheet(TRADED, [], NO_CHEQUES, NO_JOURNAL, stocks, LATER)
+
+    const stockGroup = result.groups.find((g) => g.title === 'Currency Stock')
+    expect(stockGroup?.rows.map((r) => r.id)).toEqual(['currencyUSD'])
+
+    // Bank and Cash are both zero, so the group they share does not appear at all.
+    expect(result.groups.find((g) => g.title === 'Bank & Cash')).toBeUndefined()
+    expect(result.groups.find((g) => g.title === 'Expenses')).toBeUndefined()
+    expect(result.groups.find((g) => g.title === 'Other Payables')).toBeUndefined()
+  })
+
+  it('keeps every account that does carry a balance', () => {
+    const result = computeBalanceSheet(TRADED, [], NO_CHEQUES, NO_JOURNAL, stocks, LATER)
+
+    const customerRows = result.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows
+    expect(customerRows?.map((r) => r.id)).toEqual(['cust'])
+    expect(customerRows?.[0].cr).toBeCloseTo(250_200, 2)
+  })
+
+  it('changes no figure and no verdict — the suppressed rows were all zero', () => {
+    // The guard on the whole change. Compared against the same books with every empty account
+    // removed by hand: if suppressing a row ever moved a total, these two would disagree.
+    const withEmpties = computeBalanceSheet(TRADED, [], NO_CHEQUES, NO_JOURNAL, stocks, LATER)
+    const withoutEmpties = computeBalanceSheet(
+      TRADED.filter((a) => !['bank', 'cash', 'expense', 'salaryPayable', 'currency', 'currencyJPY'].includes(a.id)),
+      [],
+      NO_CHEQUES,
+      NO_JOURNAL,
+      { USD: { available: 900, avgCost: 278 } },
+      LATER,
+    )
+
+    expect(withEmpties.totalDr).toBeCloseTo(withoutEmpties.totalDr, 2)
+    expect(withEmpties.totalCr).toBeCloseTo(withoutEmpties.totalCr, 2)
+    expect(withEmpties.unexplained).toBeCloseTo(withoutEmpties.unexplained, 2)
+    expect(withEmpties.openingStockEquity).toBeCloseTo(withoutEmpties.openingStockEquity, 2)
+    expect(withEmpties.balanced).toBe(withoutEmpties.balanced)
+  })
+
+  it('still prints the Capital row when it is carrying the presentation plug', () => {
+    // THE ONE EXCEPTION to the rule above, and the reason the plug is applied below `push` rather
+    // than through it. Capital's own balance here is zero, so suppression would drop the row —
+    // and then the plug would have nowhere to land and the printed sheet would stop footing.
+    //
+    // Stock held with no purchase behind it is what forces a plug: 900 USD at 278 is a debit with
+    // no credit anywhere to meet it.
+    const openingOnly = [...BASE_ACCOUNTS, account('currencyUSD', 'Currency Stock', 'Currency stock (USD)', { code: 'USD' })]
+    const result = computeBalanceSheet(openingOnly, [], NO_CHEQUES, NO_JOURNAL, { USD: { available: 900, avgCost: 278 } }, LATER)
+
+    const capitalRow = result.groups.find((g) => g.title === 'Equity')?.rows.find((r) => r.id === 'capital')
+    expect(capitalRow).toBeDefined()
+    expect(capitalRow!.cr).toBeCloseTo(250_200, 2)
+    expect(result.totalDr).toBeCloseTo(result.totalCr, 2)
+    // And it is the legitimate kind of residual, not a real imbalance.
+    expect(result.balanced).toBe(true)
   })
 })

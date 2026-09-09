@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activityDate, auditLine, isVoucherLeg, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtAmount, fmtRate, txnAmountParts, type TxnAmountParts } from '@/lib/format'
+import { fmt, fmtAmount, fmtRate, shortRef, txnAmountParts, type TxnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -13,9 +13,28 @@ import { cn } from '@/lib/utils'
 
 type Filter = 'all' | 'sale' | 'purchase' | 'payment' | 'cheque' | 'journal'
 
+// ONE definition of each column's width, used by the header AND the rows.
+//
+// They were two separate sets of classes and had drifted: Type was 86px in the header against
+// 102px in the rows, Amount 110 against 130, Date 62 against 78. Every header label after Ref
+// therefore sat some way to the left of the column it named, which is most of why this table read
+// as "so close you can't differentiate" (reported 2026-09-09). Widths that must agree should not
+// be written down twice.
+const COL = {
+  ref: 'w-[78px] flex-none',
+  type: 'w-[102px] flex-none',
+  party: 'min-w-0 flex-1',
+  detail: 'w-[200px] flex-none',
+  status: 'w-[100px] flex-none',
+  amount: 'w-[130px] flex-none text-right',
+  date: 'w-[78px] flex-none text-right',
+} as const
+
 interface Row {
   id: string
   ref: string
+  /** The untruncated reference, shown on hover — see shortRef. */
+  refFull: string
   type: string
   meta: (typeof ACTIVITY_META)[keyof typeof ACTIVITY_META]
   who: string
@@ -51,7 +70,8 @@ export function Transactions() {
         t.type === 'sale' || t.type === 'purchase' ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)} · ${t.method}` : `via ${t.method}`
       return {
         id: t.id,
-        ref: t.id.toUpperCase(),
+        ref: shortRef(t.id),
+        refFull: t.id.toUpperCase(),
         type: t.type === 'sale' || t.type === 'purchase' ? t.type : 'payment',
         meta,
         who: t.customerName,
@@ -66,7 +86,8 @@ export function Transactions() {
     })
     const chequeRows: Row[] = state.cheques.map((q) => ({
       id: q.id,
-      ref: q.id.toUpperCase(),
+      ref: shortRef(q.id),
+      refFull: q.id.toUpperCase(),
       type: 'cheque',
       meta: CHEQUE_META,
       who: q.party,
@@ -83,6 +104,7 @@ export function Transactions() {
     const journalRows: Row[] = state.journalEntries.filter((e) => !isVoucherLeg(e)).map((e) => ({
       id: e.id,
       ref: e.ref,
+      refFull: e.ref,
       type: 'journal',
       meta: JOURNAL_META,
       who: e.narration,
@@ -134,13 +156,13 @@ export function Transactions() {
       </div>
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
-          <div className="min-w-[64px]">Ref</div>
-          <div className="min-w-[86px]">Type</div>
-          <div className="flex-1">Party</div>
-          <div className="min-w-[200px]">Detail</div>
-          <div className="min-w-[100px]">Status</div>
-          <div className="min-w-[110px] text-right">Amount</div>
-          <div className="min-w-[62px] text-right">Date</div>
+          <div className={COL.ref}>Ref</div>
+          <div className={COL.type}>Type</div>
+          <div className={COL.party}>Party</div>
+          <div className={COL.detail}>Detail</div>
+          <div className={COL.status}>Status</div>
+          <div className={COL.amount}>Amount</div>
+          <div className={COL.date}>Date</div>
         </div>
         {rows.map((r) => {
           const Icon = r.meta.icon
@@ -148,26 +170,28 @@ export function Transactions() {
           const StatusIcon = status.icon
           return (
             <div key={r.type + r.id} onClick={() => r.customerId && navigate(`/customers/${r.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
-              <div className="tabular min-w-[64px] text-meta font-normal text-muted-60">{r.ref}</div>
-              <div className="flex min-w-[102px] items-center gap-1.5">
+              <div className={cn(COL.ref, 'tabular truncate text-meta font-normal text-muted-60')} title={r.refFull}>
+                {r.ref}
+              </div>
+              <div className={cn(COL.type, 'flex items-center gap-1.5')}>
                 <div className="flex h-5 w-5 flex-none items-center justify-center rounded-data" style={{ background: r.meta.chipBg, color: r.meta.chipColor }}>
                   <Icon size={13} strokeWidth={2.2} aria-hidden="true" />
                 </div>
                 <span className="text-body font-medium text-ink">{r.meta.label}</span>
               </div>
-              <div className="min-w-0 flex-1 truncate text-body font-semibold">{r.who}</div>
-              <div className="min-w-[200px] truncate text-body font-normal text-muted-70">{r.detail}</div>
-              <div className="min-w-[100px]">
+              <div className={cn(COL.party, 'truncate text-body font-semibold')}>{r.who}</div>
+              <div className={cn(COL.detail, 'truncate text-body font-normal text-muted-70')}>{r.detail}</div>
+              <div className={COL.status}>
                 <Badge variant={status.variant}>
                   <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
                   {r.status}
                 </Badge>
               </div>
-              <div className="min-w-[130px] text-right">
+              <div className={COL.amount}>
                 <div className="tabular text-body font-medium">{r.money.primary}</div>
                 {r.money.secondary && <div className="tabular text-meta font-normal text-muted-60">{r.money.secondary}</div>}
               </div>
-              <div className="flex min-w-[78px] items-center justify-end gap-1 text-meta font-normal text-muted-60" title={r.audit}>
+              <div className={cn(COL.date, 'flex items-center justify-end gap-1 text-meta font-normal text-muted-60')} title={r.audit}>
                 {relLabel(r.date)}
               </div>
             </div>

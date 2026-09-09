@@ -36,21 +36,24 @@ export function Customers() {
   const [showArchived, setShowArchived] = useState(false)
   const [browseAll, setBrowseAll] = useState(false)
 
-  const archivedCount = useMemo(() => state.accounts.filter((a) => a.type === 'Customer' && a.archived).length, [state.accounts])
-
-  // Everything visible under the current archived setting, before any name search. This is what
-  // "Browse all N customers" counts, and what the drill-downs filter down from.
-  const visible: CustomerRow[] = useMemo(
+  // Every customer on the books, archived or not. The archived filter is applied AFTER this
+  // rather than inside it, so the financial drill-downs below can read the unfiltered list while
+  // browsing reads the filtered one — two different questions off one build.
+  const allCustomers: CustomerRow[] = useMemo(
     () =>
       state.accounts
         .filter((a) => a.type === 'Customer')
-        .filter((a) => showArchived || !a.archived)
         .map((c) => {
           const last = state.activity.filter((t) => t.customerId === c.id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
           return { id: c.id, name: c.name, archived: c.archived, receivable: c.receivable, payable: c.payable, lastActivity: last ? relLabel(last.createdAt) : '—' }
         }),
-    [state.accounts, state.activity, showArchived],
+    [state.accounts, state.activity],
   )
+
+  // Everything visible under the current archived setting, before any name search. This is what
+  // "Browse all N customers" counts and what the name search filters down from.
+  const visible = useMemo(() => (showArchived ? allCustomers : allCustomers.filter((c) => !c.archived)), [allCustomers, showArchived])
+  const archivedCount = useMemo(() => allCustomers.filter((c) => c.archived).length, [allCustomers])
 
   const q = search.trim().toLowerCase()
   const matches = useMemo(() => (q ? visible.filter((c) => c.name.toLowerCase().includes(q)) : []), [visible, q])
@@ -58,11 +61,22 @@ export function Customers() {
   // The TopBar's ?owe= drill-downs are a deliberate LIST view — "show me everyone who owes me,
   // biggest first" — not a search. They must land straight on the filtered table, with the
   // banner, exactly as before; the search-first flow below only governs the plain /customers URL.
+  //
+  // BUILT FROM `allCustomers`, NOT `visible`: these two lists are the drill-down of a header
+  // figure, and a drill-down that cannot account for the number it was reached from is worse than
+  // no drill-down. Reported 2026-09-09 — the strip read "YOU OWE PKR 328,200 · 2 customers" and
+  // opening it showed one customer owed PKR 78,000, because an archived customer carrying
+  // PKR 250,200 was counted in the header and filtered out of the list. TopBar counts archived
+  // customers on purpose (see the comment on `totals` there); the fix is that this list does too.
+  //
+  // So `showArchived` governs BROWSING — finding a customer by name, where hiding retired ones is
+  // a kindness — and never a financial view. An archived row still gets its badge below, so the
+  // list explains its own total rather than silently padding it.
   const oweList = useMemo(() => {
     if (!owe) return []
     const key = owe === 'receivable' ? 'receivable' : 'payable'
-    return visible.filter((c) => (c[key] || 0) > 0).sort((a, b) => (b[key] || 0) - (a[key] || 0))
-  }, [visible, owe])
+    return allCustomers.filter((c) => (c[key] || 0) > 0).sort((a, b) => (b[key] || 0) - (a[key] || 0))
+  }, [allCustomers, owe])
 
   const listMode = !!owe || browseAll
   const tableRows = owe ? oweList : visible
@@ -122,7 +136,9 @@ export function Customers() {
                 Back to search
               </Button>
             )}
-            {archivedToggle}
+            {/* Not in the ?owe= views: archived rows are always included there, so a toggle
+                offering to "show" them would be a control that visibly does nothing. */}
+            {!owe && archivedToggle}
             {addButton}
           </div>
         </div>
@@ -216,7 +232,15 @@ export function Customers() {
           )
         ) : (
           <div className="mt-3 text-body font-normal text-muted-60">
-            {visible.length === 0 ? 'No customers on file yet.' : 'Type part of a name to see matching customers. Nothing is listed until you do.'}
+            {/* "None on file" and "none that aren't archived" are different statements, and only
+                the first is a reason to think the desk has no customers. Saying the first when the
+                second is true contradicts the header strip directly above, which counts archived
+                customers and would be reading "1 customer" at that moment. */}
+            {visible.length > 0
+              ? 'Type part of a name to see matching customers. Nothing is listed until you do.'
+              : archivedCount > 0
+                ? `Every customer on file is archived (${archivedCount}) — turn "Show archived" on to see them.`
+                : 'No customers on file yet.'}
           </div>
         )}
       </Card>

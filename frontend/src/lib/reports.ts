@@ -102,7 +102,25 @@ export function computeBalanceSheet(
 ): BalanceSheetResult {
   const keep = (iso: string) => stampTime(iso) <= asOfT
   const rowsByGroup: Record<string, TrialBalanceRow[]> = {}
+  // A row with nothing on either side is dropped, and a group left with no rows never appears.
+  //
+  // PRESENTATION ONLY — no figure changes. A zero row contributes zero to its subtotal, to
+  // totalDr/totalCr, to rawDiff and therefore to `balanced` and `unexplained`; the reconciliation
+  // below is computed from `accounts` directly and never reads these rows at all. `npm run
+  // reconcile` is likewise unaffected: reconcile.ts deliberately mirrors the per-account branches
+  // of this function rather than reading its output, precisely so its comparison cannot be
+  // changed by a presentation decision made here.
+  //
+  // WHY. Customer and Income rows were already suppressed this way; Bank, Cash, Expense, Payable,
+  // Capital and every Currency Stock account were pushed unconditionally. On a real desk that is
+  // the four untraded currencies, both zero expense accounts and an empty salary payable printed
+  // as blank lines around the handful of figures that carry anything — the client's "it shows
+  // all", 2026-09-09. An account with a balance of zero is not a fact worth a line on a report.
+  //
+  // The Capital row is the one exception and is added below rather than here, because it carries
+  // the presentation plug and must exist to receive it.
   const push = (type: string, row: TrialBalanceRow) => {
+    if (!row.dr && !row.cr) return
     const g = GROUP_TITLES[type] || type
     ;(rowsByGroup[g] ||= []).push(row)
   }

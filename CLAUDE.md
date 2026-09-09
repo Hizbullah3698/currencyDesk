@@ -212,6 +212,17 @@ and `unexplained`. The distinction is easy to collapse back into a bug:
 Currency stock is valued with `stockAsOf(...)`, not the live `stk()` position — every other row is
 cut at `asOfT`, so valuing stock at today mixes two dates on any historical sheet.
 
+**Rows with nothing on either side are not printed**, and a group left with no rows does not appear.
+This is `push()`'s `if (!row.dr && !row.cr) return`, and it is **presentation only** — a zero
+contributes zero to a subtotal, to `totalDr`/`totalCr`, to `rawDiff`, and therefore to `balanced`
+and `unexplained`, all of which are computed from `accounts` directly and never read these rows.
+`npm run reconcile` is likewise untouched, because `reconcile.ts` deliberately mirrors this
+function's per-account branches rather than reading its output — that independence is what lets a
+presentation decision here be made without moving a reported figure, and `reports.test.ts` pins it
+by comparing a sheet against the same books with the empty accounts removed by hand. **The Capital
+row is the one exception**: the equity plug is applied after `push` and creates that row if needed,
+because a plug with nowhere to land stops the printed sheet footing.
+
 ### Requirement 7 — paired postings, and what keeps them inert
 
 Every trade, settlement and cheque clearing writes **journal vouchers** as well as everything it
@@ -242,10 +253,30 @@ already did. This is live. The reports do **not** read them yet.
 load-bearing. `ledgerBalance()` and `marginLedger()` have always read `journal_entries`
 indiscriminately, because until vouchers existed every row there was standalone — so the moment a
 trade also posted a voucher its cash was counted twice, once from the activity row and once from the
-journal row. Measured before the fix: cash reported PKR 60,000 against an actual 30,000. Four
-readers exclude voucher legs — `ledgerBalance`, `marginLedger`, the Transactions page and the
-Journal page. **Phase 5 removes the callers, not the function**: the reports stop excluding vouchers
-and start excluding the activity rows and stored columns instead.
+journal row. Measured before the fix: cash reported PKR 60,000 against an actual 30,000. Five
+readers exclude voucher legs — `ledgerBalance`, `marginLedger`, the Transactions page, the Journal
+page, and `postedAccountIds` (below). **Phase 5 removes the FOUR REPORTING callers, not the
+function**: those stop excluding vouchers and start excluding the activity rows and stored columns
+instead. `postedAccountIds` is not one of them and must keep excluding them afterwards — it is not
+a reporting reader, it asks a visibility question, and its answer does not change when the reports
+switch over.
+
+**A voucher leg is not evidence that anyone touched an account.** This bit the Accounts page on the
+client's first live trading day (2026-09-09). That page hides the 13 built-in accounts until
+something is posted against one — a rule written when the only way to touch one was to mean to.
+Requirement 7 then made every purchase debit a Currency Stock account, so two trades put "Currency
+stock (AED)" and "Currency stock (USD)" on a list whose whole purpose is the accounts the client
+created. Hence **two sets in `lib/accountRefs.ts`, and they must not be merged**:
+
+- `inUseAccountIds` — "will the server refuse to retype or delete this?" Mirrors
+  `accountHelpers.ts`'s `describeAccountReferences`, which counts `journal_entries` rows outright.
+  **Counts voucher legs**, because the server does; diverging means the edit form waves through a
+  retype the API then rejects, with no confirmation shown first.
+- `postedAccountIds` — "did a person post to this?" **Excludes voucher legs.** This is the one to
+  ask when deciding what to SHOW.
+
+The general rule, and the one to apply at a new call site: ask whether you want *any* reference or
+a *deliberate* one.
 
 **Opening currency stock is journalled too** (`services/openingStockService.ts`), Dr Currency Stock /
 Cr Capital, matching what `createAccount` does for customer and bank opening balances. It carries a
@@ -282,6 +313,34 @@ anything else already moved this balance"**.
 This existed as a live fault until 2026-09-03: `postJournal` wrote the entry and nothing else, so
 the books and the on-screen figure diverged permanently the moment anyone used the Journal page
 against a customer.
+
+### Archiving hides an account; it does not settle it
+
+`archived` is a display flag, and the split it implies is the invariant to hold:
+
+- **Browsing views may hide archived accounts** — the pickers on Trade, Settle and Ledger (which
+  exclude them outright, so a retired customer cannot be dealt with by accident), and the
+  name-search lists on `/customers` and `/accounts`, which hide them behind a "Show archived N"
+  toggle.
+- **Financial views may not.** An archived customer's `receivable`/`payable` are still real money.
+  The TopBar's "Owed to you" / "You owe" totals count archived customers deliberately, and the
+  `?owe=` drill-downs they link to therefore include archived rows **regardless of the toggle** —
+  the toggle governs browsing only. `computeBalanceSheet` likewise never filters on `archived`.
+
+**Whatever a total counts must be reachable from the list that total links to.** That is the rule;
+it binds `TopBar.tsx` and `Customers.tsx` together, and both carry a comment saying so. It was
+broken until 2026-09-09: the strip read "YOU OWE PKR 328,200 · 2 customers" and opening it listed
+one customer and PKR 78,000, because the drill-down applied the browsing filter to a financial
+question.
+
+Note what this rules out. **Do not block archiving an account that carries a balance** — a delete
+is already refused in that case (`accountsService.deleteAccount`), so archiving is the only way to
+retire a customer still owed money, and gating it the same way would leave no way at all. Archive
+is deliberately the permissive one of the pair.
+
+`/accounts` shows archived accounts with an `Archived` badge. Until 2026-09-09 it did not read the
+flag at all, which is what made archiving read as broken: it worked everywhere except the one
+screen an admin checks afterwards.
 
 ### Clearing the desk
 
@@ -474,11 +533,16 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-259 tests: 46 engine unit, 137 backend integration (real HTTP against real Postgres, no supertest —
-each file boots `http.createServer(createApp())` on an ephemeral port), 76 frontend unit (8 files
+283 tests: 46 engine unit, 148 backend integration (real HTTP against real Postgres, no supertest —
+each file boots `http.createServer(createApp())` on an ephemeral port), 89 frontend unit (9 files
 under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
 never a component, and anything touching `window` must be guarded at module load or it breaks the
 suite). No CI — `npm run test` is manual.
+
+The no-jsdom limit is worth designing around rather than merely noting: when logic inside a
+component or a provider is genuinely pure, lift it into `src/lib/` and it becomes testable.
+`lib/accountRefs.ts` was extracted from `store.tsx`'s provider for exactly that reason, and
+`shortRef` moved from `pages/Transactions.tsx` into `lib/format.ts`.
 
 **`npm run reconcile` is deliberately not part of `npm run test`.** Same reasoning as `csrf:gate`:
 it asks a question about live data, and a knowingly-red check inside the suite trains everyone to

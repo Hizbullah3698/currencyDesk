@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
@@ -56,8 +56,21 @@ export function TopBar() {
   const { state, isAdmin, actor } = useStore()
   const { logout } = useAuth()
   const navigate = useNavigate()
+  const onCustomers = useLocation().pathname === '/customers'
   const [search, setSearch] = useState('')
 
+  // ARCHIVED CUSTOMERS COUNT HERE, DELIBERATELY — do not add `!a.archived` to this filter.
+  //
+  // Archiving hides a customer from the pickers; it does not settle what the desk owes them. The
+  // money is still owed, so a header figure that quietly dropped it would understate the desk's
+  // real position — the more dangerous of the two possible errors, and the one nobody would catch,
+  // because the figure would still look plausible.
+  //
+  // The bug reported on 2026-09-09 was NOT this sum. It was that the ?owe= drill-down these tiles
+  // link to applied the Customers page's default "hide archived" filter, so the strip read
+  // "PKR 328,200 · 2 customers" and the list it opened showed one customer and PKR 78,000. The
+  // fix is in Customers.tsx: the drill-downs now always include archived rows. Whatever is
+  // counted here must be reachable there — that is the invariant, and it binds both files.
   const totals = useMemo(() => {
     const customers = state.accounts.filter((a) => a.type === 'Customer')
     return {
@@ -86,6 +99,16 @@ export function TopBar() {
   return (
     <div className="sticky top-0 z-20 print:hidden">
       <div className="flex h-[52px] items-center gap-3.5 border-b border-border-strong bg-surface px-[22px]">
+        {/* Hidden on /customers, which has its own search box eight lines below this one. Two
+            boxes doing the same job a few hundred pixels apart, and the one the eye reaches for
+            first was the one that did nothing until Enter was pressed — reported 2026-09-09 with
+            a screenshot of "ahmed" typed here while the page underneath still read "Nothing is
+            listed until you do."
+
+            This box is a NAVIGATION affordance ("jump to customers filtered by X"), which is why
+            Enter is the right gesture for it and why it has nothing to offer on the page it
+            navigates to. The page's own box is the contextual one and keeps the screen. */}
+        {!onCustomers && (
         <div className="flex h-8 max-w-[340px] flex-1 items-center gap-1.5 rounded-control border border-border-strong bg-surface-sunken px-2.5 transition-colors duration-150 focus-within:border-accent-border">
           <Search size={14} className="flex-none text-muted-60" aria-hidden="true" />
           <Input
@@ -97,6 +120,7 @@ export function TopBar() {
             className="h-auto min-w-0 flex-1 border-none bg-transparent p-0 text-body text-ink shadow-none focus-visible:outline-none"
           />
         </div>
+        )}
         <div className="ml-auto flex flex-none items-center gap-3">
           <ThemeToggle />
           <div className="flex items-center gap-1.5 whitespace-nowrap rounded-control border border-border-strong bg-surface-sunken px-2.5 py-1.5 text-meta">

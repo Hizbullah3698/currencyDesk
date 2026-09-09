@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Account, AccountType, Activity, Cheque, JournalEntry, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
+import { inUseAccountIds as buildInUseAccountIds, postedAccountIds as buildPostedAccountIds } from './accountRefs'
 import { useAuth } from './auth'
 import { apiUrl } from './apiBase'
 import { getCsrfToken, isCsrfError, isMutatingMethod, requestHeaders } from './csrf'
@@ -118,8 +119,12 @@ interface StoreCtx {
   employees: () => Account[]
   accountHasActivity: (id: string) => boolean
   /** The set behind `accountHasActivity`, exposed so a memo can depend on a stable value rather
-   * than on that function, which is a new closure every render. */
+   * than on that function, which is a new closure every render. Counts voucher legs, because the
+   * server's describeAccountReferences does. */
   inUseAccountIds: Set<string>
+  /** Accounts something was DELIBERATELY posted to — `inUseAccountIds` minus automatic voucher
+   * legs. This is the one to ask when deciding what to show; see the comment at its definition. */
+  postedAccountIds: Set<string>
 
   saveAccount: (
     mode: 'new' | 'edit',
@@ -271,39 +276,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const customers = () => state.accounts.filter((a) => a.type === 'Customer')
   const employees = () => state.accounts.filter((a) => a.type === 'Employee')
 
-  // Every account id anything points at — the client-side twin of accountHelpers.ts's
-  // describeAccountReferences, over the SAME seven paths, so the screen and the server never
-  // disagree about which accounts are in use. The three that are easy to forget, and that were
-  // missing here until 2026-09-06: a trade's settlement account, a cheque's bank account, and a
-  // salary posting's employee (a salary accrual posts Dr salaryExpense / Cr salaryPayable, so
-  // the employee is never a leg and an employee with a year of payroll read as untouched).
-  //
-  // Built once per snapshot as a Set rather than scanned per account. The Accounts page now asks
-  // this for every account on every render to decide what to show, which is O(accounts × rows)
-  // as a per-id scan; it is also what makes the memo downstream able to depend on a stable value
-  // instead of a fresh closure.
-  //
-  // An Operator's snapshot omits journal entries with an Income leg, so this can under-report for
-  // an Income account on a non-admin screen. Harmless in practice: the only Income account is the
-  // built-in 'margin', which is a system account and therefore neither hidden nor deletable.
-  const inUseAccountIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const t of state.activity) {
-      if (t.customerId) ids.add(t.customerId)
-      if (t.settlementAccountId) ids.add(t.settlementAccountId)
-    }
-    for (const q of state.cheques) {
-      if (q.customerId) ids.add(q.customerId)
-      if (q.bankAccountId) ids.add(q.bankAccountId)
-    }
-    for (const e of state.journalEntries) {
-      ids.add(e.debitAccount)
-      ids.add(e.creditAccount)
-      if (e.salary) ids.add(e.salary.employeeId)
-      if (e.openingFor) ids.add(e.openingFor)
-    }
-    return ids
-  }, [state.activity, state.cheques, state.journalEntries])
+  // Both sets are built by lib/accountRefs.ts, which is pure and therefore testable — this
+  // provider cannot be rendered by a node-environment test. See that file for why the two answers
+  // must stay separate: `inUseAccountIds` mirrors the server and counts voucher legs,
+  // `postedAccountIds` excludes them and is the one to ask when deciding what to SHOW.
+  const refInput = useMemo(
+    () => ({ activity: state.activity, cheques: state.cheques, journalEntries: state.journalEntries }),
+    [state.activity, state.cheques, state.journalEntries],
+  )
+  const inUseAccountIds = useMemo(() => buildInUseAccountIds(refInput), [refInput])
+  const postedAccountIds = useMemo(() => buildPostedAccountIds(refInput), [refInput])
 
   const accountHasActivity = (id: string) => inUseAccountIds.has(id)
 
@@ -347,6 +329,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     employees,
     accountHasActivity,
     inUseAccountIds,
+    postedAccountIds,
 
     saveAccount: (mode, id, form) => (mode === 'new' ? mutateString('POST', '/api/accounts', form) : mutateString('PATCH', `/api/accounts/${id}`, form)),
     deleteAccount: (id) => mutateString('DELETE', `/api/accounts/${id}`),

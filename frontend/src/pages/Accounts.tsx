@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '@/lib/store'
 import { fmt } from '@/lib/format'
 import { ACCOUNT_TYPES } from '@/lib/types'
@@ -9,14 +9,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccountFormModal } from '@/components/AccountFormModal'
 import { cn } from '@/lib/utils'
 
 export function Accounts() {
-  const { state, isAdmin, inUseAccountIds } = useStore()
+  const { state, isAdmin, postedAccountIds } = useStore()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<'All' | AccountType>('All')
+  const [showArchived, setShowArchived] = useState(false)
   const [params] = useSearchParams()
 
   const [open, setOpen] = useState(!!params.get('new'))
@@ -34,7 +37,18 @@ export function Accounts() {
   // pay-from account out of it, and BalanceSheet.tsx hands the whole array to computeBalanceSheet
   // — which iterates Currency Stock ACCOUNTS to value each holding, so filtering upstream would
   // take the desk's currency off its own balance sheet.
-  const visible = useMemo(() => state.accounts.filter((a) => !a.system || inUseAccountIds.has(a.id)), [state.accounts, inUseAccountIds])
+  //
+  // `postedAccountIds`, NOT `inUseAccountIds` — the latter counts the voucher legs requirement 7
+  // writes automatically, which put a Currency Stock account here on the desk's very first trade.
+  // See the comment at postedAccountIds' definition in store.tsx.
+  const shown = useMemo(() => state.accounts.filter((a) => !a.system || postedAccountIds.has(a.id)), [state.accounts, postedAccountIds])
+
+  // Archived accounts were not filtered here at all until 2026-09-09, which is what made Archive
+  // read as broken: it works, and Trade/Settle/Ledger have always honoured it, but the account
+  // stayed on THIS list looking untouched, so the one screen an admin checks afterwards was the
+  // one screen that ignored the flag. Same toggle the Customers page already carries.
+  const archivedCount = useMemo(() => shown.filter((a) => a.archived).length, [shown])
+  const visible = useMemo(() => (showArchived ? shown : shown.filter((a) => !a.archived)), [shown, showArchived])
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -55,6 +69,13 @@ export function Accounts() {
     setDefaultType(type)
     setOpen(true)
   }
+  // A Currency Stock account has no editable substance — its quantity and weighted-average cost
+  // are the currency ledger's, not the account's, and the edit form said exactly that and then
+  // showed neither. So the row opens the ledger instead. Everything else still opens the form.
+  function openRow(a: Account) {
+    if (a.type === 'Currency Stock') return navigate(`/stock?code=${encodeURIComponent(a.code || '')}`)
+    openEdit(a)
+  }
   function openEdit(a: Account) {
     if (!isAdmin) return
     setMode('edit')
@@ -65,6 +86,20 @@ export function Accounts() {
     setOpen(false)
   }
 
+  const archivedToggle = archivedCount > 0 && (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      aria-pressed={showArchived}
+      onClick={() => setShowArchived((v) => !v)}
+      className={cn('flex-none gap-1 text-meta', showArchived && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+    >
+      Show archived
+      <span className="tabular text-meta opacity-70">{archivedCount}</span>
+    </Button>
+  )
+
   return (
     <div>
       <div className="mb-[26px] flex items-start justify-between gap-4">
@@ -74,24 +109,31 @@ export function Accounts() {
             {visible.length === 0 ? 'Nothing here yet — add your first account.' : `${visible.length} accounts — customers, banks, expenses and equity in one book.`}
           </div>
         </div>
-        {isAdmin ? (
-          <Button variant="primary" className="flex-none px-3.5 py-2" onClick={() => openNew('Customer')}>
-            New account
-          </Button>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="primary" aria-disabled="true" className="flex-none cursor-not-allowed px-3.5 py-2 opacity-50 hover:bg-accent-solid hover:shadow-xs">
-                <Lock size={12} strokeWidth={2.4} aria-hidden="true" />
-                New account
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Account management is Admin-only.</TooltipContent>
-          </Tooltip>
-        )}
+        {/* The archived toggle sits HERE, not in the filter row below, for two reasons: it is
+            where the Customers page already puts its identical control, and the filter row's type
+            chips scroll horizontally — a flex-none button next to them steals ~150px and clipped
+            the last chip mid-word. */}
+        <div className="flex flex-none items-center gap-2">
+          {archivedToggle}
+          {isAdmin ? (
+            <Button variant="primary" className="flex-none px-3.5 py-2" onClick={() => openNew('Customer')}>
+              New account
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="primary" aria-disabled="true" className="flex-none cursor-not-allowed px-3.5 py-2 opacity-50 hover:bg-accent-solid hover:shadow-xs">
+                  <Lock size={12} strokeWidth={2.4} aria-hidden="true" />
+                  New account
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Account management is Admin-only.</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
-      {visible.length > 0 && (
+      {shown.length > 0 && (
       <div className="mb-5 flex items-center gap-2.5">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search accounts" className="w-[250px] flex-none" />
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
@@ -129,8 +171,11 @@ export function Accounts() {
         {rows.map((a) => {
           const bal = balanceOf(a)
           return (
-            <div key={a.id} onClick={() => openEdit(a)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
-              <div className="min-w-0 flex-1 text-body font-semibold">{a.name}</div>
+            <div key={a.id} onClick={() => openRow(a)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="truncate text-body font-semibold">{a.name}</span>
+                {a.archived && <Badge variant="neutral">Archived</Badge>}
+              </div>
               <div className="min-w-[112px] text-meta font-normal text-muted-70">{a.type}</div>
               <div className="min-w-0 flex-[1.1] truncate text-meta font-normal text-muted-70">{detailFor(a)}</div>
               <div className="flex min-w-[150px] items-baseline justify-end gap-1.5 text-right">
@@ -146,7 +191,7 @@ export function Accounts() {
       )}
 
       {rows.length === 0 &&
-        (visible.length === 0 ? (
+        (shown.length === 0 ? (
           <EmptyState
             category="neutral"
             icon={Wallet}
@@ -165,7 +210,12 @@ export function Accounts() {
             }
           />
         ) : (
-          <EmptyState category="neutral" icon={SearchX} title="No accounts match this filter." />
+          <EmptyState
+            category="neutral"
+            icon={SearchX}
+            title="No accounts match this filter."
+            description={archivedCount > 0 && !showArchived ? 'Archived accounts are hidden — turn "Show archived" on to include them.' : undefined}
+          />
         ))}
 
       {open && <AccountFormModal mode={mode} editId={editId} defaultType={defaultType} onClose={close} />}

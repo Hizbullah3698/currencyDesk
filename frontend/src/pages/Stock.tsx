@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Printer } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { CURRENCIES, activeCurrencies, activityDate, currencyMeta, currencyName, openingStock, quoteRate, stk, stampTime, unitPkr } from '@/lib/engine'
@@ -30,7 +30,14 @@ const CHART_MOVEMENTS = 24
 export function Stock() {
   const { state, isAdmin } = useStore()
   const navigate = useNavigate()
-  const [selected, setSelected] = useState('')
+  // The initial selection can be handed in as ?code=USD, so a Currency Stock account row on the
+  // Accounts page can open THIS page on that currency instead of the edit form — which showed a
+  // name and a currency picker and then said the quantity and cost "come from the currency
+  // ledger", without showing either. Read once as the initial value rather than kept in the URL:
+  // the tabs below are a local browsing gesture, not navigation, and writing every tab click into
+  // history would put a dozen entries between the user and the Back button.
+  const [params] = useSearchParams()
+  const [selected, setSelected] = useState(() => (params.get('code') || '').toUpperCase())
 
   // Currencies that actually have a position or any movement. On a brand-new desk that list is
   // empty, so fall back to the full registry rather than rendering a page with no ledger at all.

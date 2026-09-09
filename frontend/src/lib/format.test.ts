@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { txnAmountParts } from './format'
+import { shortRef, txnAmountParts } from './format'
 
 // The client's report: buy AED 1,000 from a customer, open their record, and the amount reads
 // "PKR 77,000" — a currency that was never part of the deal. Every screen was reaching for the
@@ -56,5 +56,30 @@ describe('txnAmountParts', () => {
 
   it('respects each currency\'s own quantity precision', () => {
     expect(txnAmountParts({ type: 'purchase', currency: 'IRR', amount: 1_000_000, pkrValue: 202 }).primary).toBe('1,000,000 IRR')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// shortRef
+// ---------------------------------------------------------------------------
+// Reported 2026-09-09: "the ref, type and party are so close that even can't differentiate".
+// The Transactions list printed a full 36-character uuid into a 64px column, which overran it and
+// shoved the next two columns hard against it. The column widths were the symptom.
+// ---------------------------------------------------------------------------
+
+describe('shortRef', () => {
+  it('cuts a uuid down to eight characters', () => {
+    expect(shortRef('ef5e6ead-4596-430a-9f76-40601c60cc2e')).toBe('EF5E6EAD')
+  })
+
+  it('leaves a real journal reference alone rather than slicing it into nonsense', () => {
+    // JV-1 is meaningful and already short. Truncating it would destroy the one ref in this table
+    // that a person actually chose.
+    expect(shortRef('JV-1')).toBe('JV-1')
+    expect(shortRef('JV-1024')).toBe('JV-1024')
+  })
+
+  it('uppercases whatever it returns, so the column reads consistently', () => {
+    expect(shortRef('jv-7')).toBe('JV-7')
   })
 })

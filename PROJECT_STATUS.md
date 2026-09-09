@@ -175,7 +175,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains, in order:* **(a)** the security rollout's final step is still unvalidated — `npm run csrf:gate:prod` cannot give a verdict until the desk has been used for a normal day, and as of 2026-09-06 the client has not recorded a single deal. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead. A checking tool compares the two pictures; it reaching agreement is the definition of this requirement being done. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains, in order:* **(a)** the security rollout's final step is still unvalidated — `npm run csrf:gate:prod` cannot give a verdict until the desk has been used for a normal day. **As of 2026-09-09 the client has started trading**, so this is no longer blocked: the check has real traffic to measure for the first time and should be re-run. (It was blocked on exactly this from 2026-09-03 to 2026-09-06, when the desk sat idle.) **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead. A checking tool compares the two pictures; it reaching agreement is the definition of this requirement being done. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens — confirmed on 2026-09-09, when the first real trades produced their paired entries as designed. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -202,6 +202,146 @@ Worth noting because it represents real completed work, whether or not it maps t
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-09
+
+### Done
+
+*At a glance: the client used the desk for the first time and sent back eight problems. All eight
+were real — none was a misreading of a working system. Seven are fixed; the eighth was a policy
+question the client answered, and the answer was to keep the current behaviour and fix what made it
+look broken.*
+
+**The client has started trading.** This is the first session with real business on the system. The
+2026-09-06 entry recorded that nobody had signed in since the desk was cleared on 2026-09-03; that
+is no longer true. Two purchases are on the books, from two customers the client created. Every
+problem below comes from that first day of use, which is why several of them had never surfaced
+before — they needed a real trade to exist.
+
+**One of the eight was a fault we introduced.** The accounting work released on 2026-09-03 has a
+side effect nobody predicted. The Accounts page was built to show the client the accounts they
+created and to keep the system's own internal accounts out of sight until one is actually used.
+That rule was written when the only way to use an internal account was to choose it deliberately.
+The new accounting work changed that: every purchase now automatically writes an entry against the
+relevant currency's internal account. So the client's first two trades pushed "Currency stock
+(AED)" and "Currency stock (USD)" onto a list that is supposed to show their own customers.
+
+The system now distinguishes between an account something was posted to *automatically* and one a
+person posted to *deliberately*, and only the second kind brings an internal account into view. The
+distinction is written down in one place and covered by tests, including a test that fails if the
+two are ever collapsed back together — which would quietly re-open a different problem, because the
+"has anything touched this account" question is still the right one for deciding whether an account
+can be deleted or reclassified.
+
+**A total that disagreed with the list behind it.** The header showed "You owe PKR 328,200 across 2
+customers"; clicking it listed one customer and PKR 78,000. The missing money belonged to an
+archived customer, who was counted in the header and hidden from the list.
+
+The client chose that archived customers should keep counting, which is the safer of the two
+answers — money owed to a retired customer is still owed, and a header figure that quietly dropped
+it would understate what the desk owes with nothing to reveal the gap. So the lists reached from
+those headers now include archived customers, marked as archived. The rule, recorded for the
+future: **whatever a total counts must be reachable from the list that total links to.**
+
+**Archiving looked broken, and was not.** Archiving a customer worked and always had — the customer
+disappears from the screens where you buy, sell and settle, exactly as intended. But the Accounts
+page ignored it completely, so the account still sat there looking untouched. The Accounts page now
+hides archived accounts behind a "Show archived" switch and labels them when shown, matching how
+the Customers page has always behaved.
+
+**Deletion: the client's request, and what we did instead.** The client asked for outright deletion
+through the admin account. The system refuses to delete an account that has transactions or carries
+a balance, and offers archiving instead.
+
+We put the cost of the alternative in front of the client rather than simply building it: deleting
+a customer does not delete their trades. It would leave purchases, accounting entries and currency
+positions in the books referring to a customer who no longer exists — the books would still add up,
+but the trail behind them would point at nothing, which is the thing anyone auditing a currency
+business asks about. The client chose to keep the current rule and have archiving made to work
+properly instead.
+
+One consequence worth stating, because it decides a related question: **archiving deliberately does
+not refuse an account carrying a balance.** Deletion already does. If archiving refused as well,
+there would be no way to retire a customer who is still owed money — which is precisely the
+customer the client was trying to retire.
+
+**Two screens that were simply hard to read.**
+
+*The transaction list's first three columns ran into each other.* The cause was not spacing: the
+reference column was printing a 36-character internal identifier that overflowed its column and
+shoved the next two against it. References are now shortened to eight characters, with the full
+value available on hover. Separately, the column widths in the header and the widths in the rows
+had been written down twice and had drifted apart, so every heading after the first sat to the left
+of the column it named. They are now defined once.
+
+*The Customers screen had two search boxes a few inches apart* — one in the top bar, one on the
+page. Worse, the one the eye reaches for first did nothing until Enter was pressed, which is
+exactly what the client's screenshot caught. The top bar's box is a jump-to-customers shortcut and
+has nothing to offer on the page it jumps to, so it is now hidden there. One search box on that
+screen, the one with the context.
+
+**The balance sheet printed every account, including the empty ones.** A desk with two purchases on
+it was printing four untouched currencies, two unused expense accounts and an empty salary account
+as blank lines around the few figures that carried anything. Accounts with nothing on either side
+are no longer printed, and a section left with nothing in it does not appear.
+
+This is a change to what is shown and not to any figure. Every total, and the sheet's own
+"balanced" verdict, are computed independently of the printed rows, and there is now a test that
+compares a sheet against the same books with the empty accounts removed by hand and requires every
+figure to match. The checking tool used for the accounting work is also unaffected, because it was
+deliberately built to work out its own answers rather than read the balance sheet's.
+
+**Clicking a currency's account showed a form that explained where its numbers were and then showed
+none of them.** Those rows now open the currency ledger, which is the page that actually holds the
+quantity, the cost and the movement history.
+
+**All of it was then checked on screen, in both colour schemes**, against a local copy of the books
+that happens to reproduce the reported problems exactly — one archived customer carrying money in
+both directions, four trades, and the automatic accounting entries behind them. The balance sheet
+still totals the same figure on both sides and still reports itself balanced, which is the check
+that matters most: the change to it was to what is shown, and nothing shown changed what is
+counted.
+
+Two further problems were found by looking rather than by reasoning, and both are fixed:
+
+- The new "Show archived" switch, placed first in the row of type filters, squeezed that row enough
+  to clip the last filter mid-word. It now sits beside "New account", which is where the Customers
+  page has always put the same control.
+- With the desk's only customer archived, the Customers screen said "No customers on file yet."
+  directly beneath a header counting that customer. "None on file" and "none that aren't archived"
+  are different statements and it was making the wrong one. It now says how many are archived and
+  points at the switch.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The 2026-09-03 accounting release put internal currency accounts onto the client's Accounts page from their first trade onward | Real, and ours. Not a wrong figure, but the first thing the client saw on the screen listing their own customers | **Fixed 2026-09-09**, with tests that fail if the fix is undone |
+| "You owe" in the header counted an archived customer that the list it links to hid | Real. A headline figure that its own drill-down cannot account for | **Fixed 2026-09-09** — the client chose that archived balances keep counting; the lists now include them |
+| The Accounts page ignored the archived flag entirely | Real. Archiving worked everywhere else, so the one screen an admin checks afterwards was the one that made it look broken | **Fixed 2026-09-09** |
+| The transaction list printed a full 36-character internal identifier in a narrow column | Real. It overran the column and pushed the next two into it | **Fixed 2026-09-09** |
+| Column widths in that list were written down twice and had drifted apart | Real. Every heading after the first was offset from its column | **Fixed 2026-09-09** — now defined once |
+| Two search boxes on the Customers screen, and the more obvious one did nothing without Enter | Real | **Fixed 2026-09-09** |
+| The balance sheet listed accounts holding nothing | Real but cosmetic | **Fixed 2026-09-09**, presentation only — no figure moved |
+| A currency account's row opened a form with none of that currency's information in it | Real | **Fixed 2026-09-09** — it opens the currency ledger now |
+| Full deletion of an account with history is still refused | Working as designed. Raised with the client with the cost spelled out; they chose to keep it | **Closed — no change wanted.** Archiving is the route, and it now works properly |
+| The new archived switch clipped the last type filter mid-word | Cosmetic, and introduced by this session's own fix | **Fixed 2026-09-09**, found by looking at the screen rather than by reasoning about it |
+| With every customer archived, the Customers screen claimed none were on file, contradicting the header above it | Real, and pre-existing rather than introduced here — but the same fault as the one the client reported, so fixed alongside it | **Fixed 2026-09-09** |
+
+### Next — in priority order
+
+The list is unchanged from 2026-09-06 except that its first item is no longer blocked.
+
+1. **Finish the security rollout.** This was waiting on the desk being used for a normal day. It
+   now has been. Re-run the readiness check against the live system — it can give a real verdict
+   for the first time, where before it could only say "inconclusive, nothing has happened".
+2. **Switch the reports over** (the last step of the accounting work): retire the four separate
+   ways each figure is currently worked out, one at a time, re-running the checking tool between
+   each until it reports agreement.
+3. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
+   started.
+4. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
+   balance; the PDF export question; the pre-existing sessions; and the misleading error message.
 
 ## 2026-09-06
 
