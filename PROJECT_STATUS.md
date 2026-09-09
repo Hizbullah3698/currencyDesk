@@ -404,6 +404,21 @@ checks doing their job.
 The remaining gap — a past-dated sheet for a customer with hand-written entries — is recorded as a
 failing-if-broken check rather than a comment, so it stays visible.
 
+**Confirmed on the live system afterwards, not just in the checks.** A balance sheet asked for
+August, and again for the day before the desk's first deal, came back empty — no customer balances
+at all — while the same screen's header still showed the real current position of PKR 220,000 owed
+to the desk and PKR 328,200 owed by it. **Those two figures disagreeing, on one screen, is the
+proof.** They come from different places: the header reads the desk's stored balances, and the sheet
+now reconstructs what was true on the date asked for. Before the correction the sheet simply
+reprinted the header's figures at every date, so seeing them differ — correctly — is the fix working
+end to end on real books rather than in a test.
+
+*What this does not yet demonstrate.* Every deal on the desk was struck on the same day, so there is
+no date that falls between two deals. The live check therefore covers the all-or-nothing case
+cleanly and not a partly-populated historical sheet, where some deals are counted and later ones are
+not. That path is covered by the automated checks, including backdating and cheque clearing.
+Demonstrating it on the live desk would need a deal deliberately recorded with an earlier date.
+
 **The checking tool now reports RECONCILED at every date it examines.** It had one further copy of
 the same fault inside itself: it deliberately re-implements the report's workings rather than calling
 them, so that it can act as an independent check, and its customer branch had the same defect. That
@@ -446,7 +461,7 @@ the state it ends in.
 | A currency account's row opened a form with none of that currency's information in it | Real | **Fixed 2026-09-09** — it opens the currency ledger now |
 | The security rollout's final stage is complete — switched on, proven not to lock anyone out, and proven to be actively refusing untokened requests | n/a — this is the work finishing, recorded because it took two separate checks proving two different things, and only the second one settles it | **Closed 2026-09-09.** Both checks passed and both are cited in the developer guide |
 | The readiness tool now reports NOT SAFE, and its "enforcement currently" line says off | Neither is a fault. The first is the deliberate check's own footprint and clears itself within two days; the second reads local settings rather than the live server's | **Documented, not fixed.** Both are recorded in the developer guide so they are not mistaken for regressions |
-| Historical balance sheets reported today's customer figures at every past date | Real, and the last known fault of its kind. Recorded 2026-09-02 and carried until now | **Fixed 2026-09-09**, with checks confirmed failing on the old code first. Present-day figures untouched by construction |
+| Historical balance sheets reported today's customer figures at every past date | Real, and the last known fault of its kind. Recorded 2026-09-02 and carried until now | **Fixed 2026-09-09**, with checks confirmed failing on the old code first. Present-day figures untouched by construction. **Confirmed live in the production screen**, not only in the checks — a past-dated sheet came back empty while the header still showed the real 220,000 / 328,200 position |
 | The checking tool contained its own copy of the same fault | Real, and would have become actively misleading once the report was fixed — its failure message would have blamed a defect that no longer exists | **Fixed 2026-09-09** in the same batch |
 | A past-dated sheet still ignores hand-written accounting entries against a customer | Low and bounded. Today's figures are unaffected; only past-dated sheets for customers with such entries are short | **Open, recorded as a failing-if-broken check.** Closing it is part of the remaining requirement 7 work |
 | Full deletion of an account with history is still refused | Working as designed. Raised with the client with the cost spelled out; they chose to keep it | **Closed — no change wanted.** Archiving is the route, and it now works properly |
