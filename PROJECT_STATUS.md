@@ -175,7 +175,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains:* ~~**(a)** the security rollout's final step~~ — **done 2026-09-09.** It was blocked from 2026-09-03 to 2026-09-06 on an idle desk; the client started trading on 2026-09-09, the readiness check returned SAFE on real traffic, the final step was switched on, and it was then proven to be actively refusing untokened requests. Nothing on the security work remains. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead. A checking tool compares the two pictures; it reaching agreement is the definition of this requirement being done. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens — confirmed on 2026-09-09, when the first real trades produced their paired entries as designed. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains:* ~~**(a)** the security rollout's final step~~ — **done 2026-09-09.** It was blocked from 2026-09-03 to 2026-09-06 on an idle desk; the client started trading on 2026-09-09, the readiness check returned SAFE on real traffic, the final step was switched on, and it was then proven to be actively refusing untokened requests. Nothing on the security work remains. <br><br>**The checking tool now reports RECONCILED at every date, as of 2026-09-09** — the accounting record on its own reproduces every reported figure. **This is the precondition for (b), not (b) itself, and must not be read as this requirement being complete.** The reports still work their figures out independently rather than reading the accounting record. A green checking tool alongside reports that still reconstruct their own numbers is the state (b) starts from, not the state it ends in. See the 2026-09-09 entry in Part 3. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead — retired one at a time, re-running the checking tool between each. The tool reaching agreement (which it now does) is the precondition for that switch-over; **this requirement is done when the reports actually read the accounting record**, not when the tool agrees they could. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens — confirmed on 2026-09-09, when the first real trades produced their paired entries as designed. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -381,6 +381,57 @@ disappears from the tool's two-day window on its own. A second trap worth knowin
 "enforcement currently" line reads the developer's own local settings, not the live server's, so it
 says "off" even though the live server is armed. Neither is a problem; both would look like one.
 
+**The last known fault in the historical reports is fixed, and the checking tool now passes for the
+first time.** Asking the balance sheet for any past date used to give a customer's balance as it
+stands *today*, whatever date was asked for — so a sheet "as at last month" quietly mixed last
+month's stock and cash with this morning's customer figures. Every other line on the sheet was
+already cut at the requested date; customers were the one exception, recorded on 2026-09-02 and left
+until now.
+
+The correction reuses a piece of the shared calculator that already existed for exactly this and had
+simply never been connected. It reconstructs what a customer owed, or was owed, on the date asked
+for, from the deals and cheques up to that point.
+
+*One deliberate restraint, because it protects the figures the client actually looks at.* The
+reconstruction is used **only** for a past date. For today, the stored balances are used exactly as
+before. That is not a shortcut: the reconstruction covers deals and cheques but not hand-written
+accounting entries, which also move a customer's balance, so rebuilding from scratch could disagree
+with the desk's own figure for any customer with one. Present-day numbers are therefore untouched
+**by construction rather than by testing** — there is no path by which they can move. This was found
+the honest way: swapping straight to the reconstruction broke three existing checks, which is those
+checks doing their job.
+
+The remaining gap — a past-dated sheet for a customer with hand-written entries — is recorded as a
+failing-if-broken check rather than a comment, so it stays visible.
+
+**The checking tool now reports RECONCILED at every date it examines.** It had one further copy of
+the same fault inside itself: it deliberately re-implements the report's workings rather than calling
+them, so that it can act as an independent check, and its customer branch had the same defect. That
+was corrected too — a copy that has stopped matching the thing it copies measures nothing, and worse,
+its own failure message would have blamed a fault that no longer exists and sent the next person to
+fix something already fixed.
+
+### What RECONCILED means — and the two things it does not mean
+
+Stated separately and at length because the word is easy to over-read, and a wrong reading here would
+have someone believe a large piece of work is finished when it is not. The tool itself now prints
+this on success for the same reason.
+
+**It does mean:** the accounting record on its own reproduces every figure the system reports, for
+every account, at every date checked. The books and the reports tell the same story. This is the
+**precondition** for the remaining work, and the evidence that it can be done without any reported
+number changing.
+
+**It does not mean that remaining work is done.** The reports still work their figures out
+independently rather than reading the accounting record — the balance sheet still takes customer
+balances from stored columns, currency holdings from a replay of trades, and everything else from its
+own reconstruction. Retiring those, one at a time, is the work that remains.
+
+**It does not mean requirement 7 is complete.** Requirement 7 is finished when the reports read the
+accounting record. RECONCILED says they *could* — not that they *do*. A green checking tool alongside
+reports that still reconstruct their own figures is exactly the state that work **starts** from, not
+the state it ends in.
+
 ### Found
 
 | Finding | Severity | Status |
@@ -395,6 +446,9 @@ says "off" even though the live server is armed. Neither is a problem; both woul
 | A currency account's row opened a form with none of that currency's information in it | Real | **Fixed 2026-09-09** — it opens the currency ledger now |
 | The security rollout's final stage is complete — switched on, proven not to lock anyone out, and proven to be actively refusing untokened requests | n/a — this is the work finishing, recorded because it took two separate checks proving two different things, and only the second one settles it | **Closed 2026-09-09.** Both checks passed and both are cited in the developer guide |
 | The readiness tool now reports NOT SAFE, and its "enforcement currently" line says off | Neither is a fault. The first is the deliberate check's own footprint and clears itself within two days; the second reads local settings rather than the live server's | **Documented, not fixed.** Both are recorded in the developer guide so they are not mistaken for regressions |
+| Historical balance sheets reported today's customer figures at every past date | Real, and the last known fault of its kind. Recorded 2026-09-02 and carried until now | **Fixed 2026-09-09**, with checks confirmed failing on the old code first. Present-day figures untouched by construction |
+| The checking tool contained its own copy of the same fault | Real, and would have become actively misleading once the report was fixed — its failure message would have blamed a defect that no longer exists | **Fixed 2026-09-09** in the same batch |
+| A past-dated sheet still ignores hand-written accounting entries against a customer | Low and bounded. Today's figures are unaffected; only past-dated sheets for customers with such entries are short | **Open, recorded as a failing-if-broken check.** Closing it is part of the remaining requirement 7 work |
 | Full deletion of an account with history is still refused | Working as designed. Raised with the client with the cost spelled out; they chose to keep it | **Closed — no change wanted.** Archiving is the route, and it now works properly |
 | The new archived switch clipped the last type filter mid-word | Cosmetic, and introduced by this session's own fix | **Fixed 2026-09-09**, found by looking at the screen rather than by reasoning about it |
 | With every customer archived, the Customers screen claimed none were on file, contradicting the header above it | Real, and pre-existing rather than introduced here — but the same fault as the one the client reported, so fixed alongside it | **Fixed 2026-09-09** |
@@ -405,11 +459,14 @@ The list is unchanged from 2026-09-06 except that its first item is no longer bl
 
 1. ~~Finish the security rollout.~~ **Done 2026-09-09** — switched on, proven not to lock anyone
    out, and proven to be actively refusing untokened requests. Nothing remains on it. **The next
-   item is now first.**
+   item is now first**, and it is no longer blocked on anything: the checking tool reports
+   RECONCILED, which is exactly the green light it was built to give.
    With that done, the rollout is finished.
 2. **Switch the reports over** (the last step of the accounting work): retire the four separate
    ways each figure is currently worked out, one at a time, re-running the checking tool between
-   each until it reports agreement.
+   each. **It already reports agreement — that is the starting condition, not the finish line.**
+   The work is done when the reports actually read the accounting record instead of rebuilding
+   their own figures. Closing the hand-written-entries gap noted above belongs here.
 3. **Then, and only then, corrections and reversals** — planned and decided, deliberately not
    started.
 4. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening

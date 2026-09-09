@@ -48,8 +48,8 @@ npm run dev                     # Vite on :5173
 npm run build                   # tsc -b && vite build
 npm run lint                    # oxlint (not ESLint), scoped to this package's src/
 npm run test
-npm run reconcile               # requirement 7 harness; needs a snapshot:dump first. Exits 1
-                                # until requirement 7 is done — that is the expected state.
+npm run reconcile               # requirement 7 harness; needs a snapshot:dump first. Reports
+                                # RECONCILED as of 2026-09-09 — a red run is now a finding.
 ```
 
 There is no signup flow; accounts are created by CLI. Login accepts a username **or** an email.
@@ -211,6 +211,22 @@ and `unexplained`. The distinction is easy to collapse back into a bug:
 
 Currency stock is valued with `stockAsOf(...)`, not the live `stk()` position — every other row is
 cut at `asOfT`, so valuing stock at today mixes two dates on any historical sheet.
+
+**Customer rows are cut at `asOfT` too, since 2026-09-09** — they were the one branch that was not,
+and every historical sheet reported today's customer figures as a result. The branch now uses the
+engine's `customerBalanceAsOf` (opening balance + `custEffects` replayed to the date), which already
+existed for exactly this and had never been wired up. **But it prefers the stored
+`receivable`/`payable` whenever nothing postdates the reporting date, and that guard is
+load-bearing**: `custEffects` models activity and cheques but *not* manual journal entries, which
+`postJournal` also moves those columns for — so a from-scratch replay disagrees with the stored
+figure for any customer carrying a hand-written posting. Preferring the stored columns when nothing
+is later keeps present-day figures identical **by construction** rather than by measurement, which
+is what the client and the harness both read. The guard lives at the call site and **must not move
+into the engine helper**, which is deliberately a pure replay so it can be used to *verify* the
+stored columns. The remaining gap — a past-dated sheet for a customer with manual postings — is
+pinned by a test in `reports.test.ts` rather than left as a comment; closing it means one
+chronological replay folding activity, cheques and journal entries together under `postJournal`'s
+allocation rule, which is phase 5 work.
 
 **Rows with nothing on either side are not printed**, and a group left with no rows does not appear.
 This is `push()`'s `if (!row.dr && !row.cr) return`, and it is **presentation only** — a zero
@@ -598,13 +614,30 @@ component or a provider is genuinely pure, lift it into `src/lib/` and it become
 it asks a question about live data, and a knowingly-red check inside the suite trains everyone to
 ignore a red suite.
 
-It exits 1 while requirement 7 is unfinished, but **that is no longer a blanket "expected" —
-attribute every difference before accepting it.** One known cause remains, logged 2026-09-02 and
-left to phase 5: `computeBalanceSheet`'s Customer branch reads the stored `receivable`/`payable`
-columns with **no `asOfT`**, so it reports the current balance at every historical date. Its
-signature is a Customer row whose *Reported* figure is identical at every date while *Journal only*
-moves — there the journal is right and the report is wrong. Anything not matching that signature is
-unexplained and is a finding.
+**It reports RECONCILED as of 2026-09-09, at all five dates.** The last known-and-accepted cause —
+`computeBalanceSheet`'s Customer branch reading the stored `receivable`/`payable` with no `asOfT`,
+so it reported the current balance at every historical date — was fixed that day. **There is no
+longer any accepted difference: a red run is a finding, full stop.**
+
+### What RECONCILED means, and the two things it does not mean
+
+Worth stating separately because the word invites over-reading, and the harness now prints this on
+success for the same reason.
+
+**It DOES mean** the journal alone reproduces every reported figure, per account, at every date
+checked — the journal is a faithful replica of the books. That is the **precondition for phase 5**
+and the evidence that the switch-over can be made without moving a number.
+
+**It does NOT mean phase 5 is done.** The reports still derive their figures independently and do
+not read the journal: the balance sheet takes customers from stored columns, currency stock from a
+`stockAsOf` replay of activity, and everything else from `ledgerBalance`'s reconstruction. Phase 5
+is retiring those reconstructions one at a time, re-running this between each.
+
+**It does NOT mean requirement 7 is complete.** Requirement 7 is done when the reports read the
+journal. RECONCILED says they *could* — not that they *do*.
+
+The distinction is load-bearing for the next person: a green harness plus reports that still
+reconstruct their own figures is exactly the state phase 5 starts from, not the state it ends in.
 
 ### The settings cache outlives a database reset — a solved flake worth not re-creating
 
