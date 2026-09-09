@@ -349,25 +349,31 @@ beforehand (checked first, so the change is a measured difference rather than an
 copy of the server was built after it and is the one the live address now points to, and that copy
 is healthy.
 
-**Whether the rejection is actually active could not be proven from outside, and this is a property
-of the design rather than a gap in the checking.** The protection deliberately ignores requests from
-someone not signed in, so that they fail with a plain "you are not signed in" rather than a
-confusing complaint about a security token they could not have had. It therefore only changes
-behaviour for a request that already carries a valid sign-in, and there is no way to produce one
-without signing in. The hosting also returns stored settings in encrypted form rather than as
-readable text, so the value could not simply be read back and compared.
+**A real signed-in deal was then recorded against the live system — a 500 USD sale to Ahmed Khan —
+and it went through cleanly with no security error.** That settles the question this stage actually
+carries. The danger of switching on rejection was that staff would be locked out of their own desk;
+they are not, and it has now been demonstrated with a real deal on real books rather than argued
+from configuration. **Staff are unaffected and the desk is working normally.**
 
-*Why that is tolerable rather than alarming.* The switch turns the protection on only for the exact
-value it was given; anything else leaves it off. So the one thing that cannot be confirmed can only
-fail in the harmless direction — towards this morning's behaviour, not towards an outage. **An
-unconfirmed setting here cannot lock anybody out.**
+*What that deal does not tell us, stated plainly because the difference matters.* The rejection only
+comes into play for a request that arrives **without** a security token. The desk's own screens
+always send one, so a deal recorded from them takes a different path through the code entirely — a
+path that behaves identically whether rejection is switched on or off. So a successful deal proves
+nobody is locked out. It does not observe the switch, and cannot.
 
-**The one real confirmation is a single signed-in action, and it has not been done.** Sign in and
-record any deal. If it goes through, the protection is on and staff are unaffected — which is the
-whole question. If it is refused with a message about a security token, the setting is removed and
-the server rebuilt, about a minute's work, and the desk is back exactly where it was. **This should
-be done before the client next uses the desk in earnest, and it needs a sign-in, so it is the
-client's or the developer's to do.**
+Saying otherwise would be the same kind of drift this document has had to correct twice already: a
+status that reads "verified working" resting on evidence that does not bear on it. The distinction is
+recorded rather than smoothed over.
+
+*What would settle the remaining half* is a deliberately malformed request sent without a security
+token from a signed-in browser: rejected means the switch is live, accepted-then-failing-validation
+means it is not. The exact one-line check is in the developer guide. It is safe to run — the
+malformed content guarantees nothing is recorded either way — and takes a few seconds. Nobody has
+run it yet.
+
+*Why this is not urgent.* The switch can only fail towards **off**, which is where the system was
+before. So the untested half cannot cause an outage; at worst the protection is not yet doing
+anything, which was the position all week. The half that could have hurt is the half now proven.
 
 ### Found
 
@@ -381,7 +387,7 @@ client's or the developer's to do.**
 | Two search boxes on the Customers screen, and the more obvious one did nothing without Enter | Real | **Fixed 2026-09-09** |
 | The balance sheet listed accounts holding nothing | Real but cosmetic | **Fixed 2026-09-09**, presentation only — no figure moved |
 | A currency account's row opened a form with none of that currency's information in it | Real | **Fixed 2026-09-09** — it opens the currency ledger now |
-| Stage 3 of the security rollout is on, but its being active has not been independently confirmed | Low. The unconfirmable direction is the harmless one — a wrong value leaves the protection off, which is where the system was this morning. It cannot cause a lockout | **Open — one signed-in deal settles it.** Roll back by removing the setting and rebuilding if that deal is refused |
+| Stage 3 of the security rollout is on and proven not to lock anyone out — a real 500 USD sale went through cleanly — but whether the rejection itself is armed is still untested | Low, and the two halves are worth separating. The half that could have caused an outage is settled. The untested half can only fail towards "off", which is where the system already was | **Open, narrowly.** One deliberately malformed request from a signed-in browser settles it; the command is in the developer guide. Not urgent, and safe to run |
 | Full deletion of an account with history is still refused | Working as designed. Raised with the client with the cost spelled out; they chose to keep it | **Closed — no change wanted.** Archiving is the route, and it now works properly |
 | The new archived switch clipped the last type filter mid-word | Cosmetic, and introduced by this session's own fix | **Fixed 2026-09-09**, found by looking at the screen rather than by reasoning about it |
 | With every customer archived, the Customers screen claimed none were on file, contradicting the header above it | Real, and pre-existing rather than introduced here — but the same fault as the one the client reported, so fixed alongside it | **Fixed 2026-09-09** |
@@ -390,10 +396,11 @@ client's or the developer's to do.**
 
 The list is unchanged from 2026-09-06 except that its first item is no longer blocked.
 
-1. **Confirm the security rollout's final step is actually live.** It was switched on 2026-09-09 and
-   everything checkable was checked, but the one thing that proves it — a signed-in deal going
-   through — needs a sign-in and has not been done. Do this first, before the desk is used in
-   earnest. If the deal is refused with a security-token message, remove the setting and rebuild.
+1. **Close the last half-question on the security rollout.** It is switched on, and a real deal has
+   proven it locks nobody out — the risk that mattered. What remains is confirming the rejection is
+   genuinely armed, which takes one deliberately malformed request from a signed-in browser (the
+   command is in the developer guide, and it is safe to run). Not urgent: the untested half can only
+   fail towards "off".
    With that done, the rollout is finished.
 2. **Switch the reports over** (the last step of the accounting work): retire the four separate
    ways each figure is currently worked out, one at a time, re-running the checking tool between

@@ -386,20 +386,48 @@ readable cross-site cookie, which this two-origin deployment makes awkward), ech
 |---|---|---|
 | 1 | Backend issues the token and validates it *when sent*; a missing token is allowed and logged | **Shipped** |
 | 2 | Frontend sends `X-CSRF-Token` on every mutating request | **Shipped and live since 2026-08-31** — `lib/csrf.ts` `requestHeaders()`, used by `store.tsx` and `settings.ts`. Re-confirmed 2026-09-06 by grepping the bundle actually served in production |
-| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | **Switched on 2026-09-09**, after `csrf:gate:prod` returned SAFE (0 untokened requests against 7 real business writes). `CSRF_ENFORCE` is set on the backend project's Production environment and the deployment aliased to the live host was rebuilt with it. **Not independently verified as ACTIVE — see below.** Roll back with `vercel env rm CSRF_ENFORCE production` + redeploy |
+| 3 | Backend rejects mutating requests with no token (`CSRF_ENFORCE=true`) | **Switched on and safe in production since 2026-09-09.** `csrf:gate:prod` returned SAFE (0 untokened requests against 7 real business writes); `CSRF_ENFORCE` is set on the backend project's Production environment; the live-aliased deployment was rebuilt with it; and a real signed-in sale (500 USD, Ahmed Khan) went through afterwards with no CSRF error. **What that sale proves is NO LOCKOUT, which is the risk this stage carries — it does not observe the flag. See below.** Roll back with `vercel env rm CSRF_ENFORCE production` + redeploy |
 
-**Why stage 3 cannot be confirmed from outside, and why that is tolerable.** `csrfProtection` passes
-an unauthenticated mutating request straight through — deliberately, so it fails as a clean 401 from
-`requireAuth` rather than a confusing 403 about a token the caller could not have had. Enforcement
-therefore only changes behaviour for a request that *already has a session*, and no external probe
-can reach that state. Vercel returns an encrypted envelope rather than plaintext for a stored
-variable's value (sensitive or not), so the literal cannot be read back either.
+**A successful trade does not prove enforcement is armed, and it is worth being exact about why.**
+Read the order in `csrfProtection`:
 
-What makes this acceptable is the direction of the failure: `csrfEnforce` is
-`clean(process.env.CSRF_ENFORCE) === 'true'`, so anything other than exactly `true` leaves
-enforcement **off** — the status quo, not an outage. An unverified flag cannot lock anyone out. The
-real confirmation is one signed-in mutation: if a trade succeeds, stage-2 tokens are flowing under
-enforcement; if it returns "Missing security token", roll back with the command above.
+```text
+if (SAFE_METHODS || EXEMPT_PATHS)  next()
+if (!req.session.userId)           next()          // unauthenticated: pass, so it 401s cleanly
+if (received !== null)             validate → next()   // ← every stage-2 client lands here
+await recordMissingToken(req)
+if (env.csrfEnforce)               403
+else                               warn → next()   // ← csrfEnforce is read ONLY here
+```
+
+`env.csrfEnforce` is consulted **only** when the token is absent. A stage-2 client always sends one,
+so every request the app makes takes the `received !== null` path, which is byte-identical whether
+enforcement is on or off. A tokened request succeeding therefore tells you the rollout did not break
+anything — the whole risk of this stage — and tells you nothing about the flag's value.
+
+Two things also block reading the flag directly: an unauthenticated mutating request is passed
+through by design (so no external probe reaches the branch), and Vercel returns an encrypted
+envelope rather than plaintext for a stored variable, sensitive or not.
+
+**The probe that does discriminate** is a mutating request that is authenticated, carries no
+`X-CSRF-Token`, and has a deliberately invalid body — the bad body guarantees no mutation either
+way, because validation sits behind the middleware:
+
+- enforcement **on** → `403 {"error":"Missing security token. Reload the page and try again."}`
+- enforcement **off** → passes CSRF, reaches the route, fails validation → `400`
+
+Run from the browser console of a signed-in production tab:
+
+```js
+await (await fetch('/api/trades/purchase', {
+  method: 'POST', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: '{}',
+})).status   // 403 = armed, 400 = flag not taking effect
+```
+
+Note it writes a `csrf_missing_token` row either way (`recordMissingToken` runs before the branch),
+so a later `csrf:gate:prod` will show 1 — expected, and not a regression.
 
 Each stage must be confirmed live in production before the next begins. Running 3 before 2 has
 fully propagated locks out every user still holding a cached pre-stage-2 bundle. Stage 3 is an env
