@@ -312,6 +312,27 @@ Two further problems were found by looking rather than by reasoning, and both ar
   are different statements and it was making the wrong one. It now says how many are archived and
   points at the switch.
 
+**Released to the live system the same day, and confirmed by reading what the live address actually
+serves** rather than trusting the hosting's status display. Before the release the served program
+did not contain the new wording at all; after it, three phrases unique to this work are present, the
+program's fingerprint has changed, and the copy being served is 46 seconds old rather than two and a
+half hours. The old, mismatched column widths are gone from it and the corrected ones are there.
+That is the same check used on 2026-09-06, and this time it reads the change directly rather than
+inferring it from timing.
+
+**The security rollout's readiness check now says SAFE, for the first time since it was built.**
+Run against the live system immediately after the release: over the last 48 hours, **zero** requests
+reached the server without a security token, and there were **4 real business writes** in that same
+window — 2 trades or settlements and 2 accounting entries. Both halves matter and both are now
+satisfied. Every previous run said *inconclusive*, correctly, because an unused desk proves nothing.
+
+*One honest qualification.* Four writes is a first day, not a busy one. The check's own condition is
+met and its verdict is SAFE, and nothing in the result is ambiguous. But the confidence it gives is
+proportional to the traffic behind it, and this is the thinnest traffic that can pass. Turning
+enforcement on is a one-variable change and revertible the same way, so the choice is between doing
+it now on a thin-but-clean result, or re-running the check after a fuller week and acting on a
+stronger one. **This is the client's call and has not been made.** Nothing has been switched on.
+
 ### Found
 
 | Finding | Severity | Status |
@@ -332,9 +353,11 @@ Two further problems were found by looking rather than by reasoning, and both ar
 
 The list is unchanged from 2026-09-06 except that its first item is no longer blocked.
 
-1. **Finish the security rollout.** This was waiting on the desk being used for a normal day. It
-   now has been. Re-run the readiness check against the live system — it can give a real verdict
-   for the first time, where before it could only say "inconclusive, nothing has happened".
+1. **Finish the security rollout.** The readiness check has been run and says **SAFE** — see above.
+   What remains is a decision, not work: set `CSRF_ENFORCE=true` on the live server and redeploy.
+   Worth weighing first that the result rests on a single light day of trading; re-running the check
+   after a fuller week would say the same thing with more behind it. Either way the switch is one
+   variable and revertible.
 2. **Switch the reports over** (the last step of the accounting work): retire the four separate
    ways each figure is currently worked out, one at a time, re-running the checking tool between
    each until it reports agreement.
