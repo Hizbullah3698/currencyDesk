@@ -1,5 +1,5 @@
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
-import { activityDate, currencyCodes, currencyMeta, isVoucherLeg, marginLedger, openingStock, stampTime, stockAsOf } from './engine'
+import { activityDate, currencyCodes, currencyMeta, customerBalanceAsOf, isVoucherLeg, marginLedger, openingStock, stampTime, stockAsOf } from './engine'
 import { fmtAmount, fmtQuote } from './format'
 
 // ---------------------------------------------------------------------------
@@ -128,9 +128,39 @@ export function computeBalanceSheet(
 
   accounts.forEach((a) => {
     if (a.type === 'Customer') {
-      const dr = a.receivable || 0
-      const cr = a.payable || 0
-      if (dr || cr) push('Customer', { id: a.id, label: a.name, sub: 'Customer', dr, cr })
+      // Until 2026-09-09 this read the stored `receivable`/`payable` straight out, with no
+      // reference to asOfT — so every historical sheet printed TODAY's customer figures whatever
+      // date was asked for (logged 2026-09-02). Its signature in `npm run reconcile` was a Customer
+      // row whose Reported figure never moved while Journal only did.
+      //
+      // Two sources, and which one is right depends on the date:
+      //
+      //   stored columns          authoritative for NOW. The server maintains them on every trade,
+      //                           settlement, cheque clearing AND manual journal posting.
+      //   customerBalanceAsOf()   the engine's existing replay — opening balance plus custEffects
+      //                           up to the date. Correct for a PAST date, and it is what the
+      //                           Currency Stock branch's stockAsOf is to `stk`.
+      //
+      // THE REPLAY IS NOT USED WHEN NOTHING POSTDATES THE REPORTING DATE, and that is deliberate
+      // rather than an optimisation. `custEffects` models activity and cheques; it does NOT model
+      // manual journal entries, which `postJournal` also moves these columns for (see CLAUDE.md,
+      // "Whoever writes a customer's journal entry moves that balance exactly once"). So a
+      // from-scratch replay can disagree with the stored figure for any customer with a hand-written
+      // posting — and present-day figures are what the reconciliation harness and the client read.
+      // Preferring the stored columns whenever nothing is later makes today's sheet byte-identical
+      // to before **by construction**, not by measurement, while past dates get the replay.
+      //
+      // Journal entries are deliberately absent from the `later` test: adding them would switch a
+      // customer to a replay that omits the very entry that triggered the switch, which is wrong in
+      // a new direction rather than less wrong. A past-dated sheet for a customer with manual
+      // postings is a known remaining gap — see reports.test.ts, which pins it rather than hiding it.
+      const laterMovement =
+        activity.some((t) => t.customerId === a.id && stampTime(activityDate(t)) > asOfT) ||
+        cheques.some((q) => q.customerId === a.id && stampTime(q.updatedAt || q.createdAt) > asOfT)
+      const { receivable, payable } = laterMovement
+        ? customerBalanceAsOf(a, activity, cheques, asOfT)
+        : { receivable: a.receivable || 0, payable: a.payable || 0 }
+      push('Customer', { id: a.id, label: a.name, sub: 'Customer', dr: receivable, cr: payable })
       return
     }
     if (a.type === 'Currency Stock') {

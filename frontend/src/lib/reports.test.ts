@@ -267,3 +267,136 @@ describe('computeBalanceSheet — empty rows', () => {
     expect(result.balanced).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Customer balances are cut at the reporting date
+// ---------------------------------------------------------------------------
+// The defect, logged 2026-09-02 and fixed 2026-09-09: the Customer branch read the stored
+// `receivable`/`payable` columns with no reference to `asOfT`, so it printed TODAY's balance on a
+// balance sheet asked for any past date. Its signature in `npm run reconcile` was a Customer row
+// whose Reported figure was identical at every date while Journal only moved.
+//
+// Every other branch was already cut correctly — Bank/Cash/Expense/Income/Capital/Payable through
+// `ledgerBalance(..., keep)`, and Currency Stock through `stockAsOf(...)`. This was the one
+// hold-out, and the fix follows the Currency Stock pattern because the problem has the same shape:
+// a stored current value that has to be unwound over history rather than replayed from nothing.
+// ---------------------------------------------------------------------------
+
+describe('computeBalanceSheet — customer balances as of a past date', () => {
+  // A desk whose only customer movement is a credit sale struck on 15 March. The stored columns
+  // carry the result of it, which is what today's sheet must keep showing.
+  const CUST = account('cust', 'Customer', 'Ahmed Khan', { receivable: 80_000, payable: 0 })
+  const accounts = [...BASE_ACCOUNTS, CUST]
+  const stocks: Stocks = { AED: { available: 0, avgCost: 0 } }
+  const marchSale: Activity[] = [
+    activity({
+      id: 'a1',
+      type: 'sale',
+      customerId: 'cust',
+      amount: 1000,
+      rate: 80,
+      pkrValue: 80_000,
+      txnDate: '2026-03-15',
+      createdAt: '2026-03-15T10:00:00.000Z',
+      outstanding: 80_000,
+      paidNow: 0,
+    }),
+  ]
+  const FEBRUARY = stampTime('2026-02-28T23:59:59.000Z')
+
+  it('does NOT report a customer balance that had not been created yet', () => {
+    const result = computeBalanceSheet(accounts, marchSale, NO_CHEQUES, NO_JOURNAL, stocks, FEBRUARY)
+
+    // In February this customer owed nothing — the sale that created the 80,000 is two weeks away.
+    expect(result.groups.find((g) => g.title === 'Receivables & Payables — Customers')).toBeUndefined()
+  })
+
+  it('reports the stored figure unchanged on a sheet asked for today', () => {
+    // THE CONSTRAINT ON THE WHOLE FIX. Present-day figures are what the reconciliation harness and
+    // the client both read, and they must not move by a rupee. Nothing postdates this reporting
+    // date, so the stored columns are used directly rather than replayed.
+    const result = computeBalanceSheet(accounts, marchSale, NO_CHEQUES, NO_JOURNAL, stocks, LATER)
+
+    const row = result.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows.find((r) => r.id === 'cust')
+    expect(row?.dr).toBeCloseTo(80_000, 2)
+    expect(row?.cr).toBeCloseTo(0, 2)
+  })
+
+  it('cuts on the deal date, not the day the deal was keyed in', () => {
+    // Backdating moves a deal between reporting periods. A sale keyed in September for a deal
+    // struck in March belongs in March's balance sheet and not in February's — custEffects reads
+    // activityDate(), so this follows the same rule the rest of the sheet already uses.
+    const backdated: Activity[] = [
+      activity({
+        id: 'a1',
+        type: 'sale',
+        customerId: 'cust',
+        amount: 1000,
+        rate: 80,
+        pkrValue: 80_000,
+        txnDate: '2026-03-15',
+        createdAt: '2026-09-09T10:00:00.000Z', // keyed in months later
+        outstanding: 80_000,
+        paidNow: 0,
+      }),
+    ]
+
+    const april = computeBalanceSheet(accounts, backdated, NO_CHEQUES, NO_JOURNAL, stocks, stampTime('2026-04-30T00:00:00.000Z'))
+    expect(april.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.dr).toBeCloseTo(80_000, 2)
+
+    const february = computeBalanceSheet(accounts, backdated, NO_CHEQUES, NO_JOURNAL, stocks, FEBRUARY)
+    expect(february.groups.find((g) => g.title === 'Receivables & Payables — Customers')).toBeUndefined()
+  })
+
+  it('holds a cheque-settled sale on the books until the cheque clears', () => {
+    // The replay is not a naive sum of activity: custEffects excludes a cheque-held amount and
+    // applies the cleared cheque on its OWN clearing date. Pinned because this is the behaviour
+    // that would be lost if anyone reimplemented the replay at the call site.
+    const chequeSale: Activity[] = [
+      activity({ id: 'a1', type: 'sale', customerId: 'cust', amount: 1000, rate: 80, pkrValue: 80_000, chequeHeld: true, paidNow: 0, txnDate: '2026-03-15', createdAt: '2026-03-15T10:00:00.000Z' }),
+    ]
+    const cleared: Cheque[] = [
+      { id: 'q1', direction: 'Inward', customerId: 'cust', amount: 80_000, status: 'Cleared', createdAt: '2026-03-15T10:00:00.000Z', updatedAt: '2026-05-01T00:00:00.000Z' } as Cheque,
+    ]
+    const custWithCheque = [...BASE_ACCOUNTS, account('cust', 'Customer', 'Ahmed Khan', { receivable: 0, payable: 0 })]
+
+    // April: sale struck, cheque not yet cleared — still owed.
+    const april = computeBalanceSheet(custWithCheque, chequeSale, cleared, NO_JOURNAL, stocks, stampTime('2026-04-30T00:00:00.000Z'))
+    expect(april.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.dr).toBeCloseTo(80_000, 2)
+
+    // June: cheque cleared in May, so the receivable is gone.
+    const june = computeBalanceSheet(custWithCheque, chequeSale, cleared, NO_JOURNAL, stocks, stampTime('2026-06-30T00:00:00.000Z'))
+    expect(june.groups.find((g) => g.title === 'Receivables & Payables — Customers')).toBeUndefined()
+  })
+
+  it('KNOWN GAP: a past-dated sheet ignores manual journal postings against a customer', () => {
+    // Recorded as a test rather than a comment so it is visible and cannot rot silently.
+    //
+    // postJournal moves receivable/payable for a hand-written entry, but custEffects models only
+    // activity and cheques — so a replay cannot see that entry. Here the stored 30,000 comes from a
+    // manual posting, and the March sale is what forces the replay branch; the replay reports only
+    // the sale and the manual 10,000 is lost from the historical figure.
+    //
+    // Today's figure is unaffected (nothing postdates it, so the stored columns are used), which is
+    // why this is a gap in historical accuracy and not a regression in what the client reads.
+    // Closing it means folding activity, cheques and journal entries into ONE chronological replay
+    // that applies postJournal's allocation rule — phase 5 work, deliberately not done here.
+    const manual: JournalEntry[] = [
+      {
+        id: 'j1', ref: 'JV-1', narration: 'Adjustment', debitAccount: 'cust', creditAccount: 'capital',
+        debitLabel: 'Ahmed Khan', creditLabel: 'Capital', amount: 10_000,
+        createdAt: '2026-01-10T00:00:00.000Z', createdBy: 'Admin', updatedAt: '2026-01-10T00:00:00.000Z', updatedBy: 'Admin',
+      } as JournalEntry,
+    ]
+    const withManual = [...BASE_ACCOUNTS, account('cust', 'Customer', 'Ahmed Khan', { receivable: 90_000, payable: 0 })]
+
+    // February: the March sale postdates it, so the replay branch runs. The customer genuinely owed
+    // 10,000 at that date from January's manual posting — and the sheet reports nothing at all.
+    const february = computeBalanceSheet(withManual, marchSale, NO_CHEQUES, manual, stocks, FEBRUARY)
+    expect(february.groups.find((g) => g.title === 'Receivables & Payables — Customers')).toBeUndefined()
+
+    // Today is unaffected: nothing postdates it, so the stored 90,000 comes through untouched.
+    const today = computeBalanceSheet(withManual, marchSale, NO_CHEQUES, manual, stocks, LATER)
+    expect(today.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.dr).toBeCloseTo(90_000, 2)
+  })
+})
