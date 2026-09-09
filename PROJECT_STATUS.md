@@ -487,6 +487,101 @@ The list is unchanged from 2026-09-06 except that its first item is no longer bl
 4. Carried unchanged: the small Admin gaps from the 2026-09-02 audit; correcting an opening
    balance; the PDF export question; the pre-existing sessions; and the misleading error message.
 
+## 2026-09-09 — later the same day: the desk cleared
+
+### Done
+
+*At a glance: everything in the entry above happened first. Then, at explicit request and ahead of a
+client meeting, the desk was cleared back to blank books. The first day of real trading is gone from
+the system deliberately, not by accident. This entry exists mainly so nobody later reads the entry
+above, goes looking for the four deals it describes, finds nothing, and concludes something broke.*
+
+**The desk was cleared back to structural accounts only.** `npm run reset:business:prod` — the CLI in
+`scripts/resetBusinessData.ts`, over `services/businessDataReset.ts` — was run against production at
+about 15:52, after the 15:31 commit that closes the entry above. It is the same routine used on
+2026-09-03 for go-live, used a second time for the same purpose: handing the client a clean desk.
+
+**What it removed:**
+
+| | |
+|---|---|
+| Customer accounts | **2** — Ahmed Khan, Wazir |
+| Deals | **4** |
+| Accounting entries | **6** |
+
+The four deals were:
+
+- Ahmed Khan — purchase, 1,000 AED, PKR 78,000
+- Wazir — purchase, 900 USD, PKR 250,200
+- Ahmed Khan — sale, 1,000 AED, PKR 80,000
+- Ahmed Khan — sale, 500 USD, PKR 140,000
+
+**Those figures reconcile exactly against what the entry above reports, and that is worth stating,
+because it confirms the books were complete and consistent at the moment they were cleared.** The two
+purchases are money the desk owed its customers: 78,000 + 250,200 = **PKR 328,200**, which is the
+"You owe" figure quoted above to the rupee. The two sales are money owed to the desk: 80,000 +
+140,000 = **PKR 220,000**, which is the other one. The six accounting entries reconcile too. On the
+on-account flow the desk now uses, a purchase produces one paired record and a sale produces two —
+a sale splits its credit side between the cost of the currency and the profit. So two purchases and
+two sales give 2 + 4 = 6. The same arithmetic at the point the security readiness check ran, with
+three deals on the books, gives the four accounting entries that check reported.
+
+**What was confirmed untouched, read separately rather than taken from the routine's own report:** the
+**13** structural accounts, **both** logins, **33** sessions and the settings row. The routine does run
+nine assertions inside its own transaction before committing — but those are its account of itself.
+The counts above were taken independently afterwards, which is the same discipline applied on
+2026-09-03 and for the same reason: a routine reporting success is not evidence that it succeeded.
+
+**Numbering restarted.** Both sequences were reset, so the client's first real accounting entry is
+**JV-001** rather than JV-007, and cheque numbering begins from the start again.
+
+**Currency stock was zeroed, not deleted** — six rows, one per traded currency, left in place holding
+nothing. That is deliberate, and it is the reason this routine exists rather than a blunt table wipe:
+the guard that stops two people overselling the same currency needs a row per currency to exist, and
+the database-level protection on the structural accounts does not fire on a table wipe at all, so
+that route would walk straight past it and take the chart of accounts with it.
+
+### What this cost, and it is worth writing down
+
+**The evidence behind two claims made earlier the same day no longer exists on the system.**
+
+The checking tool reported RECONCILED at all five dates, and requirement 7's status cites the day's
+first real trades producing their paired records as designed. Both were true, and both were measured
+against the four deals listed above — which have now been deleted. Re-running the checking tool today
+will still say RECONCILED, but against empty books, where it is close to trivially true.
+
+Neither claim is retrospectively wrong and nothing needs re-doing. But the next person to run that
+tool should know that a green result *now* carries far less weight than the one recorded above, and
+that the strongest evidence requirement 7 has ever had was gathered and then deliberately discarded
+within about four hours. The next real trading day rebuilds it.
+
+**Part 2's requirement 7 row is now stale in two specific places, and has deliberately not been
+edited here.** It says the desk was cleared "on 2026-09-03" with no history before that to carry over,
+and it cites the day's first real trades as confirmation that deals are recorded properly as they
+happen. Both sentences now describe a state that no longer holds. It is a client-facing status row,
+so it is flagged here rather than quietly amended — this document has already been burned once by a
+"done" mark that could not be trusted, and the fix for that was to record the correction, not to
+smooth it over.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The desk's first day of real trading was cleared from production | Not a fault — done at explicit request, ahead of a client meeting | **Done 2026-09-09**, verified independently of the routine's own report |
+| Part 2's requirement 7 row still names 2026-09-03 as the last clearing, and cites trades that have since been deleted as its evidence | Real. The same class of stale "done" claim this document has been caught by before | **Open** — flagged rather than edited, because it is a client-facing status row |
+| RECONCILED, and the requirement 7 confirmation, now rest on books that no longer exist | Low, and inherent in clearing the desk. Neither claim was wrong when it was made | **Recorded, no action.** Re-earned on the next real trading day |
+
+### Next — in priority order
+
+Unchanged from the entry above — clearing the desk moves none of it. Phase 5, switching the reports
+over to read the accounting record, remains first and remains unblocked.
+
+One item is added ahead of the list, because it is a documentation fix rather than development work
+and takes minutes:
+
+- **Update Part 2's requirement 7 row** to name this clearing rather than 2026-09-03, and to stop
+  citing deals that have been deleted as its evidence.
+
 ## 2026-09-06
 
 ### Done
