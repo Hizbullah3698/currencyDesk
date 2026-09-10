@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 
 /**
- * True once the app has actually finished its one real asynchronous bootstrap
- * step — web fonts loading (Instrument Sans / IBM Plex Mono, pulled from Google
- * Fonts in index.css) — subject to a floor so it never flashes for a cached
- * repeat visit, and a ceiling so a slow/unsupported font-loading API can't hang
- * the UI. There's no data-fetch latency in this app (the store hydrates
- * synchronously from localStorage), so this intentionally does not pretend one
- * exists — it covers the one bootstrap gap that's real.
+ * True once the app has finished its one bootstrap step this hook is
+ * responsible for — web fonts loading (Instrument Sans / IBM Plex Mono, pulled
+ * from Google Fonts in index.css) — subject to a floor so it never flashes for a
+ * cached repeat visit, and a ceiling so a slow/unsupported font-loading API can't
+ * hang the UI.
+ *
+ * The business-data fetch is NOT covered here. `store.tsx` loads the snapshot
+ * from `GET /api/state` and `App.tsx`'s Gate() shows its own loading screen while
+ * that is in flight; this hook only gates the per-screen skeletons that depend on
+ * the fonts being measured. The two are deliberately separate concerns.
  */
 export function useBootReady(floorMs = 220, ceilingMs = 900): boolean {
   const [ready, setReady] = useState(false)

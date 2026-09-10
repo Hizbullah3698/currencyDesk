@@ -622,11 +622,12 @@ Other rules that are structural, not stylistic:
 
 ## Testing and verification
 
-283 tests: 46 engine unit, 148 backend integration (real HTTP against real Postgres, no supertest —
-each file boots `http.createServer(createApp())` on an ephemeral port), 89 frontend unit (9 files
-under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure logic but
-never a component, and anything touching `window` must be guarded at module load or it breaks the
-suite). No CI — `npm run test` is manual.
+303 tests: 46 engine unit (2 files), 159 backend (23 files — 21 integration with real HTTP against
+real Postgres, no supertest, each file booting `http.createServer(createApp())` on an ephemeral
+port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 98 frontend unit
+(10 files under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure
+logic but never a component, and anything touching `window` must be guarded at module load or it
+breaks the suite). No CI — `npm run test` is manual.
 
 The no-jsdom limit is worth designing around rather than merely noting: when logic inside a
 component or a provider is genuinely pure, lift it into `src/lib/` and it becomes testable.

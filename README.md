@@ -13,11 +13,11 @@ of record.
 - **Currency purchase / sale** — buy and sell foreign currency against a customer, with the rate,
   PKR value and margin worked out as you type. Stock is carried at weighted-average cost, so the
   margin on a sale reflects what that stock actually cost, not just the day's rate.
-- **Three currencies, quoted the way dealers quote them** — AED, AFN and IRR against PKR. AED and
-  AFN are quoted "PKR per 1 unit" and multiplied; IRR is worth far less than a rupee, so it is
-  quoted "IRR per 1 PKR" and divided, exactly as a dealer would write it. The rate box tells you
-  which convention it wants, and every figure downstream is held in one canonical unit so the two
-  can never be mixed up.
+- **Six currencies, quoted the way dealers quote them** — EUR, USD, AED, AFN, JPY and IRR against
+  PKR (strongest to weakest). The first five are worth more than a rupee, so they are quoted
+  "PKR per 1 unit" and multiplied; IRR is worth far less, so it is quoted "IRR per 1 PKR" and
+  divided, exactly as a dealer would write it. The rate box tells you which convention it wants,
+  and every figure downstream is held in one canonical unit so the two can never be mixed up.
 - **Real transaction dates** — every trade and every payment records the day the deal was actually
   struck, separately from when it was keyed in. Backdate an entry and it lands in the right
   reporting period; a future date is refused.
@@ -115,7 +115,7 @@ rather than invoking `vitest` directly.
 
 ```
 ├── packages/engine/     @currencydesk/engine — accounting math + domain types, shared
-│   └── src/               engine.ts, currencies.ts, types.ts
+│   └── src/               engine.ts, currencies.ts, ledger.ts, types.ts
 ├── frontend/
 │   └── src/
 │       ├── App.tsx          routes and the admin-only guard
@@ -140,13 +140,16 @@ so the API needs `FRONTEND_ORIGIN` set to the front end's URL and the front end 
 `VITE_API_BASE_URL` set to the API's. Migrations are not applied automatically on deploy; run
 `npm run migrate` against the production database yourself.
 
-**Before putting real customer money through this, read the "Known Limitations" section of
-`CLAUDE.md`** — most relevantly, CSRF protection is not yet implemented, and the production cookie
-configuration means that gap is worth closing first.
+**Before changing anything on the deployed system, read `CLAUDE.md`** — most relevantly its
+"Two-origin deployment" and "Database and migrations" sections. CSRF protection is a
+session-bound token, enforced in production (see the "CSRF" section); the frontend and backend
+deploy as two separate Vercel projects on different origins, so the cookie is `SameSite=None`
+and the `FRONTEND_ORIGIN` allowlist is load-bearing.
 
 ## Notes
 
 `CLAUDE.md` in the repo root is the detailed engineering document: architecture, the API surface
 and its guards, transaction and concurrency rules, the currency quote convention, theming rules,
-testing practice, and the current list of known limitations. It is kept current and is the better
-reference if you are changing the code rather than running it.
+and testing practice. `PROJECT_STATUS.md` carries the running log of what has changed and what is
+still open. Both are kept current, and are the better reference if you are changing the code
+rather than running it.
