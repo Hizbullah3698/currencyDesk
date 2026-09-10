@@ -59,11 +59,6 @@ export function fmtAmount(n: number, code?: string): string {
   return fmtNum(n, currencyMeta(code).amountDecimals)
 }
 
-export function fmtSigned(n: number): string {
-  const s = fmt(Math.abs(n))
-  return n < 0 ? '-' + s : s
-}
-
 // ---------------------------------------------------------------------------
 // What a transaction's headline amount should be
 // ---------------------------------------------------------------------------

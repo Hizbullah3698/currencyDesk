@@ -32,37 +32,17 @@ export function toPublicUser(row: UserRow): PublicUser {
  *
  * Migration 011 forbids '@' in a username, so an identifier can never
  * legitimately match an email in one row and a username in another.
- */
-/**
- * Safety net for the window between deploying this code and running migration 011.
- * Nothing runs migrations automatically on deploy (backend/vercel.json only builds
- * the engine), so a deploy can legitimately land before the `username` column
- * exists. Without this guard the login query would raise 42703 (undefined_column)
- * and EVERY login — including by email — would fail with a 500.
  *
- * Instead we fall back to the email-only lookup that worked before, so the worst
- * case is "username login isn't live yet" rather than "nobody can sign in".
- * Cached per process; a deploy (which follows running the migration anyway) clears
- * it. Delete this once production is known to be migrated.
+ * (This once carried a 42703 fallback to email-only lookup, for the window between
+ * deploying this code and running migration 011. Migration 011 has been live in
+ * production since August 2026, so the fallback and its per-process flag were
+ * removed.)
  */
-let hasUsernameColumn = true
-
 export async function findUserByIdentifier(identifier: string): Promise<UserRow | null> {
-  if (hasUsernameColumn) {
-    try {
-      const { rows } = await pool.query<UserRow>(
-        'SELECT * FROM users WHERE lower(email) = lower($1) OR lower(username) = lower($1)',
-        [identifier],
-      )
-      return rows[0] || null
-    } catch (err) {
-      if ((err as { code?: string }).code !== '42703') throw err
-      hasUsernameColumn = false
-      console.warn('[auth] users.username is missing — run migration 011. Falling back to email-only login.')
-    }
-  }
-
-  const { rows } = await pool.query<UserRow>('SELECT * FROM users WHERE lower(email) = lower($1)', [identifier])
+  const { rows } = await pool.query<UserRow>(
+    'SELECT * FROM users WHERE lower(email) = lower($1) OR lower(username) = lower($1)',
+    [identifier],
+  )
   return rows[0] || null
 }
 

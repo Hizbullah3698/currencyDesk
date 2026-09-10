@@ -284,7 +284,7 @@ export interface IncomeStatementResult {
   gross: number
   salesMargin: number
   journalAdj: number
-  currencyRows: { code: string; margin: number; sub: string; rows: { label: string; sub: string; amount: number }[] }[]
+  currencyRows: { code: string; margin: number; sub: string }[]
   adjRows: { label: string; sub: string; amount: number }[]
   expenseTotal: number
   expenseRows: { id: string; label: string; sub: string; amount: number }[]
@@ -313,7 +313,6 @@ export function computeIncomeStatement(
       code: c.code,
       margin: c.margin,
       sub: `${c.count} sale${c.count === 1 ? '' : 's'} · revenue ${Math.round(c.revenue).toLocaleString('en-US')} · cost ${Math.round(c.cost).toLocaleString('en-US')}`,
-      rows: [],
     }))
 
   const expenseAccounts = accounts.filter((a) => a.type === 'Expense')

@@ -53,10 +53,6 @@ export function statusMeta(status: ChequeStatus | string): StatusMeta {
   return STATUS_META[status] || { variant: 'neutral', icon: Clock }
 }
 
-export function activityLabel(type: ActivityType): string {
-  return ACTIVITY_META[type].label
-}
-
 export type Category = 'fx' | 'bank' | 'customers' | 'cheques' | 'salary' | 'reports' | 'neutral'
 
 export interface CategoryColor {
