@@ -203,6 +203,81 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-10
+
+### Done
+
+*At a glance: a full read of every source file in all three parts of the system, written up as
+`AUDIT.md` in the repository root. Nothing was changed. The report is for review; each item in it
+is a recommendation, not a decision.*
+
+**A one-time audit of the whole codebase was carried out and written down.** Every file was read
+rather than sampled: the calculator, the server, and the screen — about 16,500 lines across 214
+files. The findings are organised under six headings the client asked for: values written into the
+code that ought to be settings, how the parts are structured, anything that could quietly produce a
+wrong figure, security, leftover or outdated code, and finally a split between what can be fixed in
+under half an hour and what needs a real decision first.
+
+**Three of the findings were confirmed by running code rather than by reading it**, and two of them
+matter to the client directly:
+
+- **A customer statement's "To" date leaves out every deal struck on that day.** Set the range to
+  1–30 September and every deal from 30 September is missing from the printed statement, the PDF
+  and the Excel file, so the closing balance on the document is wrong. Confirmed by running the
+  date arithmetic. The balance sheet and income statement do not have this fault; the statement
+  screen builds its date range differently from them. A half-hour fix.
+- **The server does not know which country it is in.** It runs on the hosting platform's clock
+  (UTC) while the desk is five hours ahead. Between midnight and five in the morning local time, a
+  deal dated "today" is refused as being in the future, and any entry that relies on the server's
+  idea of today lands on yesterday. It has not been reported because the desk has traded for one
+  day. A one-line configuration change fixes most of it; the rest is a small code change.
+- A guess about a third fault — that an absurdly large number typed into an amount box could be
+  stored — was **checked against the database and found not to be true**: the database refuses it.
+  It becomes an unhelpful error message rather than a wrong figure, and is recorded as such.
+
+**Also found, and recorded with the reasoning:** the local-development seeding script has no guard
+against being pointed at the live database, and would create an administrator login with a
+publicly known password if it were; a deactivated user keeps their access until their session
+lapses on its own; operators can read every employee's salary on the Transactions and Accounts
+screens even though the Salary page itself is admin-only; clearing a cheque can push a customer's
+balance below zero if a manual entry reduced it in between; archived employees are still included
+in "accrue for all"; and the cost and profit figures on a sale are rounded separately, which will
+make the checking tool report a one-paisa disagreement the first time a fractional-rate currency is
+sold. None of these has produced a wrong figure on the live desk yet.
+
+**What the audit deliberately does not recommend.** Making the base currency configurable (a large
+change with no benefit to this client), moving the seven core account ids out of the code (they are
+protected by the database and are the right thing to hardcode), or starting any of it before the
+client has read the list. The largest structural point — that the financial reports are computed
+in the screen rather than in the shared calculator — is already the shape of the remaining
+requirement 7 work, and the audit's advice is to do the two together rather than twice.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| Customer statement "To" date excludes the last day's entries, on screen, PDF and Excel | Real, client-facing, verified by running the arithmetic | **Open — recorded in AUDIT.md §3 #1.** First item in the quick-wins list |
+| Server timezone is unset; "today" is UTC, five hours behind the desk | Real. Refuses same-day deals 00:00–05:00 local; dates manual entries and cheque clearings on the wrong day in that window | **Open — AUDIT.md §3 #2 and §1.7.** Config half is a quick win; code half is a small refactor |
+| Demo seeding script has no production guard | Real. Would create an admin login with a known password on the live database if misdirected | **Open — AUDIT.md §4 #1.** Quick win |
+| Operators can read employee salaries via Transactions and Accounts | Real. Contradicts Part 1's "cannot reach payroll" | **Open — AUDIT.md §4 #3.** Needs a small design decision |
+| Cheque clearing can drive a customer balance negative after a manual entry | Real but needs a second event to trigger | **Open — AUDIT.md §3 #3.** Needs the client to choose between two behaviours |
+| Cost and profit on a sale rounded separately; will show as a one-paisa reconcile drift on the first fractional-rate sale | Real, latent until the first IRR or JPY sale | **Open — AUDIT.md §3 #4.** Do before that sale |
+| Archived employees still accrued and paid by the bulk salary actions | Real money, wrong direction | **Open — AUDIT.md §3 #7.** Quick win |
+| Very large amounts corrupt stored figures | **Not a fault.** Checked against the database: refused with an error | Closed — recorded as a raw error message, not a data risk |
+| The one-off password-reset script is still on disk, with a client email and the live address in it | Housekeeping; its own header says to delete it | **Open — AUDIT.md §1.13.** Delete |
+
+### Next — in priority order
+
+The audit does not change the order of existing work; it adds a short list ahead of it.
+
+1. **Client reads `AUDIT.md` and marks what to act on.** Nothing in it has been started.
+2. **The quick wins the client approves**, in the order §6 lists them — the statement date fix, the
+   seeding guard and the timezone configuration are the three that matter most and together are
+   about an hour.
+3. **Then the existing list, unchanged:** phase 5 of requirement 7 (reports read the accounting
+   record), taking the audit's advice to move the report calculations into the shared calculator
+   in the same pass; then corrections and reversals; then the carried Admin gaps.
+
 ## 2026-09-09
 
 ### Done
