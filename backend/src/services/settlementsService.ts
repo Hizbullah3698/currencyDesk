@@ -13,7 +13,17 @@ import { insertCheque } from './chequeHelpers.js'
 export interface SettleInput {
   customerId: string
   amount: number
-  method: 'Cash' | 'Bank' | 'Cheque' | 'Credit'
+  /**
+   * A payment is money actually moving: 'Cash' from the drawer, 'Bank' by transfer, or 'Cheque'.
+   * Deliberately NOT 'Credit' — that is a trade's way of saying "nothing settled, it is all on
+   * account", and it has no cash-side account. Fed to receive/pay it used to move the customer's
+   * balance while posting no voucher (settlementIdFor returns null, buildVoucherLegs then returns
+   * null on the accountless side), so money was recorded as received with nothing receiving it and
+   * the shortfall vanished into the balance sheet's equity plug — AUDIT.md §3 #8. Narrowed here so
+   * the compiler catches a future caller passing it, and rejected at runtime in receive/pay below
+   * for a request that reaches the service anyway (the route casts an `unknown` body).
+   */
+  method: 'Cash' | 'Bank' | 'Cheque'
   bankId: string
   chqNo: string
   chqBank: string
@@ -21,7 +31,21 @@ export interface SettleInput {
   txnDate: string | null
 }
 
+/**
+ * Rejects a settlement method that is not a real money movement, before any row is touched.
+ *
+ * The type above already forbids 'Credit', but `routes/settlements.ts` builds a `SettleInput` by
+ * casting an `unknown` request body, so a hand-built `{ method: 'Credit' }` still arrives here.
+ * This is the runtime half of the same guard.
+ */
+function assertSettlementMethod(method: string): void {
+  if (method !== 'Cash' && method !== 'Bank' && method !== 'Cheque') {
+    throw appError(400, 'A payment needs a cash, bank or cheque method.')
+  }
+}
+
 export async function receive(client: PoolClient, input: SettleInput, actorId: string | null): Promise<void> {
+  assertSettlementMethod(input.method)
   const cust = await getAccount(client, input.customerId)
   if (!cust) throw appError(400, 'Select a customer.')
 
@@ -91,6 +115,7 @@ export async function receive(client: PoolClient, input: SettleInput, actorId: s
 }
 
 export async function pay(client: PoolClient, input: SettleInput, actorId: string | null): Promise<void> {
+  assertSettlementMethod(input.method)
   const cust = await getAccount(client, input.customerId)
   if (!cust) throw appError(400, 'Select a customer.')
 

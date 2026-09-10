@@ -354,6 +354,13 @@ No `AND receivable >= $1` guard, no `FOR UPDATE`, no allocation. Compare `settle
 
 ### #8 [Medium] A receipt or payment with `method: 'Credit'` moves the balance and posts nothing
 
+> **Fixed 2026-09-10.** `SettleInput.method` narrowed to `'Cash' | 'Bank' | 'Cheque'`, and a
+> runtime `assertSettlementMethod()` at the top of both `receive` and `pay` throws
+> `400 "A payment needs a cash, bank or cheque method."` before any row is touched — the route
+> casts an `unknown` body, so the type alone is not enough. Pinned by two tests in
+> `settlementVouchers.test.ts` that failed on the old code (balance dropped `50000 → 40000`,
+> activity row written, no voucher) and pass now (400, balance unmoved, nothing written).
+
 `settlementsService.receive` accepts any `method` (`SettleInput.method` includes `'Credit'`, `:15`). For `'Credit'`, `settlementIdFor` returns `null` (`accountHelpers.ts:37`), the activity row is written with no settlement account, the receivable **is** reduced (`:70`), and `buildVoucherLegs` returns `null` because the cash side has no account (`journalService.ts:281`), so no voucher. The UI's `METHODS` (`Settle.tsx:17`) excludes `'Credit'`, so this is API-only.
 
 *Failure scenario:* money is recorded as received from a customer with no account receiving it. The customer's balance drops; cash and bank do not rise; the balance sheet loses the amount into the equity plug, which still says "Balanced" if the shortfall is under half a rupee and "Out of balance" otherwise, without saying why. Reachable by any signed-in user with a modified request.

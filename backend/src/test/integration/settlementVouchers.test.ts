@@ -79,6 +79,43 @@ describe('settlements and cheque clearing post vouchers', () => {
     expect(act, 'the receipt is still recorded').toHaveLength(1)
   })
 
+  // --- 'Credit' is not a settlement method — AUDIT.md §3 #8 --------------
+  //
+  // A receipt or payment records money actually changing hands: cash in the drawer, a bank
+  // transfer, or a cheque. 'Credit' is a TRADE's way of saying "nothing settled, it is all on
+  // account" — it has no cash-side account at all. Fed to receive/pay it used to be accepted: the
+  // customer's balance dropped, settlementIdFor returned null, buildVoucherLegs returned null on
+  // the accountless cash side, and no voucher was written. Money recorded as received with
+  // nothing receiving it, the shortfall absorbed silently by the balance sheet's equity plug.
+  // The UI never offered it (Settle.tsx's METHODS excludes it); only a hand-built API call could
+  // reach it, and any signed-in user could.
+
+  it('rejects a receipt with method Credit — no balance move, no activity row, nothing posted', async () => {
+    await pool.query('UPDATE accounts SET receivable = 50000 WHERE id = $1', [customerId])
+
+    const res = await admin.post('/api/settlements/receive', settle({ method: 'Credit' }))
+    expect(res.status, JSON.stringify(res.json)).toBe(400)
+    expect(res.json.error).toMatch(/cash, bank or cheque/i)
+
+    expect(await owe('receivable'), 'the receivable must not have moved').toBe(50_000)
+    expect(await legs(), 'and no voucher is posted').toHaveLength(0)
+    const { rows: act } = await pool.query("SELECT 1 FROM activity WHERE type = 'receive'")
+    expect(act, 'not even the activity row is written').toHaveLength(0)
+  })
+
+  it('rejects a payment with method Credit on the same terms', async () => {
+    await pool.query('UPDATE accounts SET payable = 50000 WHERE id = $1', [customerId])
+
+    const res = await admin.post('/api/settlements/pay', settle({ method: 'Credit' }))
+    expect(res.status, JSON.stringify(res.json)).toBe(400)
+    expect(res.json.error).toMatch(/cash, bank or cheque/i)
+
+    expect(await owe('payable'), 'the payable must not have moved').toBe(50_000)
+    expect(await legs(), 'and no voucher is posted').toHaveLength(0)
+    const { rows: act } = await pool.query("SELECT 1 FROM activity WHERE type = 'pay'")
+    expect(act, 'not even the activity row is written').toHaveLength(0)
+  })
+
   // --- payments -----------------------------------------------------------
 
   it('a cash payment debits the customer and credits cash', async () => {

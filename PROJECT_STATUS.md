@@ -203,6 +203,50 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-10 — a payment can no longer be booked "on credit"
+
+### Done
+
+*At a glance: one API-only gap from the audit closed. The screens never offered the bad option;
+a hand-built request could. Fixed, tested, committed locally, not shipped.*
+
+**A receipt or payment sent with the method `Credit` used to move the customer's balance and
+record nothing on the other side.** `Credit` is what a *trade* uses to mean "nothing was settled,
+it is all on account" — there is no cash or bank account behind it. The Receive Payment and Make
+Payment screens have never shown it as a choice, but the server accepted it from a
+directly-constructed request by any signed-in user. When it did, the customer's balance dropped as
+if they had paid, no cash or bank balance rose anywhere, and the missing amount was quietly
+absorbed by the balancing figure on the balance sheet — which would still read "Balanced" if the
+gap was under half a rupee.
+
+**The fix rejects it in two places.** The type that describes a settlement no longer lists
+`Credit` at all, so any future code that tries to pass it fails to compile. And because the web
+layer hands the service whatever method string arrived in the request without checking it, there
+is also a plain runtime check at the start of both the receive and the pay path: anything that is
+not cash, bank or cheque is refused with a clear message before a single row is written.
+
+**Tested first, then fixed.** Two tests drive the real server over HTTP: set a customer up owing
+money, send a receipt (and separately a payment) with method `Credit`, and require a refusal with
+the balance untouched and nothing recorded. Both failed against the old code exactly as the audit
+described — the balance moved from 50,000 to 40,000, an activity row was written, no accounting
+entry followed — and both pass now. The full suite is green: 303 tests across the three parts, up
+from 301.
+
+**Not certain of:** nothing about the fix itself. Worth noting only that the audit lists a
+related, wider gap (`bankId` on a settlement is trusted to be a real bank or cash account, and is
+not checked) which this change does *not* touch — that is audit finding §3 #6, a separate item.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| A settlement with `method: 'Credit'` moved the balance and posted no accounting entry; API-only, any signed-in user | Medium. Live, but not reachable from any screen | **Fixed 2026-09-10**, tests failed first. Committed locally, not shipped |
+
+### Next — in priority order
+
+Unchanged. The client reads `AUDIT.md` and marks what to act on; the remaining quick wins in its
+section 6 follow in order; then phase 5.
+
 ## 2026-09-10 — closing the day: admin password reset, one-off script removed
 
 ### Done
