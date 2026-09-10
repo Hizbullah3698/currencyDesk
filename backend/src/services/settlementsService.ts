@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg'
+import { deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 import { getAccount, settlementIdFor, settlementName } from './accountHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
@@ -16,7 +17,7 @@ export interface SettleInput {
   bankId: string
   chqNo: string
   chqBank: string
-  /** 'YYYY-MM-DD', already validated by routes/txnDate.ts; null means "default to today". */
+  /** 'YYYY-MM-DD', already validated by routes/txnDate.ts; null means "the desk's today". */
   txnDate: string | null
 }
 
@@ -57,13 +58,14 @@ export async function receive(client: PoolClient, input: SettleInput, actorId: s
     chequeId = inserted.id
   }
 
-  // RETURNING the stored txn_date so the voucher copies what was written rather than re-deriving
-  // the COALESCE above — same reasoning as tradesService.
+  // Dated on the desk's calendar, never by the column's CURRENT_DATE default — see tradesService.
+  // RETURNING the stored txn_date so the voucher copies what was written.
+  const txnDate = input.txnDate ?? deskToday()
   const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, customer_id, customer_name, amount, pkr_value, method, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('receive', $1, $2, $3, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9, $9)
+     VALUES ('receive', $1, $2, $3, $3, $4, $5, $6, $7, $8::date, $9, $9)
      RETURNING id, txn_date`,
-    [input.customerId, cust.name, input.amount, input.method, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
+    [input.customerId, cust.name, input.amount, input.method, chequeHeld, chequeId, settlementAccountId, txnDate, actorId],
   )
 
   if (!chequeHeld) {
@@ -118,11 +120,12 @@ export async function pay(client: PoolClient, input: SettleInput, actorId: strin
     chequeId = inserted.id
   }
 
+  const txnDate = input.txnDate ?? deskToday()
   const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, customer_id, customer_name, amount, pkr_value, method, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('pay', $1, $2, $3, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9, $9)
+     VALUES ('pay', $1, $2, $3, $3, $4, $5, $6, $7, $8::date, $9, $9)
      RETURNING id, txn_date`,
-    [input.customerId, cust.name, input.amount, input.method, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
+    [input.customerId, cust.name, input.amount, input.method, chequeHeld, chequeId, settlementAccountId, txnDate, actorId],
   )
 
   if (!chequeHeld) {

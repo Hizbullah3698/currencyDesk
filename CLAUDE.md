@@ -187,8 +187,31 @@ handing the string to `new Date()`, whose parser accepts far more than the contr
 resolves a bare date as UTC.
 
 `txnDate` is **required** on all four `confirm*` actions in `store.tsx` so TypeScript refuses a
-caller that omits it — the failure mode is otherwise silent, since the column just defaults to
-`CURRENT_DATE`.
+caller that omits it — the failure mode is otherwise silent, since the server then dates the row
+itself.
+
+**Every date the server derives on its own goes through `config/deskTime.ts`**, never `new Date()`
+and never the database's `CURRENT_DATE`/`now()::date`. The desk is in Pakistan (UTC+5); Vercel and
+Neon both run on UTC, so until 2026-09-10 "today" on the server was yesterday for the first five
+hours of every desk day — `parseTxnDate` refused a deal dated today as being in the future, and a
+trade or settlement posted without a date, every manual journal entry, opening-balance and salary
+posting, and the voucher written when a cheque cleared all landed on the wrong day. `deskToday()`
+computes the day in `DESK_TIMEZONE` (env, default `Asia/Karachi`, validated at boot) with
+`Intl.DateTimeFormat`, so it is right on any host, in any process timezone, against any pooler —
+which is why it is a code-level input rather than `TZ` on Vercel or `SET TIME ZONE` on the
+connection (the latter does not survive Neon's transaction-mode pooler). The `CURRENT_DATE` column
+defaults still exist as a schema backstop; no application write relies on them. Pinned by
+`test/deskTime.test.ts` (process forced to UTC, clock frozen at 02:30 desk time) and
+`integration/deskDate.test.ts` (same frozen clock, real HTTP, real Postgres). Manual journal entries
+now accept an optional `txnDate` on the same terms as a trade; the Journal page does not send one
+yet.
+
+**The customer statement's date range is built by `lib/statementRange.ts`**, through the engine's
+`rangeBounds()`, exactly as the balance sheet and income statement build theirs. Until 2026-09-10
+`LedgerDetail.tsx` passed `stampTime(to)` — UTC midnight — as the upper bound, while a same-day deal
+is pinned to local noon, so every deal dated on the "To" day was dropped from the statement, the
+PDF and the Excel export, with a closing balance short by those deals. Real statements went out that
+way. `statementRange.test.ts` places a row on the boundary day, which no earlier test did.
 
 Note the deliberate split: the stock ledger replay orders on `createdAt` (the stored weighted-
 average cost was built up in that order and `openingStock()` unwinds it the same way), while

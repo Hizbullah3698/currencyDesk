@@ -3,6 +3,7 @@ import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
 import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { deskToday } from '../../config/deskTime.js'
 
 // IRR is quoted the other way round from AED — the dealer types "IRR per 1 PKR" (~4,952.53) and
 // the value is DIVIDED, not multiplied (see packages/engine/src/currencies.ts). Everything here
@@ -115,9 +116,10 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
     expect(rows[0].txn_date).toBe('2026-08-14')
     expect(typeof rows[0].txn_date).toBe('string')
 
-    // Omitted -> the column default, CURRENT_DATE, i.e. the server's own calendar day.
-    const { rows: todayRows } = await pool.query('SELECT CURRENT_DATE::text AS today')
-    expect(rows[1].txn_date).toBe(todayRows[0].today)
+    // Omitted -> the desk's own calendar day, decided by the server in the desk's timezone rather
+    // than left to the column's CURRENT_DATE default (the database's day, UTC on Neon). See
+    // config/deskTime.ts and integration/deskDate.test.ts for the 02:30-local case.
+    expect(rows[1].txn_date).toBe(deskToday())
 
     // And it comes back through the API snapshot as `txnDate`, not just in the table — the
     // mutation response IS the refetch in this app, so this is what the frontend actually reads.

@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg'
+import { deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 import { getAccount, settlementName } from './accountHelpers.js'
 
@@ -22,10 +23,12 @@ export async function accrueSalary(client: PoolClient, empId: string, period: st
   if (!(emp.monthly_salary! > 0)) throw appError(400, `${emp.name} has no monthly salary on file — set it on the account first.`)
 
   try {
+    // Every salary posting is dated on the desk's calendar rather than by the column's
+    // CURRENT_DATE default (the database's day, UTC on Neon) — see config/deskTime.ts.
     await client.query(
-      `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, created_by, updated_by)
-       VALUES ($1, 'salaryExpense', 'salaryPayable', 'Salary Expense', 'Salary Payable', $2, $3, $4, 'accrual', $5, $5)`,
-      [`Salary accrual ${period} — ${emp.name}`, emp.monthly_salary, empId, period, actorId],
+      `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, txn_date, created_by, updated_by)
+       VALUES ($1, 'salaryExpense', 'salaryPayable', 'Salary Expense', 'Salary Payable', $2, $3, $4, 'accrual', $5::date, $6, $6)`,
+      [`Salary accrual ${period} — ${emp.name}`, emp.monthly_salary, empId, period, deskToday(), actorId],
     )
   } catch (err) {
     const pgErr = err as { code?: string; constraint?: string }
@@ -51,10 +54,10 @@ export async function accrueAllSalaries(client: PoolClient, period: string, acto
   let accruedCount = 0
   for (const emp of employees) {
     const { rowCount } = await client.query(
-      `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, created_by, updated_by)
-       VALUES ($1, 'salaryExpense', 'salaryPayable', 'Salary Expense', 'Salary Payable', $2, $3, $4, 'accrual', $5, $5)
+      `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, txn_date, created_by, updated_by)
+       VALUES ($1, 'salaryExpense', 'salaryPayable', 'Salary Expense', 'Salary Payable', $2, $3, $4, 'accrual', $5::date, $6, $6)
        ON CONFLICT (salary_employee_id, salary_period) WHERE salary_kind = 'accrual' DO NOTHING`,
-      [`Salary accrual ${period} — ${emp.name}`, emp.monthly_salary, emp.id, period, actorId],
+      [`Salary accrual ${period} — ${emp.name}`, emp.monthly_salary, emp.id, period, deskToday(), actorId],
     )
     if ((rowCount ?? 0) > 0) accruedCount++
   }
@@ -75,9 +78,9 @@ export async function paySalary(client: PoolClient, empId: string, bankId: strin
 
   const bankName = await settlementName(client, bankId)
   await client.query(
-    `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, created_by, updated_by)
-     VALUES ($1, 'salaryPayable', $2, 'Salary Payable', $3, $4, $5, '', 'payment', $6, $6)`,
-    [`Salary paid — ${emp.name} · from ${bankName}`, bankId, bankName, outstanding, empId, actorId],
+    `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, txn_date, created_by, updated_by)
+     VALUES ($1, 'salaryPayable', $2, 'Salary Payable', $3, $4, $5, '', 'payment', $6::date, $7, $7)`,
+    [`Salary paid — ${emp.name} · from ${bankName}`, bankId, bankName, outstanding, empId, deskToday(), actorId],
   )
 }
 
@@ -93,9 +96,9 @@ export async function payAllSalaries(client: PoolClient, bankId: string, actorId
     const outstanding = await outstandingFor(client, emp.id)
     if (outstanding <= 0) continue
     await client.query(
-      `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, created_by, updated_by)
-       VALUES ($1, 'salaryPayable', $2, 'Salary Payable', $3, $4, $5, '', 'payment', $6, $6)`,
-      [`Salary paid — ${emp.name} · from ${bankName}`, bankId, bankName, outstanding, emp.id, actorId],
+      `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, salary_employee_id, salary_period, salary_kind, txn_date, created_by, updated_by)
+       VALUES ($1, 'salaryPayable', $2, 'Salary Payable', $3, $4, $5, '', 'payment', $6::date, $7, $7)`,
+      [`Salary paid — ${emp.name} · from ${bankName}`, bankId, bankName, outstanding, emp.id, deskToday(), actorId],
     )
     paidCount++
   }

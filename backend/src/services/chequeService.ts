@@ -1,11 +1,11 @@
 import type { PoolClient } from 'pg'
+import { deskShortDate, deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
 import { chequeClearingSides } from './voucherPostings.js'
-import { shortDate } from './chequeHelpers.js'
 
 export async function depositCheque(client: PoolClient, id: string, actorId: string | null): Promise<void> {
-  const historyLine = 'Deposited ' + shortDate(new Date())
+  const historyLine = 'Deposited ' + deskShortDate()
   const { rowCount } = await client.query(
     `UPDATE cheques SET status = 'Deposited', updated_at = now(), updated_by = $2, history = array_append(history, $3)
      WHERE id = $1 AND status = 'Pending'`,
@@ -15,7 +15,13 @@ export async function depositCheque(client: PoolClient, id: string, actorId: str
 }
 
 export async function clearCheque(client: PoolClient, id: string, actorId: string | null): Promise<void> {
-  const historyLine = 'Cleared ' + shortDate(new Date())
+  const historyLine = 'Cleared ' + deskShortDate()
+  // The day it cleared, on the desk's calendar. Until 2026-09-10 this was `updated_at::date` from
+  // the same UPDATE — the database's day, UTC on Neon, so a cheque cleared at 02:00 on the desk's
+  // clock was journalled on the previous day while ledgerBalance() (browser-local) counted it on
+  // the right one, and the reconcile harness reported the difference. Decided here, once, and
+  // handed to the voucher; see config/deskTime.ts.
+  const clearedOn = deskToday()
   // A single guarded UPDATE is both the atomicity guarantee and the source of the row's prior
   // values — Postgres re-evaluates the WHERE predicate under lock, so a losing racer (e.g. a
   // concurrent return on the same cheque) cleanly gets rowCount 0 rather than double-applying.
@@ -24,11 +30,10 @@ export async function clearCheque(client: PoolClient, id: string, actorId: strin
     direction: string
     amount: number
     bank_account_id: string
-    cleared_on: string
   }>(
     `UPDATE cheques SET status = 'Cleared', ledger_applied = true, updated_at = now(), updated_by = $2, history = array_append(history, $3)
      WHERE id = $1 AND status = 'Deposited'
-     RETURNING customer_id, direction, amount, bank_account_id, updated_at::date AS cleared_on`,
+     RETURNING customer_id, direction, amount, bank_account_id`,
     [id, actorId, historyLine],
   )
   if (rows.length === 0) throw appError(409, 'This cheque is no longer Deposited.')
@@ -55,13 +60,13 @@ export async function clearCheque(client: PoolClient, id: string, actorId: strin
     })
     const legs = buildVoucherLegs(shape.debits, shape.credits)
     if (legs) {
-      await postVoucher(client, { activityId: null, chequeId: id, txnDate: q.cleared_on, narration: shape.narration, legs }, actorId)
+      await postVoucher(client, { activityId: null, chequeId: id, txnDate: clearedOn, narration: shape.narration, legs }, actorId)
     }
   }
 }
 
 export async function returnCheque(client: PoolClient, id: string, actorId: string | null): Promise<void> {
-  const historyLine = 'Returned ' + shortDate(new Date())
+  const historyLine = 'Returned ' + deskShortDate()
   const { rowCount } = await client.query(
     `UPDATE cheques SET status = 'Returned', updated_at = now(), updated_by = $2, history = array_append(history, $3)
      WHERE id = $1 AND status = 'Deposited'`,

@@ -3,6 +3,7 @@ import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
 import { resetBusinessData, ensureTestUser } from '../dbFixtures.js'
+import { deskToday } from '../../config/deskTime.js'
 
 // journal_entries.txn_date (migration 017) — the journal's counterpart to activity.txn_date.
 //
@@ -48,9 +49,10 @@ describe('journal entries carry their own transaction date', () => {
     expect(entry, 'the entry should be in the snapshot').toBeTruthy()
     expect(entry.activityId, 'a manual entry has no activity row — the exact case a join would have missed').toBeUndefined()
 
-    // CURRENT_DATE in the database session's timezone, which is the desk's own day.
-    const { rows } = await pool.query<{ today: string }>('SELECT CURRENT_DATE::text AS today')
-    expect(entry.txnDate).toBe(rows[0].today)
+    // The desk's own day, decided by the server in the desk's timezone — NOT the database's
+    // CURRENT_DATE, which is the session zone's day (UTC on Neon) and was yesterday for the first
+    // five hours of every desk day. See config/deskTime.ts and integration/deskDate.test.ts.
+    expect(entry.txnDate).toBe(deskToday())
   })
 
   it('crosses the wire as a plain YYYY-MM-DD string, not a timestamp', async () => {
@@ -79,6 +81,8 @@ describe('journal entries carry their own transaction date', () => {
       "SELECT is_nullable, column_default FROM information_schema.columns WHERE table_name = 'journal_entries' AND column_name = 'txn_date'",
     )
     expect(rows[0].is_nullable).toBe('NO')
+    // The CURRENT_DATE default still exists as a schema backstop, but no application write relies
+    // on it any more — every writer passes an explicit date on the desk's calendar.
     expect(rows[0].column_default).toContain('CURRENT_DATE')
   })
 })

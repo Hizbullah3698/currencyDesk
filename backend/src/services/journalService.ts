@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { PoolClient } from 'pg'
+import { deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 import { getAccount } from './accountHelpers.js'
 
@@ -9,6 +10,15 @@ export interface JournalInput {
   creditAccount: string
   creditAmount: number
   narration: string
+  /**
+   * 'YYYY-MM-DD', already validated by routes/txnDate.ts; null means "the desk's today".
+   *
+   * Manual entries had no way to carry a date until 2026-09-10 and took the column's CURRENT_DATE
+   * default — the database's day, UTC on Neon, so an entry keyed at 01:00 on the desk's clock was
+   * dated yesterday for good. Now the same rule as every other movement: an explicit date, or the
+   * desk's own today.
+   */
+  txnDate: string | null
 }
 
 export async function postJournal(client: PoolClient, input: JournalInput, actorId: string | null): Promise<void> {
@@ -27,9 +37,9 @@ export async function postJournal(client: PoolClient, input: JournalInput, actor
   if (!debitAcc || !creditAcc) throw appError(400, 'Select a valid account on both the debit and the credit line.')
 
   await client.query(
-    `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
-    [input.narration.trim() || 'Journal entry', input.debitAccount, input.creditAccount, debitAcc.name, creditAcc.name, input.debitAmount, actorId],
+    `INSERT INTO journal_entries (narration, debit_account, credit_account, debit_label, credit_label, amount, txn_date, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $8)`,
+    [input.narration.trim() || 'Journal entry', input.debitAccount, input.creditAccount, debitAcc.name, creditAcc.name, input.debitAmount, input.txnDate ?? deskToday(), actorId],
   )
 
   // A journal entry against a customer has to move that customer's balance too. Until 2026-09-03

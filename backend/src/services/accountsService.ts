@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg'
 import { CORE_ACCOUNT_IDS, CURRENCIES, type AccountType } from '@currencydesk/engine'
+import { deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 import { accountHasActivity, describeAccountReferences, getAccount } from './accountHelpers.js'
 
@@ -95,10 +96,12 @@ export async function createAccount(client: PoolClient, form: AccountForm, actor
     const crId = owedToUs ? 'capital' : newId
     const drLabel = owedToUs ? name : capital!.name
     const crLabel = owedToUs ? capital!.name : name
+    // Dated on the desk's calendar rather than by the column's CURRENT_DATE default (the
+    // database's day, UTC on Neon) — see config/deskTime.ts.
     await client.query(
-      `INSERT INTO journal_entries (narration, opening_for, debit_account, credit_account, debit_label, credit_label, amount, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
-      [`Opening balance — ${name}`, newId, drId, crId, drLabel, crLabel, Math.abs(opening), actorId],
+      `INSERT INTO journal_entries (narration, opening_for, debit_account, credit_account, debit_label, credit_label, amount, txn_date, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $9)`,
+      [`Opening balance — ${name}`, newId, drId, crId, drLabel, crLabel, Math.abs(opening), deskToday(), actorId],
     )
   }
 

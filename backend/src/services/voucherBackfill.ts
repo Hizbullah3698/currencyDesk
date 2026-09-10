@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg'
+import { env } from '../config/env.js'
 import { stockAccountIdFor } from './accountHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
 import { postOpeningStockEntries, type OpeningStockResult } from './openingStockService.js'
@@ -159,11 +160,15 @@ export async function backfillVouchers(client: PoolClient, actorId: string | nul
     customer_id: string | null
     cleared_on: string
   }>(
-    `SELECT id, direction, amount, bank_account_id, customer_id, updated_at::date AS cleared_on
+    // The clearing day is read off the timestamp IN THE DESK'S ZONE, not with a bare `::date`,
+    // which would take the database session's zone (UTC on Neon) and date an early-morning
+    // clearing on the previous day. The live path (clearCheque) decides the same day the same way.
+    `SELECT id, direction, amount, bank_account_id, customer_id, (updated_at AT TIME ZONE $1)::date AS cleared_on
        FROM cheques c
       WHERE status = 'Cleared'
         AND NOT EXISTS (SELECT 1 FROM journal_entries j WHERE j.cheque_id = c.id)
       ORDER BY updated_at ASC, id ASC`,
+    [env.deskTimeZone],
   )
   cheques.considered = chequeRows.length
 

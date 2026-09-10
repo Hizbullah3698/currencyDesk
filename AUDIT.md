@@ -85,7 +85,7 @@ Grouped by what the value *is*, not by file, because most of these appear in sev
 |---|---|
 | `'margin'` | `tradesService.ts:11`, `voucherBackfill.ts:34` (two separate `MARGIN_ACCOUNT` constants) |
 | `'capital'` | `accountsService.ts:92,94,95`, `openingStockService.ts:30`, `reports.ts:257,260` |
-| `'cash'`, `'bank'` | `accountHelpers.ts:29,33`, `Settle.tsx:31` (`|| 'bank'` fallback in the UI) |
+| `'cash'`, `'bank'` | `accountHelpers.ts:29,33`, `Settle.tsx:31` (`\|\| 'bank'` fallback in the UI) |
 | `'salaryExpense'`, `'salaryPayable'` | inside SQL string literals at `salaryService.ts:27,55,79,97`; `reports.ts:327` |
 | `'Salary Expense'`, `'Salary Payable'` (display labels) | inside the same SQL at `salaryService.ts:27,55,79,97` |
 | `'Opening Balance / Capital'` (display label) | `reports.ts:260` |
@@ -267,6 +267,11 @@ This boundary is mostly right and worth stating precisely.
 
 ### #1 [High] Customer statement "To" date excludes every entry dated on that day — **[verified]**
 
+> **Fixed 2026-09-10.** `frontend/src/lib/statementRange.ts` builds the bounds through
+> `rangeBounds()`; `LedgerDetail.tsx` uses it. Pinned by `statementRange.test.ts` (failed on the
+> old code, passes now) and confirmed in the running app: a statement to Sep 10 lists the Sep 10
+> sale and closes at the right figure; to Sep 9 it does not.
+
 `frontend/src/pages/LedgerDetail.tsx:45–46`:
 ```ts
 fromT: from ? stampTime(from) : undefined,
@@ -279,6 +284,15 @@ toT:   to   ? stampTime(to)   : undefined,
 *Fix direction:* build bounds the way `BalanceSheet.tsx:44` and `IncomeStatement.tsx:29` already do, through `rangeBounds('custom', from, to)`, which uses local `endOf(day)`. Then add a test to `ledger.test.ts` with a row dated exactly on `to`. Thirty minutes. Do this first.
 
 ### #2 [High] The backend's "today" is UTC, the desk's is UTC+5
+
+> **Fixed 2026-09-10.** `backend/src/config/deskTime.ts` plus a `DESK_TIMEZONE` setting (default
+> `Asia/Karachi`). Every row in the table below now goes through `deskToday()`; opening-balance
+> and salary postings, which the table missed, do too. Deliberately *not* the `TZ`/pool-option
+> route recommended in §1.7: Neon's transaction-mode pooler does not keep a session timezone, and
+> a host env var is not visible in the repo. Pinned by `test/deskTime.test.ts` (process forced to
+> UTC, clock frozen at 02:30 desk time) and `integration/deskDate.test.ts` (same clock, real HTTP
+> and Postgres); both failed on the old code. Manual journal entries also gained an optional
+> `txnDate` (backend only; no date picker on the Journal page yet).
 
 No timezone is configured for Node or the Postgres session (section 1.7). Vercel functions run in UTC; Neon's default session timezone is UTC. Four places compute "today" or "this day" server-side:
 

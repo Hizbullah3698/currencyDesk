@@ -17,9 +17,24 @@ function clean(value: string | undefined): string | undefined {
 function required(name: string): string {
   const value = clean(process.env[name])
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}. Copy server/.env.example to server/.env and fill it in.`)
+    throw new Error(`Missing required environment variable: ${name}. Copy backend/.env.example to backend/.env and fill it in.`)
   }
   return value
+}
+
+/**
+ * The IANA zone the desk keeps its books in. Every server-side "today" is computed in it — see
+ * config/deskTime.ts for why that is a code-level input rather than a host setting. Validated at
+ * boot: an unknown zone name would otherwise surface as a thrown RangeError on the first trade.
+ */
+function timeZone(value: string | undefined, fallback: string): string {
+  const zone = value || fallback
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: zone })
+  } catch {
+    throw new Error(`DESK_TIMEZONE "${zone}" is not a valid IANA timezone name (expected something like Asia/Karachi).`)
+  }
+  return zone
 }
 
 export const env = {
@@ -46,4 +61,7 @@ export const env = {
   // shipping a rollback. Anything other than the exact string "true" is treated as false, so a
   // typo fails safe (open) rather than locking the desk out.
   csrfEnforce: clean(process.env.CSRF_ENFORCE) === 'true',
+  // Defaults to the client's own zone rather than to the host's, deliberately: the host is UTC on
+  // Vercel and that default is exactly what dated five hours of every desk day as yesterday.
+  deskTimeZone: timeZone(clean(process.env.DESK_TIMEZONE), 'Asia/Karachi'),
 }

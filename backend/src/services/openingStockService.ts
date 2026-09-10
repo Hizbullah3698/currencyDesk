@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg'
 import { openingStock } from '@currencydesk/engine'
+import { deskDate } from '../config/deskTime.js'
 import { mapActivityRow, mapStocks, type ActivityRow, type StockRow } from './mappers.js'
 import { loadUserNames } from './userLookup.js'
 import { postVoucher } from './journalService.js'
@@ -84,7 +85,8 @@ export async function postOpeningStockEntries(client: PoolClient, actorId: strin
       "SELECT MIN(txn_date)::text AS first FROM activity WHERE COALESCE(currency, 'AED') = $1",
       [code],
     )
-    const accountDay = new Date(account.created_at).toISOString().slice(0, 10)
+    // On the desk's calendar, not `toISOString()`'s UTC day — see config/deskTime.ts.
+    const accountDay = deskDate(new Date(account.created_at))
     const firstMove = earliest.rows[0]?.first
     // The day before the first movement when there is one — that precedes every deal in this
     // currency however far back it was dated. With no movements at all there is nothing to precede,

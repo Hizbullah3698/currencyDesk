@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Inbox, Printer, FileText, Sheet } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { customerLedger, currencyMeta, stampTime, type LedgerRow } from '@/lib/engine'
+import { customerLedger, currencyMeta, type LedgerRow } from '@/lib/engine'
 import { fmt, fmtAmount, fmtRate, fmtLongDate, fmtShortDate, todayISO } from '@/lib/format'
 import { downloadCsv, printStatement, safeFilePart, toCsv } from '@/lib/exportFile'
+import { statementRange } from '@/lib/statementRange'
 import { BackButton } from '@/components/BackButton'
 import { PrintHeader } from '@/components/PrintHeader'
 import { Button } from '@/components/ui/button'
@@ -41,10 +42,9 @@ export function LedgerDetail() {
     if (!cust) return null
     // Bounds, not a keep() predicate. Rows before the range fold into the opening balance, rows
     // inside are listed, rows after are ignored — three cases a boolean filter cannot express.
-    return customerLedger(cust, state.activity, state.cheques, {
-      fromT: from ? stampTime(from) : undefined,
-      toT: to ? stampTime(to) : undefined,
-    })
+    // The bounds themselves come from lib/statementRange.ts, which ends the "To" day at 23:59:59
+    // local — see its comment for the day this page used to drop.
+    return customerLedger(cust, state.activity, state.cheques, statementRange(from, to))
   }, [cust, state.activity, state.cheques, from, to])
 
   if (!cust) {

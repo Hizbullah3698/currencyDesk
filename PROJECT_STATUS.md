@@ -203,6 +203,59 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-10 — later the same day: the two date faults fixed
+
+### Done
+
+*At a glance: the two date faults the audit put first are fixed, each with a test that was watched
+failing on the old code before the fix went in, and then confirmed on screen in a running copy.*
+
+**Customer statements no longer drop the last day.** A statement for 1–30 September now lists every
+deal struck on the 30th, in the on-screen statement, the PDF and the Excel file, and the closing
+balance includes them. The cause was that the statement screen worked out its date range one way
+and the balance sheet another; it now uses the same rule the balance sheet always has. A test places
+a deal exactly on the "To" day, which no earlier test did — it failed on the old code (the deal was
+missing, the closing balance short by exactly its value) and passes now. Then, in the running app: a
+sale dated 10 September, a statement "to 10 September" lists it and closes at PKR 4,100; "to 9
+September" correctly leaves it out and closes at PKR 3,900.
+
+**The server now knows which day it is on the desk's clock.** Every date the server works out for
+itself — a deal posted without a date, a manual accounting entry, an opening balance, a salary
+posting, the day a cheque cleared, its due date, and the "not in the future" check — is now computed
+in the desk's own timezone, set once and defaulting to Pakistan. Before, the server used its own
+clock (UTC on the hosting platform, five hours behind), so from midnight to 05:00 local it refused a
+deal dated today and dated everything else yesterday. Two sets of tests pin this: one forces the
+test process onto UTC and freezes the clock at 02:30 on the desk's morning, and proves a deal dated
+"today" is accepted; the other freezes the same clock against the real server and database and
+proves a trade, a receipt, a manual entry and a cheque clearing all land on the desk's day. All six
+failed on the old code.
+
+*The fix was deliberately not "set the timezone on the server".* That would have worked and would
+have been invisible: an environment setting on the hosting platform that nobody would notice was
+missing on a new project, and a database session setting that the database's connection pooler does
+not reliably keep. The timezone is instead an explicit input to every date the code derives, so it
+is right on any host and can be tested.
+
+*One small extension, flagged.* Manual accounting entries can now carry a date, validated exactly as
+a deal's is. The server accepts it; the Journal screen does not offer a date picker yet. That is a
+screen change for a later session.
+
+**Full suite green:** 301 tests across the three parts (up from 286), plus type-check and lint.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| Statement "To" date dropped same-day deals | Real, client-facing | **Fixed 2026-09-10**, test failed first, confirmed on screen |
+| Server "today" was UTC | Real; refused same-day deals 00:00–05:00, misdated five kinds of record | **Fixed 2026-09-10**, tests failed first |
+| Opening-balance and salary postings also took the database's day | Same fault, two more places the audit's table had not listed | **Fixed 2026-09-10** in the same change |
+| The Journal screen has no date field | Product gap, now unblocked on the server side | **Open** — small screen change |
+
+### Next — in priority order
+
+Unchanged: the client reads `AUDIT.md` and marks what to act on; the remaining quick wins in §6
+follow in order, then phase 5.
+
 ## 2026-09-10
 
 ### Done

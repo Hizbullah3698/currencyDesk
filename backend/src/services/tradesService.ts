@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg'
 import { CURRENCIES, buyCalc, sellCalc, pkrPerUnit } from '@currencydesk/engine'
+import { deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 import { getAccount, settlementIdFor, settlementName, stockAccountIdFor } from './accountHelpers.js'
 import { insertCheque } from './chequeHelpers.js'
@@ -27,7 +28,7 @@ export interface TradeInput {
   bankId: string
   chqNo: string
   chqBank: string
-  /** 'YYYY-MM-DD', already validated by routes/txnDate.ts; null means "default to today". */
+  /** 'YYYY-MM-DD', already validated by routes/txnDate.ts; null means "the desk's today". */
   txnDate: string | null
 }
 
@@ -110,14 +111,15 @@ export async function purchase(client: PoolClient, input: TradeInput, actorId: s
      ON CONFLICT (code) DO UPDATE SET available = $2, avg_cost = $3, updated_at = now()`,
     [code, newAvail, newAvg],
   )
-  // RETURNING the stored txn_date rather than re-deriving the COALESCE above in app code: the
-  // column defaults to CURRENT_DATE, so the value is not knowable until the row exists, and one
-  // fact should not have two ways of being computed. The voucher copies what was actually stored.
+  // The date is decided HERE, on the desk's calendar, never left to the column's CURRENT_DATE
+  // default — that default is the database's day, which is UTC on Neon and yesterday for the
+  // first five hours of every desk day. RETURNING it still, so the voucher copies what was stored.
+  const txnDate = input.txnDate ?? deskToday()
   const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, currency, customer_id, customer_name, amount, rate, pkr_value, method, paid_now, outstanding, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('purchase', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::date, CURRENT_DATE), $14, $14)
+     VALUES ('purchase', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $14)
      RETURNING id, txn_date`,
-    [code, input.customerId, cust.name, amount, rate, pkrValue, input.method, paidNow, ledgerOutstanding, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
+    [code, input.customerId, cust.name, amount, rate, pkrValue, input.method, paidNow, ledgerOutstanding, chequeHeld, chequeId, settlementAccountId, txnDate, actorId],
   )
   await client.query('UPDATE accounts SET payable = payable + $1, updated_at = now() WHERE id = $2', [ledgerOutstanding, input.customerId])
 
@@ -190,12 +192,13 @@ export async function sale(client: PoolClient, input: TradeInput, actorId: strin
   }
 
   await client.query('UPDATE stock_positions SET available = available - $1, updated_at = now() WHERE code = $2', [amount, input.currency])
-  // RETURNING the stored txn_date for the same reason as purchase() above.
+  // Dated on the desk's calendar for the same reason as purchase() above.
+  const txnDate = input.txnDate ?? deskToday()
   const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, currency, customer_id, customer_name, amount, rate, pkr_value, cost, margin, method, paid_now, outstanding, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
-     VALUES ('sale', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::date, CURRENT_DATE), $16, $16)
+     VALUES ('sale', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::date, $16, $16)
      RETURNING id, txn_date`,
-    [input.currency, input.customerId, cust.name, amount, rate, saleValue, cost, margin, input.method, paidNow, ledgerOutstanding, chequeHeld, chequeId, settlementAccountId, input.txnDate, actorId],
+    [input.currency, input.customerId, cust.name, amount, rate, saleValue, cost, margin, input.method, paidNow, ledgerOutstanding, chequeHeld, chequeId, settlementAccountId, txnDate, actorId],
   )
   await client.query('UPDATE accounts SET receivable = receivable + $1, updated_at = now() WHERE id = $2', [ledgerOutstanding, input.customerId])
 

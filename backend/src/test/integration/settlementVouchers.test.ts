@@ -3,6 +3,7 @@ import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
 import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { deskToday } from '../../config/deskTime.js'
 
 // Requirement 7 phase 3, step 4 — receipts, payments and cheque clearing post paired entries.
 //
@@ -173,8 +174,8 @@ describe('settlements and cheque clearing post vouchers', () => {
     // clearing voucher takes the clearing date, which is what ledgerBalance() counts it on.
     expect((await admin.post(`/api/cheques/${chequeId}/clear`, {})).status).toBe(200)
 
-    const { rows: today } = await pool.query<{ today: string }>('SELECT CURRENT_DATE::text AS today')
-    expect((await legs())[0].txn_date).toBe(today[0].today)
+    // The desk's day, not the database session's — see config/deskTime.ts.
+    expect((await legs())[0].txn_date).toBe(deskToday())
   })
 
   it('posts nothing when a deposited cheque is returned instead of cleared', async () => {

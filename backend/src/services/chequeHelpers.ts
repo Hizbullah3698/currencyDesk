@@ -1,11 +1,11 @@
 import type { PoolClient } from 'pg'
 import type { Cheque } from '@currencydesk/engine'
 import { nextChequeNumber, chequeNoError } from '@currencydesk/engine'
+import { addDays, deskShortDate, deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
 
-export function shortDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+/** How long after it is taken a cheque falls due, by default. */
+const DUE_DAYS = 14
 
 export interface BuildChequeInput {
   direction: 'Inward' | 'Outward'
@@ -34,10 +34,10 @@ const UNIQUE_VIOLATION = '23505'
 export async function insertCheque(client: PoolClient, input: BuildChequeInput): Promise<{ id: string; number: string }> {
   const explicitNumber = input.chqNo.trim()
 
-  const dueDate = new Date()
-  dueDate.setDate(dueDate.getDate() + 14)
-  const dueDateStr = dueDate.toISOString().slice(0, 10)
-  const historyLine = 'Recorded ' + shortDate(new Date())
+  // Both on the desk's calendar — `toISOString()` gave the UTC day, which is yesterday for the
+  // first five hours of every desk day. See config/deskTime.ts.
+  const dueDateStr = addDays(deskToday(), DUE_DAYS)
+  const historyLine = 'Recorded ' + deskShortDate()
   const bank = input.chqBank.trim() || input.bankAccountName
 
   for (let attempt = 0; attempt < 2; attempt++) {
