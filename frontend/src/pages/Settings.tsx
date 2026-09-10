@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IDLE_WARNING_SECONDS } from '@currencydesk/engine'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -53,8 +54,8 @@ export function Settings() {
         <div className="border-b border-border px-[13px] py-2.5">
           <div className="text-body font-semibold">Automatic sign-out</div>
           <div className="mt-0.5 text-meta font-normal leading-[1.5] text-muted-60">
-            How long a terminal can sit untouched before the session ends. Applies to everyone. A warning appears 30 seconds beforehand, with the
-            chance to stay signed in.
+            How long a terminal can sit untouched before the session ends. Applies to everyone. A warning appears {IDLE_WARNING_SECONDS} seconds
+            beforehand, with the chance to stay signed in.
           </div>
         </div>
 

@@ -1,4 +1,10 @@
 import type { PoolClient } from 'pg'
+import {
+  DEFAULT_IDLE_TIMEOUT_MINUTES,
+  MIN_IDLE_TIMEOUT_MINUTES,
+  MAX_IDLE_TIMEOUT_MINUTES,
+  SETTINGS_CACHE_TTL_SECONDS,
+} from '@currencydesk/engine'
 import { pool } from '../db/pool.js'
 import { appError } from './transact.js'
 
@@ -8,24 +14,14 @@ import { appError } from './transact.js'
 // Distinct from config/env.ts, which owns DEPLOYMENT configuration — things only whoever holds
 // the hosting account can or should change, and which require a redeploy. This owns settings an
 // administrator changes from inside the running app.
+//
+// The default, the bounds and the cache TTL live in @currencydesk/engine so the frontend's
+// fail-closed fallback (frontend/lib/settings.ts) cannot drift from what this serves. Re-exported
+// here because the tests and middleware import them by this path.
 
 export const IDLE_TIMEOUT_KEY = 'idle_timeout_minutes'
 
-/** The client's requested default. Used when the row is absent, so a missing row degrades to a
- *  sensible value rather than to "no timeout at all", which would fail open on a security control. */
-export const DEFAULT_IDLE_TIMEOUT_MINUTES = 5
-
-/**
- * Bounds, enforced on write.
- *
- * The lower bound is not arbitrary: the warning modal appears 30 seconds before expiry, so
- * anything under a minute would show a countdown that begins before the user has finished the
- * action that started it. The upper bound keeps this recognisably an *idle* timeout — beyond a
- * working day it stops being a security control and starts being a slow memory leak of live
- * sessions.
- */
-export const MIN_IDLE_TIMEOUT_MINUTES = 1
-export const MAX_IDLE_TIMEOUT_MINUTES = 480
+export { DEFAULT_IDLE_TIMEOUT_MINUTES, MIN_IDLE_TIMEOUT_MINUTES, MAX_IDLE_TIMEOUT_MINUTES }
 
 /**
  * Read-through cache.
@@ -40,7 +36,7 @@ export const MAX_IDLE_TIMEOUT_MINUTES = 480
  * Per-process, so on serverless each concurrent instance warms its own. `invalidate` clears only
  * the instance that handled the write; the rest expire naturally.
  */
-const CACHE_TTL_MS = 30_000
+const CACHE_TTL_MS = SETTINGS_CACHE_TTL_SECONDS * 1000
 let cached: { minutes: number; at: number } | null = null
 
 export function invalidateSettingsCache(): void {

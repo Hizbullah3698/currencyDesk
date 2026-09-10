@@ -1,3 +1,9 @@
+import {
+  DEFAULT_IDLE_TIMEOUT_MINUTES,
+  MIN_IDLE_TIMEOUT_MINUTES,
+  MAX_IDLE_TIMEOUT_MINUTES,
+  SETTINGS_CACHE_TTL_SECONDS,
+} from '@currencydesk/engine'
 import { apiUrl } from './apiBase'
 import { requestHeaders } from './csrf'
 import { markServerContact } from './activity'
@@ -19,15 +25,17 @@ export interface AppSettings {
 /**
  * The fallback used until the real value arrives, and if it never does.
  *
- * Matches the server's own default deliberately. It errs on the side of *having* a timeout: a
- * failed settings fetch that left the timeout undefined would silently disable an access control
- * on a machine sitting on a shop counter, which is the wrong way for this to fail.
+ * It errs on the side of *having* a timeout: a failed settings fetch that left the timeout
+ * undefined would silently disable an access control on a machine sitting on a shop counter,
+ * which is the wrong way for this to fail. The numbers come from `@currencydesk/engine` — the
+ * same source the backend serves and clamps against — so this cannot quietly assert a bound the
+ * server no longer honours.
  */
 export const FALLBACK_SETTINGS: AppSettings = {
-  idleTimeoutMinutes: 5,
-  cacheTtlSeconds: 30,
-  minIdleTimeoutMinutes: 1,
-  maxIdleTimeoutMinutes: 480,
+  idleTimeoutMinutes: DEFAULT_IDLE_TIMEOUT_MINUTES,
+  cacheTtlSeconds: SETTINGS_CACHE_TTL_SECONDS,
+  minIdleTimeoutMinutes: MIN_IDLE_TIMEOUT_MINUTES,
+  maxIdleTimeoutMinutes: MAX_IDLE_TIMEOUT_MINUTES,
 }
 
 async function parseJson(res: Response): Promise<any> {

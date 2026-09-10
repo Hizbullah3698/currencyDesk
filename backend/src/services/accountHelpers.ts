@@ -1,5 +1,13 @@
 import type { PoolClient } from 'pg'
 
+/**
+ * The seeded Income account that carries trading margin. A literal id, matching how salaryService
+ * names 'salaryExpense'/'salaryPayable' — these are CORE_ACCOUNT_IDS entries the schema guarantees.
+ * One definition, imported by both the live posting path (tradesService) and the backfill
+ * (voucherBackfill), so a rename cannot land in one and not the other.
+ */
+export const MARGIN_ACCOUNT_ID = 'margin'
+
 export async function getAccount(client: PoolClient, id: string | null | undefined) {
   if (!id) return undefined
   const { rows } = await client.query('SELECT * FROM accounts WHERE id = $1', [id])

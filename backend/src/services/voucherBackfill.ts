@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg'
 import { env } from '../config/env.js'
-import { stockAccountIdFor } from './accountHelpers.js'
+import { stockAccountIdFor, MARGIN_ACCOUNT_ID } from './accountHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
 import { postOpeningStockEntries, type OpeningStockResult } from './openingStockService.js'
 import { purchaseSides, saleSides, settlementSides, chequeClearingSides, type VoucherShape } from './voucherPostings.js'
@@ -31,8 +31,6 @@ import { purchaseSides, saleSides, settlementSides, chequeClearingSides, type Vo
 //
 // The transaction is the CALLER's. This function neither begins nor commits, so the script can run
 // it and roll back for a dry run, and the tests can run it inside their own transaction.
-
-const MARGIN_ACCOUNT = 'margin'
 
 export interface BackfillSkip {
   id: string
@@ -98,7 +96,7 @@ async function shapeFor(client: PoolClient, row: ActivityRowForBackfill): Promis
       settlementAccount: row.settlement_account_id,
       customerId: row.customer_id,
       customerName: row.customer_name,
-      marginAccount: MARGIN_ACCOUNT,
+      marginAccount: MARGIN_ACCOUNT_ID,
       method: row.method,
       currency,
       amount: row.amount,

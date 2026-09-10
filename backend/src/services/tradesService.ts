@@ -2,14 +2,10 @@ import type { PoolClient } from 'pg'
 import { CURRENCIES, buyCalc, sellCalc, pkrPerUnit } from '@currencydesk/engine'
 import { deskToday } from '../config/deskTime.js'
 import { appError } from './transact.js'
-import { getAccount, settlementIdFor, settlementName, stockAccountIdFor } from './accountHelpers.js'
+import { getAccount, settlementIdFor, settlementName, stockAccountIdFor, MARGIN_ACCOUNT_ID } from './accountHelpers.js'
 import { insertCheque } from './chequeHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
 import { purchaseSides, saleSides } from './voucherPostings.js'
-
-/** The seeded Income account that carries trading margin. A literal id, matching how salaryService
- *  names 'salaryExpense'/'salaryPayable' — these are CORE_ACCOUNT_IDS entries the schema guarantees. */
-const MARGIN_ACCOUNT = 'margin'
 
 export interface TradeInput {
   customerId: string
@@ -210,7 +206,7 @@ export async function sale(client: PoolClient, input: TradeInput, actorId: strin
     settlementAccount: settlementAccountId,
     customerId: input.customerId,
     customerName: cust.name,
-    marginAccount: MARGIN_ACCOUNT,
+    marginAccount: MARGIN_ACCOUNT_ID,
     method: input.method,
     currency: input.currency,
     amount,

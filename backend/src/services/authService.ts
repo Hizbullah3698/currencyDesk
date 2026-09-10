@@ -3,6 +3,13 @@ import { findUserByIdentifier, touchLastLogin, toPublicUser, type PublicUser } f
 
 const BCRYPT_COST = 12
 
+/**
+ * The shortest password the CLI account tools (`create-user`, `set-password`) will accept. The
+ * app itself enforces no ceiling and does not re-check length on an already-hashed password;
+ * this is a floor for newly-set ones, kept in one place so the two scripts cannot drift apart.
+ */
+export const MIN_PASSWORD_LENGTH = 8
+
 // A precomputed hash of a password nobody has, compared against on an unknown-identifier
 // login attempt so that "no such account" and "wrong password" take statistically the same
 // amount of time — without this, response-time differences would leak which accounts exist.

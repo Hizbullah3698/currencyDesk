@@ -1,17 +1,7 @@
 import { createUser } from '../services/userService.js'
-import { hashPassword } from '../services/authService.js'
+import { hashPassword, MIN_PASSWORD_LENGTH } from '../services/authService.js'
 import { pool } from '../db/pool.js'
-
-const MIN_PASSWORD_LENGTH = 8
-
-function arg(name: string): string | undefined {
-  const prefix = `--${name}=`
-  const inline = process.argv.find((a) => a.startsWith(prefix))
-  if (inline) return inline.slice(prefix.length)
-  const idx = process.argv.indexOf(`--${name}`)
-  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  return undefined
-}
+import { arg } from './lib/args.js'
 
 async function run() {
   const email = arg('email')

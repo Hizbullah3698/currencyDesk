@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { IDLE_WARNING_SECONDS } from '@currencydesk/engine'
 import { lastActivity, markActivity, needsKeepalive, resetActivity } from './activity'
 import * as authClient from './authClient'
 
@@ -13,8 +14,9 @@ import * as authClient from './authClient'
 // The two are kept aligned by the keepalive in activity.ts — local activity with no requests would
 // otherwise let the server session lapse while this timer still showed plenty of time left.
 
-/** How long before expiry the warning appears. */
-export const WARNING_SECONDS = 30
+/** How long before expiry the warning appears. Re-exported from the engine so the Settings page's
+ *  copy ("A warning appears N seconds beforehand") and this countdown cannot drift apart. */
+export const WARNING_SECONDS = IDLE_WARNING_SECONDS
 
 /** How often the timer re-evaluates. One second is enough for a per-second countdown and is
  *  cheap; the check itself is two subtractions. */

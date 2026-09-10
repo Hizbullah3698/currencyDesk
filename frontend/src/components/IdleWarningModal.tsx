@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
 /**
- * Shown for the last 30 seconds before an idle sign-out.
+ * Shown for the final `IDLE_WARNING_SECONDS` before an idle sign-out (see lib/useIdleTimeout.ts).
  *
  * Deliberately NOT dismissible by clicking away or pressing Escape. Every other modal in this app
  * closes on a backdrop click, but here that gesture is ambiguous — a user brushing the mouse to

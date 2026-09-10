@@ -1,5 +1,6 @@
-import { hashPassword } from '../services/authService.js'
+import { hashPassword, MIN_PASSWORD_LENGTH } from '../services/authService.js'
 import { pool } from '../db/pool.js'
+import { arg } from './lib/args.js'
 
 /**
  * Resets an existing account's password, found by email.
@@ -11,16 +12,6 @@ import { pool } from '../db/pool.js'
  * yet. Hashes with the same cost-12 bcrypt the login path verifies against, so a
  * password set here behaves identically to one set at account creation.
  */
-const MIN_PASSWORD_LENGTH = 8
-
-function arg(name: string): string | undefined {
-  const prefix = `--${name}=`
-  const inline = process.argv.find((a) => a.startsWith(prefix))
-  if (inline) return inline.slice(prefix.length)
-  const idx = process.argv.indexOf(`--${name}`)
-  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1]
-  return undefined
-}
 
 async function run() {
   const email = arg('email')
