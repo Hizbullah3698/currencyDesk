@@ -175,7 +175,7 @@ All eight points are now recorded. Each status below was checked against the act
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
 | 6 | **Payment-method confidentiality on the buy flow** | ✅ **Done** | The buy screen shows no cash/bank/cheque option at all. The settlement-method buttons, the bank-account picker, the cheque sub-form and the "amount paid now" field have all been removed from the screen, and every trade is recorded on account (as a payable to the customer). How the customer was actually paid is not captured or displayed anywhere in that flow. **The client asked for this to be reversible, and it is:** nothing was deleted — the controls are retained in place, disabled, with a written step-by-step restore procedure. The server still supports all four payment methods untouched, so bringing the option back is a screen-only change. |
-| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains:* ~~**(a)** the security rollout's final step~~ — **done 2026-09-09.** It was blocked from 2026-09-03 to 2026-09-06 on an idle desk; the client started trading on 2026-09-09, the readiness check returned SAFE on real traffic, the final step was switched on, and it was then proven to be actively refusing untokened requests. Nothing on the security work remains. <br><br>**The checking tool now reports RECONCILED at every date, as of 2026-09-09** — the accounting record on its own reproduces every reported figure. **This is the precondition for (b), not (b) itself, and must not be read as this requirement being complete.** The reports still work their figures out independently rather than reading the accounting record. A green checking tool alongside reports that still reconstruct their own numbers is the state (b) starts from, not the state it ends in. See the 2026-09-09 entry in Part 3. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead — retired one at a time, re-running the checking tool between each. The tool reaching agreement (which it now does) is the precondition for that switch-over; **this requirement is done when the reports actually read the accounting record**, not when the tool agrees they could. <br><br>*Nothing is left to carry over.* The desk was cleared on 2026-09-03, so there is no pre-2026-09-03 history to backfill, and every deal from the client's first onward is recorded properly as it happens — confirmed on 2026-09-09, when the first real trades produced their paired entries as designed. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
+| 7 | **Correct Dr/Cr accounting throughout** | 🔶 **In progress — recording half live, reports not yet switched over** | **The client has decided: they want traceable, auditable records per transaction — a real double-entry journal entry for every trade and payment, not merely correct report totals.** This question is settled; do not re-open it. <br><br>*What exists today:* balances are correct, and the balance sheet honestly reports whether debits and credits agree (it previously forced agreement and always claimed success — fixed 2026-08-31). Salary, manual entries and opening balances each create true paired records. <br><br>*Released 2026-09-03 and live:* trades, receipts, payments and cheque clearing all write paired entries, grouped per deal. Re-confirmed on 2026-09-06 against the deployed server and the live database rather than taken from this document — see the 2026-09-06 entry in Part 3. The entries are deliberately invisible to the existing reports, so no reported figure has moved. <br><br>*What remains:* ~~**(a)** the security rollout's final step~~ — **done 2026-09-09.** It was blocked from 2026-09-03 to 2026-09-06 on an idle desk; the client started trading on 2026-09-09, the readiness check returned SAFE on real traffic, the final step was switched on, and it was then proven to be actively refusing untokened requests. Nothing on the security work remains. <br><br>**The checking tool now reports RECONCILED at every date, as of 2026-09-09** — the accounting record on its own reproduces every reported figure. **This is the precondition for (b), not (b) itself, and must not be read as this requirement being complete.** The reports still work their figures out independently rather than reading the accounting record. A green checking tool alongside reports that still reconstruct their own numbers is the state (b) starts from, not the state it ends in. See the 2026-09-09 entry in Part 3. **(b)** Then phase 5: the reports still work each figure out the old way and must be switched over to read the entries instead — retired one at a time, re-running the checking tool between each. The tool reaching agreement (which it now does) is the precondition for that switch-over; **this requirement is done when the reports actually read the accounting record**, not when the tool agrees they could. <br><br>*Nothing is left to carry over, and the desk stands ready for the client's actual first deals.* It was cleared twice — on 2026-09-03 before go-live, and again on 2026-09-09 after the client's first day of trading — so there is no history to backfill at all. **Read directly from the live system on 2026-09-10:** no deals, no accounting entries, no cheques and no customer accounts; the thirteen structural accounts intact; every currency position at zero; and entry numbering unconsumed, so the client's first real entry will be JV-001. <br><br>That every deal is recorded properly as it happens **was** confirmed on 2026-09-09, when the client's first real trades produced their paired entries as designed. Those four trades were then deliberately cleared the same day, so that evidence no longer exists on the system and will be re-earned on the next real trading day — this row previously cited them as if they were still there, which is the staleness flagged on 2026-09-09 and corrected here. That first day also exposed one unintended side effect of the recording half, on which accounts the Accounts page shows; fixed the same day, see Part 3. The carry-over program remains ready and re-runnable if it is ever needed. <br><br>*Sequencing — the release gate was dropped, deliberately:* this work was previously held back from release until the CSRF rollout finished, and this row said so. **That gate no longer applies and saying otherwise here was wrong.** The recording half shipped on 2026-09-03 with CSRF stage 3 still off, because the two are independent: what is left of the security work is a control that is *unvalidated*, not one that is half-finished, and it cannot be validated on an idle desk. Recorded rather than quietly amended, because a status row that overstates a gate is as misleading as one that omits it. <br><br>*Confirmed 2026-09-02:* the client placed this **ahead of the corrections/reversals feature**, so that correction logic is not written twice when this changes the underlying shape. |
 | 8 | **Customer records show the actual currency and amount** | ✅ **Done** — *after a correction; see note* | Every screen showing a customer's transactions now leads with the currency actually dealt — "1,000 AED" — with the rupee equivalent underneath in smaller, lighter type. Fixed on the customer record, the dashboard's recent activity, the full transaction log, and the currency stock page; the Customer Ledger was already correct. Receipts and payments genuinely move rupees, so they still read in rupees with no invented conversion. Verified against a customer trading four currencies at once, each keeping its own. The customer's **overall balance** remains in rupees, which is correct — they owe rupees, not dirhams; it is the individual transactions that must name their real currency. |
 
 > **Correction, recorded rather than quietly fixed.** This requirement was assessed earlier the same
@@ -202,6 +202,78 @@ Worth noting because it represents real completed work, whether or not it maps t
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-10 — closing the day: admin password reset, one-off script removed
+
+### Done
+
+*At a glance: housekeeping only. No application code changed, no migration, nothing that touches
+business data. The admin login was restored, the throwaway script that did it is gone, and
+requirement 7's status row has been corrected against the live system rather than from memory.*
+
+**The admin password for `info@kakabrothersgroup.com` was reset, and the account works.** There is
+no forgot-password flow and no user-management screen in the app, and passwords are stored one-way,
+so a forgotten password can only be replaced. A one-off script did it, reading the new password from
+a hidden prompt rather than the command line so it never reached shell history or a process list.
+The account holder reports the script's end-to-end check returned a successful login.
+
+**Confirmed against the live database rather than taken from that report**, which is the discipline
+this document has needed before. The account is `role=admin`, active, and has a successful sign-in
+recorded. Two timestamps, both read directly:
+
+| | UTC | Desk time (UTC+5) |
+|---|---|---|
+| Password last written | 2026-09-09 16:02:42 | 2026-09-09 21:02 |
+| Last successful login | 2026-09-10 14:05:45 | 2026-09-10 19:05 |
+
+*Worth reading precisely, because the two dates differ.* A login updates only the last-login stamp;
+only a password or username change moves the other one. So the reset itself was performed on the
+evening of **2026-09-09**, not on the 10th, and the account has been signed into successfully again
+since. Both halves of the claim hold — the password was replaced and the account logs in — but the
+reset is a day older than it was described as, and the figures above are what the system actually
+holds.
+
+**The one-off script has been deleted.** `backend/src/scripts/resetAdminPassword.oneoff.ts` was
+never committed, so this removes a file that existed only on one machine and leaves no trace in the
+history. Its own header said to delete it once the password was reset. It also carried the client's
+admin email address and the live server address as defaults, and its verification step performed a
+real sign-in against production, so it was not something to leave lying around. If a password ever
+needs replacing again, `npm run set-password` does the same job; its one drawback is that it takes
+the password as a command-line argument, which is the exposure the deleted script existed to avoid.
+Reinstating a hidden prompt is a small change to that script rather than a reason to keep this one.
+
+**Requirement 7's status row has been corrected.** It was flagged as stale on 2026-09-09 and left
+deliberately unedited at the time because it is client-facing. It named 2026-09-03 as the last
+clearing and cited the client's first four real trades as live evidence, when the desk had in fact
+been cleared again on 2026-09-09 and those trades no longer exist. The row now names both clearings,
+keeps the historical fact that those trades did produce their paired entries as designed, and states
+plainly that the evidence was discarded with them and will be re-earned on the next trading day.
+
+**The desk's readiness was read from the live system, not assumed:**
+
+| | |
+|---|---|
+| Deals, accounting entries, cheques | **0** each |
+| Customer and other non-structural accounts | **0** |
+| Structural accounts | **13**, intact |
+| Currency positions holding value | **0** |
+| Next accounting entry number | **JV-001**, unconsumed |
+
+The desk is clear and ready for the client's actual first deals.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The password reset was performed on 2026-09-09, not on 2026-09-10 as described | Low, and a description rather than a fault. The reset worked and the account logs in | **Corrected here** from the stored timestamps |
+| No second clearing happened on 2026-09-10; the 2026-09-09 clearing still stands and the desk has been untouched since | Not a fault. The end state is the same either way, and it is what the row now says | **Recorded** — read from the live system |
+| Requirement 7's row named the wrong clearing date and cited deleted trades as evidence | Real but documentary, and already flagged on 2026-09-09 | **Fixed 2026-09-10** |
+| The one-off script held a real admin email and the production address, and signed in to production as a verification step | Low while it stayed on one machine and uncommitted. It would have become real the first time anyone ran `git add -A` | **Deleted 2026-09-10** |
+
+### Next — in priority order
+
+Unchanged. The client reads `AUDIT.md` and marks what to act on; the remaining quick wins in its
+section 6 follow in order; then phase 5, switching the reports over to read the accounting record.
 
 ## 2026-09-10 — later the same day: the two date faults fixed
 
