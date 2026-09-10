@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 // USD, EUR and JPY, added in migration 014 to complete the client's six-currency list.
 //
@@ -21,7 +21,7 @@ describe('USD / EUR / JPY end-to-end', () => {
   const PASSWORD = 'test-password-123'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, EMAIL, PASSWORD, 'admin')
     customerId = await insertCustomer(pool, 'New Currency Supplier')
     server = await startTestServer()

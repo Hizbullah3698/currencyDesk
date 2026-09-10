@@ -3,7 +3,7 @@ import type { PoolClient } from 'pg'
 import { CURRENCIES } from '@currencydesk/engine'
 import { pool } from '../../db/pool.js'
 import { stockAccountIdFor } from '../../services/accountHelpers.js'
-import { resetBusinessData } from '../dbFixtures.js'
+import { truncateAndReseedTestDb } from '../dbFixtures.js'
 
 // stockAccountIdFor resolves a currency code to the account that holds it. Requirement 7's
 // vouchers debit and credit that account on every trade, so getting it wrong is a foreign-key
@@ -20,7 +20,7 @@ describe('stockAccountIdFor', () => {
   let client: PoolClient
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     client = await pool.connect()
   })
 

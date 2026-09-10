@@ -40,6 +40,13 @@ import { pool } from '../db/pool.js'
 
 export const CSRF_HEADER = 'x-csrf-token'
 
+/**
+ * The `code` on both CSRF 403 responses. The client refreshes its token and retries once on a
+ * CSRF rejection but not on an ordinary "Admin access required" 403, and matching on this rather
+ * than on a substring of the human message means a reworded message cannot silently break that.
+ */
+export const CSRF_ERROR_CODE = 'CSRF_TOKEN'
+
 /** 32 bytes of CSPRNG, hex-encoded. Fixed length, which keeps the compare below simple. */
 const TOKEN_BYTES = 32
 
@@ -134,7 +141,7 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
     // yet, so there is no rollout risk in being strict here — and a mismatch is either a bug or an
     // attack, neither of which should be waved through.
     if (!expected || !tokensMatch(expected, received)) {
-      res.status(403).json({ error: 'Invalid security token. Reload the page and try again.' })
+      res.status(403).json({ error: 'Invalid security token. Reload the page and try again.', code: CSRF_ERROR_CODE })
       return
     }
     next()
@@ -146,7 +153,7 @@ export async function csrfProtection(req: Request, res: Response, next: NextFunc
   await recordMissingToken(req)
 
   if (env.csrfEnforce) {
-    res.status(403).json({ error: 'Missing security token. Reload the page and try again.' })
+    res.status(403).json({ error: 'Missing security token. Reload the page and try again.', code: CSRF_ERROR_CODE })
     return
   }
 

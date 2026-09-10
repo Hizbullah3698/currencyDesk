@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertEmployee } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertEmployee } from '../dbFixtures.js'
 
 // Covers the two bulk salary endpoints CLAUDE.md's Phase 2 verification explicitly disclosed as
 // "not yet exercised" — accrueAllSalaries's per-row ON CONFLICT DO NOTHING batch tolerance, and
@@ -23,7 +23,7 @@ describe('bulk salary actions — accrueAllSalaries / payAllSalaries', () => {
   })
 
   beforeEach(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, 'concurrency-salary-bulk@currencydesk.local', 'test-password-123', 'admin')
     const login = await client.login('concurrency-salary-bulk@currencydesk.local', 'test-password-123')
     expect(login.status).toBe(200)

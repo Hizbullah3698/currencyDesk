@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertEmployee } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertEmployee } from '../dbFixtures.js'
 
 describe('concurrent salary accrual for the same employee/period', () => {
   let server: TestServer
@@ -10,7 +10,7 @@ describe('concurrent salary accrual for the same employee/period', () => {
   let employeeId: string
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, 'concurrency-salary@currencydesk.local', 'test-password-123', 'admin')
     employeeId = await insertEmployee(pool, 'Concurrency Test Employee', 50000)
 

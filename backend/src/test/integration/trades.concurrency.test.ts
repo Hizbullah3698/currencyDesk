@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 describe('concurrent sale requests against shared stock', () => {
   let server: TestServer
@@ -10,7 +10,7 @@ describe('concurrent sale requests against shared stock', () => {
   let customerId: string
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, 'concurrency-trades@currencydesk.local', 'test-password-123', 'admin')
     customerId = await insertCustomer(pool, 'Concurrency Test Customer')
     await pool.query("UPDATE stock_positions SET available = 100, avg_cost = 78 WHERE code = 'AED'")

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 import { deskToday } from '../../config/deskTime.js'
 
 // Requirement 7 phase 3, step 4 — receipts, payments and cheque clearing post paired entries.
@@ -20,7 +20,7 @@ describe('settlements and cheque clearing post vouchers', () => {
   const PASSWORD = 'test-password-123'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     customerId = await insertCustomer(pool, 'Settle Voucher Customer')
     server = await startTestServer()

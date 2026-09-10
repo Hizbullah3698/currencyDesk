@@ -1,6 +1,6 @@
 import { env } from '../config/env.js'
 
-// Every integration test truncates real business tables (see dbFixtures.ts's resetBusinessData).
+// Every integration test truncates real business tables (see dbFixtures.ts's truncateAndReseedTestDb).
 // `npm run test`'s `pretest`/`test` scripts always override DATABASE_URL to point at
 // `currencydesk_test` before vitest even starts — but invoking `vitest run` directly (bypassing
 // those npm scripts) silently falls through to backend/.env's real dev DATABASE_URL instead,

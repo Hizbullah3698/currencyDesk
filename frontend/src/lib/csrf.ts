@@ -51,14 +51,24 @@ export function requestHeaders(method: string): Record<string, string> {
   return headers
 }
 
+/** The `code` the backend puts on both CSRF 403 responses (middleware/csrf.ts CSRF_ERROR_CODE). */
+const CSRF_ERROR_CODE = 'CSRF_TOKEN'
+
 /**
  * Whether a failed response is a CSRF rejection specifically, as opposed to an ordinary
  * authorization failure.
  *
  * This distinction matters: both come back as 403. Retrying a genuine "Admin access required"
  * would be pointless and would mask the real reason from the user, so only a token problem is
- * worth refreshing and retrying. Matches the two messages the server sends.
+ * worth refreshing and retrying.
+ *
+ * Matches on the response body's `code` first. Falls back to a regex on the human message for the
+ * one deploy cycle where a new frontend may be talking to a backend that does not send `code`
+ * yet — the two tiers deploy separately.
  */
-export function isCsrfError(status: number, message?: string): boolean {
-  return status === 403 && typeof message === 'string' && /security token/i.test(message)
+export function isCsrfError(status: number, body?: { error?: string; code?: string } | string | null): boolean {
+  if (status !== 403) return false
+  if (body && typeof body === 'object' && body.code === CSRF_ERROR_CODE) return true
+  const message = typeof body === 'string' ? body : body?.error
+  return typeof message === 'string' && /security token/i.test(message)
 }

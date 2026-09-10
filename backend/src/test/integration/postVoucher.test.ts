@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import type { PoolClient } from 'pg'
 import { pool } from '../../db/pool.js'
 import { postVoucher } from '../../services/journalService.js'
-import { resetBusinessData, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, insertCustomer } from '../dbFixtures.js'
 
 // postVoucher writes the legs of one deal as several journal rows sharing a voucher_id.
 // Requirement 7 phase 3; nothing reads these rows yet.
@@ -13,7 +13,7 @@ describe('postVoucher', () => {
   const TXN_DATE = '2026-08-21'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     customerId = await insertCustomer(pool, 'Voucher Test Customer')
     client = await pool.connect()
   })

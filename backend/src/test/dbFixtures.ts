@@ -2,13 +2,18 @@ import type { Pool } from 'pg'
 import { hashPassword } from '../services/authService.js'
 import { invalidateSettingsCache } from '../services/settingsService.js'
 
-/** Wipes the five business tables back to exactly the seed state migrations 008 + 012 leave
- * behind (eight system accounts, plus the two extra Currency Stock accounts and the AFN/IRR
- * stock rows 012 adds) — the same
- * TRUNCATE + reseed used to reset the real dev database after a manual verification pass (see
- * CLAUDE.md's "Business-data migration" section), just run before every concurrency test
- * instead of by hand. `users`/`session` are untouched. */
-export async function resetBusinessData(pool: Pool): Promise<void> {
+/**
+ * TRUNCATEs the five business tables and reseeds the structural chart of accounts — the fast,
+ * disposable reset every integration test runs in its `beforeAll`. `users`/`session` are untouched.
+ *
+ * NAMED to be unmistakable from `services/businessDataReset.ts`'s `resetBusinessDataForGoLive`,
+ * which does the opposite thing safely: targeted DELETEs in FK order that leave migration 009's
+ * core-account trigger armed. TRUNCATE does NOT fire that trigger, so running THIS against a real
+ * database would walk straight past the guard and take the chart of accounts with it. The two
+ * near-identical old names (`resetBusinessData` here vs `resetBusinessDataForGoLive` there) were a
+ * standing invitation to run the wrong one in the wrong place.
+ */
+export async function truncateAndReseedTestDb(pool: Pool): Promise<void> {
   // csrf_missing_token is included so an untokened request made by one test file cannot be seen by
   // another — the gate script's whole value is that a row here means something, so leaking rows
   // between files would make the CSRF tests assert against each other's noise.
@@ -71,7 +76,7 @@ export async function resetBusinessData(pool: Pool): Promise<void> {
   // the row does not fail the suite, because idleTimeout.test.ts sets what it needs. Kept anyway,
   // labelled honestly, so nobody re-investigates it as a suspect.
   //
-  // It is the one stateful table resetBusinessData did not touch, and that made the whole suite
+  // It is the one stateful table truncateAndReseedTestDb did not touch, and that made the whole suite
   // intermittently red: idleTimeout.test.ts changes idle_timeout_minutes through PATCH
   // /api/settings, nothing truncates it, and a run interrupted part-way through that file leaves
   // the value behind for the NEXT run to trip over. Two failures were seen this way on 2026-09-03,

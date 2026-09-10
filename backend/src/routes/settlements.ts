@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js'
 import { handleMutation, sendIfAppError } from '../services/transact.js'
 import { receive, pay, type SettleInput } from '../services/settlementsService.js'
 import { parseTxnDate } from './txnDate.js'
+import { parseAmount } from './parse.js'
 
 export const settlementsRouter = Router()
 
@@ -11,7 +12,7 @@ function parseSettleInput(body: unknown): SettleInput {
   const b = (body ?? {}) as Record<string, unknown>
   return {
     customerId: String(b.customerId ?? ''),
-    amount: Number(b.amount) || 0,
+    amount: parseAmount(b.amount, 'Amount'),
     method: b.method as SettleInput['method'],
     bankId: String(b.bankId ?? ''),
     chqNo: String(b.chqNo ?? ''),

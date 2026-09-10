@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 // Per-deal cost basis and realised margin are Admin-only in the UI (/income-statement sits behind
 // RequireAdmin, and Stock.tsx swaps the movement-by-movement ledger for a "restricted to Admin"
@@ -41,7 +41,7 @@ describe('cost/margin authorization on the state snapshot', () => {
   })
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     await ensureTestUser(pool, OPERATOR, PASSWORD, 'user')
     customerId = await insertCustomer(pool, 'Margin Test Customer')

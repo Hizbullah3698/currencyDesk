@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser } from '../dbFixtures.js'
 import { invalidateSettingsCache, DEFAULT_IDLE_TIMEOUT_MINUTES } from '../../services/settingsService.js'
 
 // Auto-logout on inactivity.
@@ -36,7 +36,7 @@ describe('idle timeout — server-side session window', () => {
   }
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     await ensureTestUser(pool, OPERATOR, PASSWORD, 'user')
     server = await startTestServer()

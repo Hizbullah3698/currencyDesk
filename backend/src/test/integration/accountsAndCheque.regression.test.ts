@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 // Two defects found by the QA pass on the multi-currency change. Neither is a rate-conversion
 // bug and neither showed up as a failing test — one returned a raw 500, the other a cheerful
@@ -22,7 +22,7 @@ describe('regressions: cheque bank account, and Currency Stock code integrity', 
   })
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, 'regression@currencydesk.local', 'test-password-123', 'admin')
     customerId = await insertCustomer(pool, 'Regression Supplier')
     server = await startTestServer()

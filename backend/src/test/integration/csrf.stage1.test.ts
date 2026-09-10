@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 // Stage 1 of the three-stage CSRF rollout (see middleware/csrf.ts):
 //   the backend issues a token, validates it WHEN SENT, and does not yet require it.
@@ -50,7 +50,7 @@ describe('CSRF stage 1 — issue and validate, do not yet require', () => {
   }
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, EMAIL, PASSWORD, 'admin')
     customerId = await insertCustomer(pool, 'CSRF Test Customer')
     server = await startTestServer()
@@ -103,6 +103,8 @@ describe('CSRF stage 1 — issue and validate, do not yet require', () => {
     const res = await post(cookie, '/api/trades/purchase', trade(), 'f'.repeat(64))
     expect(res.status).toBe(403)
     expect(res.json.error).toMatch(/security token/i)
+    // The client keys its refresh-and-retry on this code, not on the message text.
+    expect(res.json.code).toBe('CSRF_TOKEN')
   })
 
   it('rejects a token of the wrong length without a 500 from timingSafeEqual', async () => {

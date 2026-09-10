@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import type { PoolClient } from 'pg'
 import { pool } from '../../db/pool.js'
 import { backfillVouchers } from '../../services/voucherBackfill.js'
-import { resetBusinessData, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, insertCustomer } from '../dbFixtures.js'
 
 // The backfill's REPORTING, specifically.
 //
@@ -20,7 +20,7 @@ describe('voucher backfill reporting', () => {
   let customerId: string
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     customerId = await insertCustomer(pool, 'Backfill Customer')
     client = await pool.connect()
   })

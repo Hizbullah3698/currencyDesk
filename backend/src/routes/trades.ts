@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js'
 import { handleMutation, sendIfAppError } from '../services/transact.js'
 import { purchase, sale, type TradeInput } from '../services/tradesService.js'
 import { parseTxnDate } from './txnDate.js'
+import { parseAmount } from './parse.js'
 
 export const tradesRouter = Router()
 
@@ -15,10 +16,10 @@ function parseTradeInput(body: unknown): TradeInput {
   return {
     customerId: String(b.customerId ?? ''),
     currency: String(b.currency ?? ''),
-    amount: Number(b.amount) || 0,
-    rate: Number(b.rate) || 0,
+    amount: parseAmount(b.amount, 'Amount'),
+    rate: parseAmount(b.rate, 'Rate'),
     method: b.method as TradeInput['method'],
-    paidNow: Number(b.paidNow) || 0,
+    paidNow: parseAmount(b.paidNow, 'Amount paid now'),
     bankId: String(b.bankId ?? ''),
     chqNo: String(b.chqNo ?? ''),
     chqBank: String(b.chqBank ?? ''),

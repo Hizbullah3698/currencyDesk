@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser } from '../dbFixtures.js'
 
 // The sibling of stateMargin.authorization.test.ts, covering the hole requirement 7 would
 // otherwise reopen.
@@ -30,7 +30,7 @@ describe('income disclosure on journal entries in the state snapshot', () => {
   const EXPENSE_AMOUNT = 6_789
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     await ensureTestUser(pool, OPERATOR, PASSWORD, 'user')
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer, insertEmployee } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer, insertEmployee } from '../dbFixtures.js'
 
 // A hand-written journal entry against a customer must move that customer's balance too.
 //
@@ -24,7 +24,7 @@ describe('journal entries against a customer move that customer balance', () => 
   const PASSWORD = 'test-password-123'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     customerId = await insertCustomer(pool, 'Balance Customer')
     employeeId = await insertEmployee(pool, 'Balance Employee', 50_000)

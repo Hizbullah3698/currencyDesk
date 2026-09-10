@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 // Every record the server dates on its own — AUDIT.md §3 #2.
 //
@@ -28,7 +28,7 @@ describe('records the server dates itself land on the desk\'s day', () => {
   const PASSWORD = 'test-password-123'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     customerId = await insertCustomer(pool, 'Desk Date Customer', { receivable: 50_000 })
     server = await startTestServer()

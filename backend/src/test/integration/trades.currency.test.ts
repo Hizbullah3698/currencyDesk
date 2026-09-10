@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 import { deskToday } from '../../config/deskTime.js'
 
 // IRR is quoted the other way round from AED — the dealer types "IRR per 1 PKR" (~4,952.53) and
@@ -29,7 +29,7 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
   const UNIT_2 = 1 / RATE_2
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, 'currency-trades@currencydesk.local', 'test-password-123', 'admin')
     customerId = await insertCustomer(pool, 'Currency Test Supplier')
 
@@ -162,6 +162,31 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
     // A blank string is not an error — it means "not supplied", same as omitting the field.
     const blank = await client.post('/api/trades/purchase', purchaseBody(1000, RATE_2, { txnDate: '' }))
     expect(blank.status).toBe(200)
+  })
+
+  it('rejects an absurd amount or rate with a 400, not a Postgres overflow 500 — AUDIT.md §3 #12', async () => {
+    // The string "1e400" is what a malformed client sends; the server's Number() turns it into
+    // Infinity, which passes every `> 0` check. "2e13" is finite but over every numeric column's
+    // ceiling. Both used to reach the INSERT and surface as "numeric field overflow" -> 500.
+    // (A JS `Infinity` value cannot be used directly — JSON.stringify turns it into null.)
+    for (const amount of ['1e400', '2e13'] as const) {
+      const res = await client.post('/api/trades/purchase', purchaseBody(1000, RATE_2, { amount }))
+      expect(res.status, `amount ${amount} should be a clean 400`).toBe(400)
+      expect(res.json.error).toMatch(/too large|not a valid number/i)
+    }
+    const badRate = await client.post('/api/trades/purchase', purchaseBody(1000, RATE_2, { rate: '1e400' }))
+    expect(badRate.status).toBe(400)
+    expect(badRate.json.error).toMatch(/rate/i)
+
+    const badSettle = await client.post('/api/settlements/receive', {
+      customerId, amount: '9e20', method: 'Cash', bankId: '', chqNo: '', chqBank: '',
+    })
+    expect(badSettle.status).toBe(400)
+    expect(badSettle.json.error).toMatch(/too large/i)
+
+    // Nothing was written by any of the above.
+    const { rows } = await pool.query('SELECT count(*)::int AS n FROM activity WHERE pkr_value > 1e12')
+    expect(rows[0].n).toBe(0)
   })
 
   it('accepts a txnDate on a settlement on exactly the same terms', async () => {

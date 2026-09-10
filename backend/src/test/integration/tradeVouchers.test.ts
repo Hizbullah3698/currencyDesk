@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 // Requirement 7 phase 3 — trades post paired journal entries alongside everything they already do.
 // Driven over real HTTP so the route, the transaction and the voucher all run exactly as in
@@ -16,7 +16,7 @@ describe('trades post vouchers', () => {
   const PASSWORD = 'test-password-123'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     customerId = await insertCustomer(pool, 'Voucher Customer')
     server = await startTestServer()

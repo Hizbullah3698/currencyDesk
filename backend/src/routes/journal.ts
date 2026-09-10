@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js'
 import { handleMutation, sendIfAppError } from '../services/transact.js'
 import { postJournal, type JournalInput } from '../services/journalService.js'
 import { parseTxnDate } from './txnDate.js'
+import { parseAmount } from './parse.js'
 
 export const journalRouter = Router()
 
@@ -16,9 +17,9 @@ journalRouter.post(
     try {
       input = {
         debitAccount: String(b.debitAccount ?? ''),
-        debitAmount: Number(b.debitAmount) || 0,
+        debitAmount: parseAmount(b.debitAmount, 'Debit amount'),
         creditAccount: String(b.creditAccount ?? ''),
-        creditAmount: Number(b.creditAmount) || 0,
+        creditAmount: parseAmount(b.creditAmount, 'Credit amount'),
         narration: String(b.narration ?? ''),
         // Same validator, same terms as a trade's date — see routes/txnDate.ts. Optional: the
         // Journal page does not send one yet, and the service then dates the entry on the desk's

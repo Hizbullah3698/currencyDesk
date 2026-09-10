@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import type { PoolClient } from 'pg'
 import { pool } from '../../db/pool.js'
 import { postOpeningStockEntries } from '../../services/openingStockService.js'
-import { resetBusinessData, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, insertCustomer } from '../dbFixtures.js'
 
 // Journalling the currency the desk held before the recorded ledger begins — the one legitimately
 // unjournalled figure on the balance sheet, and the reason the reconciliation harness could not
@@ -12,7 +12,7 @@ describe('opening currency stock entries', () => {
   let customerId: string
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     customerId = await insertCustomer(pool, 'Opening Stock Customer')
     client = await pool.connect()
   })

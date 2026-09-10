@@ -81,26 +81,33 @@ describe('requestHeaders', () => {
 })
 
 describe('isCsrfError — what is worth retrying', () => {
-  it('matches the server\'s own token rejection messages', () => {
-    expect(isCsrfError(403, 'Missing security token. Reload the page and try again.')).toBe(true)
+  it('matches on the response body code, whichever CSRF 403 it was', () => {
+    expect(isCsrfError(403, { error: 'Missing security token. Reload the page and try again.', code: 'CSRF_TOKEN' })).toBe(true)
+    expect(isCsrfError(403, { error: 'Invalid security token. Reload the page and try again.', code: 'CSRF_TOKEN' })).toBe(true)
+  })
+
+  it('falls back to the message for a backend that does not send code yet (one deploy cycle)', () => {
+    expect(isCsrfError(403, { error: 'Missing security token. Reload the page and try again.' })).toBe(true)
     expect(isCsrfError(403, 'Invalid security token. Reload the page and try again.')).toBe(true)
   })
 
   it('does NOT match a genuine authorization failure', () => {
     // The load-bearing case. Both are 403. Retrying this one would waste a round trip and, worse,
     // could leave the user staring at a generic failure instead of "Admin access required".
-    expect(isCsrfError(403, 'Admin access required.')).toBe(false)
+    expect(isCsrfError(403, { error: 'Admin access required.' })).toBe(false)
     expect(isCsrfError(403, 'Not authenticated.')).toBe(false)
+    expect(isCsrfError(403, { error: 'Admin access required.', code: 'FORBIDDEN' })).toBe(false)
   })
 
-  it('does not match non-403 responses even if the text mentions a token', () => {
+  it('does not match non-403 responses even if the text or code says CSRF', () => {
     expect(isCsrfError(400, 'Invalid security token.')).toBe(false)
-    expect(isCsrfError(500, 'Invalid security token.')).toBe(false)
+    expect(isCsrfError(500, { error: 'x', code: 'CSRF_TOKEN' })).toBe(false)
   })
 
-  it('handles a missing or non-string message without throwing', () => {
-    // A bare 502 from the dev proxy has no body at all, so `json?.error` is undefined here.
+  it('handles a missing or non-string body without throwing', () => {
+    // A bare 502 from the dev proxy has no body at all.
     expect(isCsrfError(403, undefined)).toBe(false)
+    expect(isCsrfError(403, null)).toBe(false)
     expect(isCsrfError(502, undefined)).toBe(false)
   })
 })

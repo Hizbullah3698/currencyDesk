@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 
 describe('cheque auto-number collision + retry', () => {
   let server: TestServer
@@ -11,7 +11,7 @@ describe('cheque auto-number collision + retry', () => {
   let customerB: string
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, 'concurrency-cheques@currencydesk.local', 'test-password-123', 'admin')
     // Two different customers — receive() only locks the target customer's own account row, so
     // two DIFFERENT customers' receives never serialize against each other the way two sales of

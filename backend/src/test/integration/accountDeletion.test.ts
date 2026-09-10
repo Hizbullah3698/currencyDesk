@@ -3,7 +3,7 @@ import type { PoolClient } from 'pg'
 import { pool } from '../../db/pool.js'
 import { deleteAccount, archiveAccount } from '../../services/accountsService.js'
 import { isAppError } from '../../services/transact.js'
-import { resetBusinessData } from '../dbFixtures.js'
+import { truncateAndReseedTestDb } from '../dbFixtures.js'
 
 // ---------------------------------------------------------------------------
 // deleteAccount's guards. There were none of these before 2026-09-06 — the success path and
@@ -45,7 +45,7 @@ describe('deleteAccount', () => {
   })
 
   beforeEach(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
   })
 
   afterAll(async () => {

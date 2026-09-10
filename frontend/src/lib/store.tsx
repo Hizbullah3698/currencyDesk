@@ -73,10 +73,10 @@ async function apiCall(method: string, url: string, body?: unknown): Promise<Api
     let res = await sendRequest(method, url, body)
     let json = await parseJson(res)
 
-    // Recover from a rejected token exactly once. Deliberately narrow: `isCsrfError` matches only
-    // the server's own token messages, so a genuine "Admin access required" 403 is NOT retried —
+    // Recover from a rejected token exactly once. Deliberately narrow: `isCsrfError` matches the
+    // server's CSRF error `code`, so a genuine "Admin access required" 403 is NOT retried —
     // retrying that would be pointless and would hide the real reason from the user.
-    if (mutating && isCsrfError(res.status, json?.error)) {
+    if (mutating && isCsrfError(res.status, json)) {
       const refreshed = await refreshCsrfToken()
       if (refreshed) {
         res = await sendRequest(method, url, body)

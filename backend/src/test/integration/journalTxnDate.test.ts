@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
-import { resetBusinessData, ensureTestUser } from '../dbFixtures.js'
+import { truncateAndReseedTestDb, ensureTestUser } from '../dbFixtures.js'
 import { deskToday } from '../../config/deskTime.js'
 
 // journal_entries.txn_date (migration 017) — the journal's counterpart to activity.txn_date.
@@ -20,7 +20,7 @@ describe('journal entries carry their own transaction date', () => {
   const PASSWORD = 'test-password-123'
 
   beforeAll(async () => {
-    await resetBusinessData(pool)
+    await truncateAndReseedTestDb(pool)
     await ensureTestUser(pool, ADMIN, PASSWORD, 'admin')
     server = await startTestServer()
     admin = new ApiClient(server.baseUrl)
