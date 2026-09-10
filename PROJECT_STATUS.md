@@ -203,6 +203,73 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-11 — audit cleanup pass: dead code, stale docs, duplicated constants, hygiene
+
+### Done
+
+*At a glance: four small commits working through the "quick wins" list in `AUDIT.md`. None of them
+changes a stored figure, a business rule, or how money is calculated. All four are on the live
+system. The full test suite was green after each one — 305 tests now, up from 303, the two added
+covering the amount-bound and CSRF changes below.*
+
+**`61915cf` — deleted dead code and unused frontend dependencies.** Three UI component wrappers
+(`dialog`, `select`, `tabs`) that nothing imported, along with the three third-party packages they
+were the only users of, so the frontend now carries slightly less code to download. A handful of
+exported functions and type definitions that no screen references any more. And a migration
+safety-net in the login code (`hasUsernameColumn`) that has been dead weight since the username
+migration went live in August — every sign-in was paying for a check that could only ever have one
+answer. Two things the audit flagged as unused were deliberately kept: a session helper that a test
+relies on, and two more Radix packages that are out of this pass's scope.
+
+**`645e1bb` — fixed stale documentation.** The public `README` said the desk trades three
+currencies (it trades six) and that security-token protection "is not yet implemented" (it has been
+enforced in production since 2026-09-09); it also pointed at a section of the engineering guide that
+no longer exists. A code comment claimed the app loads its data from the browser's local storage,
+which stopped being true weeks ago. The engineering guide's test count was three behind. All
+corrected. No code changed.
+
+**`0135032` — deduplicated constants.** Several values were written out in more than one file, so a
+change to one copy could silently miss the others: the internal id of the trading-margin account
+(two copies), the minimum password length the account-creation scripts enforce (two copies), and
+the idle-timeout default and bounds, which the server and the screen each hardcoded separately —
+now a single definition in the shared calculator package that both sides import, so the screen's
+fallback can never assert a limit the server has stopped honouring. The screen's deliberate
+fail-closed behaviour (fall back to a real timeout if the setting can't be fetched) is unchanged.
+The five copies of a small command-line argument parser turned out to be three genuinely different
+implementations rather than copies; the two identical ones were merged and the other two, one of
+which guards a destructive operation, were left alone and the reason recorded.
+
+**`4417b43` — small correctness and hygiene fixes.** An absurd amount typed into a trade or payment
+(a number so large it overflows the database's numeric limit) now returns a clean "too large" error
+instead of a generic "something went wrong" — it never reaches the database. The security-token
+rejection response gained a machine-readable `code` field, and the screen now recognises that kind
+of rejection by the code rather than by matching words in the error text, so a reworded message
+cannot quietly break the screen's automatic retry; the old text-matching is kept as a fallback for
+the one release where the two halves might briefly be out of step. The disposable test-database
+reset helper was renamed so it can no longer be confused with the similarly-named production reset
+routine — the two do opposite things, and one is safe against a real database while the other is
+not. And `npm audit fix` was run: three advisories down to two, the last two being a transitive
+dependency of the web framework that only clears with a major framework upgrade, left for a
+separate pass.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| Dead UI components, unused exports, and a login-path migration fallback long past its purpose | Low, hygiene | **Removed 2026-09-11** (`61915cf`) |
+| `README` overstated the currency count and understated the security-token work; a code comment and the test count were stale | Low, but the README is what a new reader trusts first | **Fixed 2026-09-11** (`645e1bb`) |
+| The margin account id, the password-length minimum, and the idle-timeout constants were each written in two places | Low. A one-sided edit would have gone unnoticed until it mattered | **Consolidated 2026-09-11** (`0135032`) |
+| An oversized amount reached the database and surfaced as a raw 500 | Low, bounded — the database refuses it, so no wrong figure, just an unhelpful error | **Fixed 2026-09-11** (`4417b43`) — now a clean 400 |
+| The screen recognised a security-token rejection by matching text in the error message | Low. A message reword would have silently disabled the automatic retry | **Fixed 2026-09-11** (`4417b43`) — a `code` field, with the text match kept as a one-release fallback |
+| Two reset routines with near-identical names and opposite safety properties | Low, but a real "wrong one in the wrong place" risk | **Renamed 2026-09-11** (`4417b43`) — the test helper is now unmistakable |
+| Two more unused third-party packages, and the web framework's transitive advisory | Low | **Left for a later pass** — out of this batch's scope; the framework one needs a major-version upgrade |
+
+### Next — in priority order
+
+Unchanged. The client reads `AUDIT.md` and decides what else to act on; the remaining quick wins in
+its section 6 follow in order; then phase 5, switching the reports over to read the accounting
+record.
+
 ## 2026-09-10 — a payment can no longer be booked "on credit"
 
 ### Done
