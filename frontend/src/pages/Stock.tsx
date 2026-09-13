@@ -224,6 +224,7 @@ export function Stock() {
         <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
           <div className="min-w-[150px]">Currency</div>
           <div className="flex-1 text-right">Quantity on hand</div>
+          <div className="min-w-[150px] text-right">Rate</div>
           <div className="min-w-[170px] text-right">Inventory value (PKR)</div>
         </div>
         {codes.map((c) => {
@@ -247,6 +248,14 @@ export function Stock() {
                 {!isOpen && <span className="text-meta font-normal text-muted-60">{currencyName(c)}</span>}
               </div>
               <div className="tabular flex-1 text-right text-body font-normal">{fmtAmount(s.available, c)}</div>
+              {/* Same source and same formatter as the hero's "Weighted avg. cost" for whichever
+                  currency is open above — s.avgCost is the canonical PKR-per-unit figure straight
+                  off the stock position, and fmtQuote puts it back into THIS row's own quote
+                  convention, which is why the unit caption is per-row rather than stated once. */}
+              <div className="min-w-[150px] text-right">
+                <div className="tabular text-body font-normal text-muted-70">{fmtQuote(c, s.avgCost)}</div>
+                <div className="text-meta font-normal text-muted-42">{currencyMeta(c).rateLabel}</div>
+              </div>
               <div className="tabular min-w-[170px] text-right text-body font-semibold">{fmt(s.available * s.avgCost)}</div>
             </button>
           )
