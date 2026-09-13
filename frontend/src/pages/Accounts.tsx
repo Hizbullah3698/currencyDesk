@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '@/lib/store'
 import { fmt } from '@/lib/format'
@@ -20,12 +20,35 @@ export function Accounts() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<'All' | AccountType>('All')
   const [showArchived, setShowArchived] = useState(false)
-  const [params] = useSearchParams()
+  const [params, setSearchParams] = useSearchParams()
 
   const [open, setOpen] = useState(!!params.get('new'))
   const [mode, setMode] = useState<'new' | 'edit'>('new')
   const [editId, setEditId] = useState('')
   const [defaultType, setDefaultType] = useState<AccountType>((params.get('new') as AccountType) || 'Customer')
+
+  // The useState above only ever reads `?new=` on this component's FIRST mount, which covers a
+  // fresh navigation from another page (Customers.tsx's "+ Add Customer" button) but not the
+  // sidebar's "New Account" link when clicked while already sitting on THIS page — same route,
+  // so React Router doesn't remount it, just changes the search string. This effect is what makes
+  // that click actually open the modal. Clearing the param right after consuming it is not just
+  // tidiness: it also means a second click to the exact same href is a real search-string change
+  // again rather than a no-op the router would otherwise silently swallow.
+  useEffect(() => {
+    const type = params.get('new')
+    if (!type) return
+    setMode('new')
+    setEditId('')
+    setDefaultType(type as AccountType)
+    setOpen(true)
+    setSearchParams(
+      (prev) => {
+        prev.delete('new')
+        return prev
+      },
+      { replace: true },
+    )
+  }, [params, setSearchParams])
 
   // The client asked to see the accounts they created, not the scaffold the chart of accounts
   // ships with. The 13 built-in accounts (`system`, from is_system) stay hidden until something

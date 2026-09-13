@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Banknote, SquarePen, Lock, Users2, Wallet, UserRound, List, Coins, Landmark, TrendingUp, SlidersHorizontal, BookOpen } from 'lucide-react'
+import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Banknote, SquarePen, Lock, Users2, Wallet, UserRound, List, Coins, Landmark, TrendingUp, SlidersHorizontal, BookOpen, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStore } from '@/lib/store'
 import { SIDEBAR_CATEGORY_COLORS, type Category } from '@/lib/ui-helpers'
@@ -12,6 +12,10 @@ interface NavItemDef {
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
   category: Category
   adminOnly?: boolean
+  /** An action shortcut into another page's own pathname (e.g. "New Account" opens a modal on
+   *  /accounts) rather than a page of its own — never shows the "current page" highlight, or it
+   *  and the page it shares a pathname with would both read as "you are here" at once. */
+  action?: boolean
 }
 
 const OVERVIEW: NavItemDef[] = [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'neutral' }]
@@ -27,6 +31,12 @@ const TRANSACTIONS: NavItemDef[] = [
 
 const BOOKS: NavItemDef[] = [
   { to: '/accounts', label: 'Accounts', icon: Wallet, category: 'neutral' },
+  // Opens the same AccountFormModal the Accounts page's own "New account" button does, via the
+  // `?new=<AccountType>` convention that page already reads on mount (Customers.tsx's "+ Add
+  // Customer" button uses the identical route for the same reason). Admin-gated to match that
+  // button's own restriction — see the matching useEffect in Accounts.tsx that makes this work
+  // even when already sitting on the Accounts page, not just on a fresh navigation into it.
+  { to: '/accounts?new=Customer', label: 'New Account', icon: Plus, category: 'neutral', adminOnly: true, action: true },
   { to: '/customers', label: 'Customers', icon: UserRound, category: 'customers' },
   { to: '/transactions', label: 'Transactions', icon: List, category: 'neutral' },
   { to: '/ledger', label: 'Customer Ledger', icon: BookOpen, category: 'customers' },
@@ -53,7 +63,7 @@ function NavGroup({ title, items, isAdmin }: { title: string; items: NavItemDef[
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-2 rounded-control px-2 py-1.5 text-body no-underline whitespace-nowrap transition-[background-color,box-shadow,color] duration-150 ease-out',
-                isActive ? 'bg-sidebar-active-bg font-semibold text-sidebar-active-text shadow-xs' : 'font-normal text-sidebar-text hover:bg-sidebar-hover-bg',
+                isActive && !item.action ? 'bg-sidebar-active-bg font-semibold text-sidebar-active-text shadow-xs' : 'font-normal text-sidebar-text hover:bg-sidebar-hover-bg',
                 locked && 'opacity-60',
               )
             }
