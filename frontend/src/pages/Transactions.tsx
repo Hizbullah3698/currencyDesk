@@ -2,26 +2,14 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { activityDate, auditLine, isVoucherLeg, relLabel, stampTime, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtAmount, fmtLongDate, fmtRate, shortRef, txnAmountParts, type TxnAmountParts } from '@/lib/format'
+import { activityDate, auditLine, isVoucherLeg, stampTime, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtAmount, fmtLongDate, fmtRate, shortRef } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
-
-/**
- * `relLabel` is shared with Customers/Payments/CustomerDetail and its own behaviour stays
- * untouched — this just decides whether ITS OUTPUT is worth printing as a secondary line here.
- * Once a date is old enough, `relLabel` itself falls back to a short absolute date, and echoing
- * that back under the real (long) absolute date would just repeat the same fact in two formats
- * side by side. Only "Today" / "Yesterday" / "N days ago" earn the secondary line.
- */
-function recentLabel(iso: string): string | null {
-  const r = relLabel(iso)
-  return r === 'Today' || r === 'Yesterday' || /^\d+ days ago$/.test(r) ? r : null
-}
 
 type Filter = 'all' | 'sale' | 'purchase' | 'payment' | 'cheque' | 'journal'
 
@@ -33,9 +21,10 @@ type Filter = 'all' | 'sale' | 'purchase' | 'payment' | 'cheque' | 'journal'
 // as "so close you can't differentiate" (reported 2026-09-09). Widths that must agree should not
 // be written down twice.
 // Detail widened (200 -> 248) now that it no longer carries "· Credit"/"· Cash" on every trade
-// row — that moved into its own badge next to Status, see `terms` below. Date widened (78 -> 96)
-// to fit an unambiguous absolute date ("Sep 15, 2026") rather than the "3 days ago" it used to
-// hold; a relative label, when one is worth showing, now stacks under it instead of replacing it.
+// row — that moved into its own badge next to Status, see `terms` below. Date widened (78 -> 104)
+// to fit an unambiguous absolute date ("Sep 15, 2026") in place of the "3 days ago" it used to
+// hold — shown alone, with no relative label underneath (that was tried, then removed as a
+// restatement of the same date — see `money`'s own comment for the matching call on Amount).
 const COL = {
   ref: 'w-[78px] flex-none',
   type: 'w-[102px] flex-none',
@@ -43,7 +32,7 @@ const COL = {
   detail: 'w-[248px] flex-none',
   status: 'w-[100px] flex-none',
   amount: 'w-[130px] flex-none text-right',
-  date: 'w-[96px] flex-none text-right',
+  date: 'w-[104px] flex-none text-right',
 } as const
 
 interface Row {
@@ -61,15 +50,14 @@ interface Row {
    *  string ("via Bank"), and a cheque/journal row has no comparable "terms" concept at all. */
   terms: string | null
   status: string
-  /** Pre-split into what was actually dealt and its rupee equivalent, so the list never leads with
-   *  a converted figure for a foreign-currency trade. See txnAmountParts in lib/format.ts. */
-  money: TxnAmountParts
+  /** The settlement value in PKR, formatted — always the bottom-line figure, never the foreign-
+   *  currency amount. A trade's foreign amount already lives in `detail` ("1,000 AED @ 85.00"), so
+   *  restating it here too was pure duplication (flagged 2026-09-15) — this column's one job is
+   *  the number that actually crossed accounts. */
+  money: string
   /** What the Date column shows: the date the deal was struck for a trade (activityDate), the
    *  row's own timestamp for a cheque or journal entry, which have no separate deal date. */
   date: string
-  /** "Today" / "Yesterday" / "N days ago" — only when `date` is recent enough for that to add
-   *  something beyond the absolute date now shown as the primary value. Null otherwise. */
-  dateRel: string | null
   /** What the list is ORDERED by — always the posting timestamp, so the list reads as the order
    *  things were actually keyed in and a backdated deal doesn't silently jump the queue. Unrelated
    *  to how the Date column is now LABELLED (an absolute date, not this timestamp's raw string) —
@@ -107,9 +95,8 @@ export function Transactions() {
         detail,
         terms: isTrade ? t.method : null,
         status,
-        money: txnAmountParts(t),
+        money: fmt(t.pkrValue || 0),
         date: activityDate(t),
-        dateRel: recentLabel(activityDate(t)),
         sortT: stampTime(t.createdAt),
         audit: auditLine(t),
         customerId: t.customerId,
@@ -125,9 +112,8 @@ export function Transactions() {
       detail: `${q.direction} · ${q.bank} · ${q.number}`,
       terms: null,
       status: q.status,
-      money: { primary: fmt(q.amount), secondary: null },
+      money: fmt(q.amount),
       date: q.createdAt,
-      dateRel: recentLabel(q.createdAt),
       sortT: stampTime(q.createdAt),
       audit: auditLine(q),
       customerId: q.customerId,
@@ -144,9 +130,8 @@ export function Transactions() {
       detail: `Dr ${e.debitLabel} · Cr ${e.creditLabel}`,
       terms: null,
       status: 'Posted',
-      money: { primary: fmt(e.amount), secondary: null },
+      money: fmt(e.amount),
       date: e.createdAt,
-      dateRel: recentLabel(e.createdAt),
       sortT: stampTime(e.createdAt),
       audit: auditLine(e),
       customerId: null,
@@ -198,7 +183,7 @@ export function Transactions() {
           the horizontal scroll lives one level in, on the content itself. */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <div className="min-w-[970px]">
+          <div className="min-w-[980px]">
             <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
               <div className={COL.ref}>Ref</div>
               <div className={COL.type}>Type</div>
@@ -247,18 +232,16 @@ export function Transactions() {
                     {r.terms && <Badge variant="neutral">{r.terms}</Badge>}
                   </div>
                   <div className={COL.amount}>
-                    <div className="tabular text-body font-medium">{r.money.primary}</div>
-                    {r.money.secondary && <div className="tabular text-meta font-normal text-muted-60">{r.money.secondary}</div>}
+                    <div className="tabular text-body font-medium">{r.money}</div>
                   </div>
-                  {/* Absolute date is now the PRIMARY value — a relative label ("Today") is a
-                      convenience, never the only thing on the row, per the ledger-data rule this
-                      column exists to fix. `title` still carries the full audit line (who, plus
-                      exact date AND time via fmtDateTime), so the precision that mattered before
-                      is not lost, just no longer the only thing legible without hovering. Sort
-                      order is untouched — still `sortT`, the posting timestamp, never this string. */}
-                  <div className={cn(COL.date, 'flex flex-col items-end justify-center')} title={r.audit}>
-                    <div className="tabular text-meta font-medium text-muted-70">{fmtLongDate(r.date)}</div>
-                    {r.dateRel && <div className="text-meta font-normal text-muted-60">{r.dateRel}</div>}
+                  {/* Absolute date only — no relative label underneath. A row already spelling out
+                      "Sep 15, 2026" gains nothing from also saying "Today" beneath it; that was a
+                      restatement of the same fact, not new information (flagged 2026-09-15). The
+                      full audit line (who, plus exact date and time via fmtDateTime) stays in the
+                      title tooltip for anyone who wants it. Sort order is unaffected — still
+                      `sortT`, the posting timestamp, never this display string. */}
+                  <div className={cn(COL.date, 'whitespace-nowrap text-meta font-normal text-muted-70')} title={r.audit}>
+                    {fmtLongDate(r.date)}
                   </div>
                 </div>
               )
