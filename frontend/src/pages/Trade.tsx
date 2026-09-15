@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AlertTriangle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { buyCalc, sellCalc, stk, CURRENCY_LIST, DEFAULT_CURRENCY, currencyMeta, currencyName } from '@/lib/engine'
 import { fmt, fmtAmount, fmtLongDate, fmtQuote, fmtRate, todayISO } from '@/lib/format'
@@ -213,6 +214,15 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             </div>
           </div>
 
+          {/* Sell-only readout: what's actually available and what it was bought at, as soon as a
+              currency is picked — before the dealer has typed an amount at all. Sits here, not as
+              an aside on the Amount/Rate labels below (which is where this used to live, easy to
+              miss), because the client asked for it to be obvious at selection time, not
+              discovered mid-type. Buy mode doesn't get this: its Rate field's own "Avg cost" aside
+              already covers the one number a buyer needs (the current cost basis to compare a new
+              rate against) — there's no "available" concept on a purchase. */}
+          {mode === 'sell' && <StockReadout code={currency} avail={avail} avgCost={avgCost} meta={meta} amount={parseFloat(amount) || 0} />}
+
           {/* Not three equal columns. The two input columns now carry a reference figure on the
               label line (an available balance, an average cost), and at equal thirds "Amount to
               sell" truncated to "Amoun…" as soon as the desk held a six-figure position. The
@@ -227,9 +237,9 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
                   title and the Review button, and the four characters it saves are what let the
                   available balance sit on this line without either half truncating — an IRR
                   position runs to nine figures. */}
-              <FieldLabel htmlFor="trade-amount" aside={mode === 'sell' ? `Avail ${fmtAmount(avail, currency)}` : undefined}>
-                Amount
-              </FieldLabel>
+              {/* No "Avail X" aside here for sell mode any more — the StockReadout panel above
+                  says it once, more clearly, before this field is even reached. */}
+              <FieldLabel htmlFor="trade-amount">Amount</FieldLabel>
               <div className="relative">
                 <Input
                   id="trade-amount"
@@ -248,8 +258,10 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               {/* The quote convention flips per currency (PKR per 1 AED, but IRR per 1 PKR), so it
                   cannot simply be dropped — but it is instruction, not data, so it belongs behind
                   the icon. The average cost IS data and is worth a glance while typing a rate, so
-                  it stays visible, inline on the label's line rather than as a third stacked line. */}
-              <FieldLabel htmlFor="trade-rate" hint={`Enter this rate as ${meta.rateLabel}.`} aside={`Avg ${fmtQuote(currency, avgCost)}`}>
+                  it stays visible, inline on the label's line rather than as a third stacked line.
+                  Buy-only now: on sell, the StockReadout panel above already states "Bought at"
+                  once, more prominently, so repeating it here would say the same number twice. */}
+              <FieldLabel htmlFor="trade-rate" hint={`Enter this rate as ${meta.rateLabel}.`} aside={mode === 'buy' ? `Avg ${fmtQuote(currency, avgCost)}` : undefined}>
                 {mode === 'buy' ? 'Purchase rate' : 'Selling rate'}
               </FieldLabel>
               <Input
@@ -427,6 +439,63 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
             </Button>
           </div>
         </Card>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Sell-form-only readout of what's actually available and what it was bought at, reusing the same
+ * `stk()` read and `fmtAmount`/`fmtQuote` formatters the Stock page's hero panel uses — same
+ * numbers, same formatting, never a second calculation of either.
+ *
+ * Three stock states, plus a live over-sell warning layered on top of the "has stock" one:
+ *  - has stock: neutral readout, escalating to a warning if the typed amount exceeds it.
+ *  - sold out but has cost history (avail 0, avgCost > 0 — fully sold, not never-held): keeps the
+ *    known rate rather than dropping it just because the position is empty.
+ *  - never bought (avail 0 AND avgCost 0): no rate exists to show, so this collapses to a single
+ *    caution line instead of an empty/zeroed "Bought at" stat, which would misleadingly read as a
+ *    real (zero-cost) position rather than "nothing here yet".
+ */
+function StockReadout({ code, avail, avgCost, meta, amount }: { code: string; avail: number; avgCost: number; meta: ReturnType<typeof currencyMeta>; amount: number }) {
+  if (avail <= 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-control bg-pending-bg px-2.5 py-2 text-body font-normal text-pending-text">
+        <AlertTriangle size={14} strokeWidth={2.2} className="flex-none text-pending" aria-hidden="true" />
+        {avgCost > 0 ? (
+          <span>
+            0 {code} available — last bought at <b className="font-semibold">{fmtQuote(code, avgCost)}</b> · {meta.rateLabel}
+          </span>
+        ) : (
+          <span>No {code} in stock yet — nothing has been bought.</span>
+        )}
+      </div>
+    )
+  }
+
+  const overBy = amount > avail ? amount - avail : 0
+
+  return (
+    <div className={`rounded-control px-2.5 py-2 ${overBy > 0 ? 'bg-negative-bg' : 'bg-surface-sunken'}`}>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Available to sell</div>
+          <div className={`tabular text-body font-semibold ${overBy > 0 ? 'text-negative-deep' : ''}`}>
+            {fmtAmount(avail, code)} <span className="font-medium text-muted-60">{code}</span>
+          </div>
+        </div>
+        <div>
+          <div className="mb-0.5 text-meta font-medium uppercase tracking-wide text-muted-60">Bought at</div>
+          <div className="tabular text-body font-medium">
+            {fmtQuote(code, avgCost)} <span className="font-normal text-muted-60">· {meta.rateLabel}</span>
+          </div>
+        </div>
+      </div>
+      {overBy > 0 && (
+        <div className="mt-1.5 flex items-center gap-1.5 text-meta font-medium text-negative-deep">
+          <AlertTriangle size={12} strokeWidth={2.2} className="flex-none" aria-hidden="true" />
+          That's {fmtAmount(overBy, code)} {code} more than what's available.
+        </div>
       )}
     </div>
   )
