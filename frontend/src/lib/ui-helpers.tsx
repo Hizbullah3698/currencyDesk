@@ -13,7 +13,13 @@ export const ACTIVITY_META: Record<ActivityType, TypeMeta> = {
   purchase: { label: 'Purchase', icon: ArrowDownToLine, chipBg: 'var(--color-accent-bg)', chipColor: 'var(--color-accent)' },
   sale: { label: 'Sale', icon: ArrowUpFromLine, chipBg: 'var(--color-positive-bg)', chipColor: 'var(--color-positive)' },
   receive: { label: 'Receive', icon: ArrowDownCircle, chipBg: 'var(--color-positive-bg)', chipColor: 'var(--color-positive)' },
-  pay: { label: 'Payment', icon: ArrowUpCircle, chipBg: 'var(--color-negative-bg)', chipColor: 'var(--color-negative)' },
+  // Outflow, not negative — paying a customer settles a payable, exactly like a currency
+  // purchase settles into a payable. Neither is a loss, so neither gets the red/negative
+  // language reserved for an actual signed loss (a sale below cost, an out-of-balance sheet).
+  // `--color-outflow` already exists for precisely this "money left the desk, not an error"
+  // case (see its definition in index.css) — reused here rather than inventing a second token
+  // for the same meaning.
+  pay: { label: 'Payment', icon: ArrowUpCircle, chipBg: 'var(--color-outflow-bg)', chipColor: 'var(--color-outflow)' },
 }
 
 export const CHEQUE_META: TypeMeta = { label: 'Cheque', icon: Banknote, chipBg: 'var(--color-pending-bg)', chipColor: 'var(--color-pending)' }
