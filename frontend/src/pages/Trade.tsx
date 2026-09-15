@@ -14,6 +14,7 @@ import { Combobox } from '@/components/ui/combobox'
 import { FieldLabel } from '@/components/ui/field-label'
 import { AddCustomerAction } from '@/components/AddCustomerAction'
 import { AccountFormModal } from '@/components/AccountFormModal'
+import { SignedAmount } from '@/components/ui/signed-amount'
 
 // ---------------------------------------------------------------------------
 // SETTLEMENT UI — TEMPORARILY HIDDEN, NOT REMOVED
@@ -221,7 +222,17 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               discovered mid-type. Buy mode doesn't get this: its Rate field's own "Avg cost" aside
               already covers the one number a buyer needs (the current cost basis to compare a new
               rate against) — there's no "available" concept on a purchase. */}
-          {mode === 'sell' && <StockReadout code={currency} avail={avail} avgCost={avgCost} meta={meta} amount={parseFloat(amount) || 0} />}
+          {mode === 'sell' && (
+            <StockReadout
+              code={currency}
+              avail={avail}
+              avgCost={avgCost}
+              meta={meta}
+              amount={parseFloat(amount) || 0}
+              rate={parseFloat(rate) || 0}
+              margin={(calc as ReturnType<typeof sellCalc>).margin}
+            />
+          )}
 
           {/* Not three equal columns. The two input columns now carry a reference figure on the
               label line (an available balance, an average cost), and at equal thirds "Amount to
@@ -447,7 +458,10 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
 /**
  * Sell-form-only readout of what's actually available and what it was bought at, reusing the same
  * `stk()` read and `fmtAmount`/`fmtQuote` formatters the Stock page's hero panel uses — same
- * numbers, same formatting, never a second calculation of either.
+ * numbers, same formatting, never a second calculation of either. Also carries the live margin
+ * preview: `margin` is passed straight through from this file's own `sellCalc(...)` call (the
+ * exact function the actual sale posts with, and the one Stock.tsx's movements table reads for
+ * its own Margin column) — never a second margin formula computed here.
  *
  * Three stock states, plus a live over-sell warning layered on top of the "has stock" one:
  *  - has stock: neutral readout, escalating to a warning if the typed amount exceeds it.
@@ -457,7 +471,23 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
  *    caution line instead of an empty/zeroed "Bought at" stat, which would misleadingly read as a
  *    real (zero-cost) position rather than "nothing here yet".
  */
-function StockReadout({ code, avail, avgCost, meta, amount }: { code: string; avail: number; avgCost: number; meta: ReturnType<typeof currencyMeta>; amount: number }) {
+function StockReadout({
+  code,
+  avail,
+  avgCost,
+  meta,
+  amount,
+  rate,
+  margin,
+}: {
+  code: string
+  avail: number
+  avgCost: number
+  meta: ReturnType<typeof currencyMeta>
+  amount: number
+  rate: number
+  margin: number
+}) {
   if (avail <= 0) {
     return (
       <div className="flex items-center gap-2 rounded-control bg-pending-bg px-2.5 py-2 text-body font-normal text-pending-text">
@@ -495,6 +525,29 @@ function StockReadout({ code, avail, avgCost, meta, amount }: { code: string; av
         <div className="mt-1.5 flex items-center gap-1.5 text-meta font-medium text-negative-deep">
           <AlertTriangle size={12} strokeWidth={2.2} className="flex-none" aria-hidden="true" />
           That's {fmtAmount(overBy, code)} {code} more than what's available.
+        </div>
+      )}
+      {/* Margin preview. Suppressed while overselling — that state's job is to get the amount
+          fixed first, and a margin figure computed against an amount that can't actually be sold
+          would just be a second, competing signal in the same small panel. It reappears the
+          instant the amount is back in range. No rate yet: nothing renders here at all, rather
+          than a premature "Margin: 0" that would read as a real (breakeven) figure. Rate typed
+          but amount not yet: shows only the rate comparison, since a total margin needs an
+          amount to be a real number rather than a guaranteed, meaningless zero. Negative margin
+          (selling below cost) gets the same SignedAmount treatment as a positive one, never a
+          warning style — CLAUDE.md is explicit that a loss sale is ordinary and allowed, not an
+          error, so it doesn't get the over-sell state's alarm treatment. */}
+      {overBy === 0 && rate > 0 && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-divider pt-1.5 text-body font-normal">
+          <span>
+            Bought at {fmtQuote(code, avgCost)} → Selling at {fmtRate(rate, code)}
+          </span>
+          {amount > 0 && (
+            <>
+              <span className="text-muted-60">· Margin</span>
+              <SignedAmount value={margin} />
+            </>
+          )}
         </div>
       )}
     </div>
