@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import type { ComponentType, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { useStore } from '@/lib/store'
@@ -7,12 +6,12 @@ import { activeCurrencies, activityDate, isToday, stk, stockAsOf, txnIsOpen } fr
 import { fmt, fmtAmount, fmtQuote, fmtShortDate, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
 import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBootReady } from '@/lib/useBootReady'
 import { useCountUp } from '@/lib/useCountUp'
-import { cn } from '@/lib/utils'
 
 export function Dashboard() {
   const { state } = useStore()
@@ -68,19 +67,14 @@ export function Dashboard() {
         <div className="text-body font-normal text-muted-70">Trading day {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
       </div>
 
-      {/* Sales/Purchases/Net cash: each card carries its own soft tinted background again (teal/
-          orange/warm-red identity), per client feedback that the flat neutral surface read as
-          empty. Deliberately a soft `-bg` tint, not KpiCard's bold solid fill — that solid
-          treatment is what made "Net cash movement" read as an alarm regardless of the actual
-          value, and this client feedback asked for color back without reintroducing that: "clean
-          and not overly saturated... a soft/muted tinted background." The icon chip stays a solid
-          tone fill for a bit of pop against the softer card (reusing the *-solid tokens already
-          checked for white icon/text contrast — see their own comments in index.css). The number
-          itself keeps its own logic on top: Sales/Purchases are magnitudes with nothing to sign,
-          so they're plain ink; Net cash genuinely can land on either side of zero, so it stays
-          colored by its real sign regardless of the card's fixed warm identity — confirmed live in
-          both directions, not just assumed. KpiCard itself is untouched — still right for Salary/
-          Cheques/CustomerDetail, outside this request. */}
+      {/* Same KpiCard treatment production uses — bold solid-fill tone per card (teal/orange, and
+          sign-based positive/negative for Net cash) — per explicit client request to match what's
+          already live rather than the softer tinted-card compromise tried in between. Worth being
+          precise about what changed here: Net cash movement's whole card, not just the figure, now
+          swaps fully between the solid positive and negative tones with the sign, which is the
+          exact "always looks like an alarm on a negative-but-routine day" behavior the original UX
+          review flagged — the client has since asked for production parity specifically, so this
+          is back to that on purpose, not a regression nobody noticed. */}
       <div className="mb-[34px] grid grid-cols-3 gap-5">
         {!ready ? (
           <>
@@ -90,27 +84,30 @@ export function Dashboard() {
           </>
         ) : (
           <>
-            <StatCard icon={ArrowUpFromLine} tone="inflow" label="Sales today" value={fmt(stats.salesValue)} caption={`${stats.salesCount} sales booked`} />
-            <StatCard icon={ArrowDownToLine} tone="outflow" label="Purchases today" value={fmt(stats.purchasesValue)} caption="Cost of currency taken in today" />
-            <StatCard
+            <KpiCard tone="inflow" icon={ArrowUpFromLine} label="Sales today" caption={`${stats.salesCount} sales booked`}>
+              <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.salesValue)}</div>
+            </KpiCard>
+            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today" caption="Cost of currency taken in today">
+              <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.purchasesValue)}</div>
+            </KpiCard>
+            <KpiCard
+              tone={stats.net >= 0 ? 'positive' : 'negative'}
               icon={Wallet}
-              tone="negative"
               label="Net cash movement"
-              value={
-                <span className={cn('flex items-center gap-2', stats.net >= 0 ? 'text-positive-text' : 'text-negative-text')}>
-                  {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
-                  {stats.net >= 0 ? '+' : '−'}
-                  {/* Magnitude counts up once on first load; the sign and icon above stay
-                      driven by the real value so direction never flickers mid-count. */}
-                  {fmt(netCountUp)}
-                </span>
-              }
               caption={
                 <span className="tabular">
                   In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
                 </span>
               }
-            />
+            >
+              <div className="tabular flex items-center gap-2 text-hero-lg font-semibold tracking-tight text-white">
+                {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
+                {stats.net >= 0 ? '+' : '−'}
+                {/* Magnitude counts up once on first load; the sign and icon above stay
+                    driven by the real value so direction never flickers mid-count. */}
+                {fmt(netCountUp)}
+              </div>
+            </KpiCard>
           </>
         )}
       </div>
@@ -277,58 +274,6 @@ export function Dashboard() {
         </div>
       </div>
     </div>
-  )
-}
-
-// Card background (soft tint) + icon chip (solid, so it still pops against that softer card) per
-// stat. Reuses the app's existing *-bg and *-solid token pairs rather than inventing new colors —
-// the *-solid values are the same ones index.css already documents as checked for white text/icon
-// contrast (5.36:1 inflow, 5.02:1 outflow), so the chip's contrast is inherited, not assumed.
-// `negative` is Net Cash Movement's fixed card identity ("a warm/red tone", per client feedback) —
-// distinct from whether the FIGURE inside is colored, which is handled separately by `valueClassName`
-// at the call site based on the real sign. A card can have a constant color identity and a number
-// that still tells the truth about which way it actually went.
-const STAT_TONE = {
-  inflow: { cardBg: 'var(--color-inflow-bg)', chipBg: 'var(--color-inflow-solid)' },
-  outflow: { cardBg: 'var(--color-outflow-bg)', chipBg: 'var(--color-outflow-solid)' },
-  negative: { cardBg: 'var(--color-negative-bg)', chipBg: 'var(--color-negative-solid)' },
-} as const
-
-/**
- * Dashboard's three headline stat cards (Sales/Purchases/Net cash). Deliberately not KpiCard:
- * that component's whole-card BOLD solid fill is what made "Net cash movement" read as an alarm
- * regardless of the actual value when this first got flagged — this uses a soft tint for the card
- * (barely-there, not a saturated block) so the color reads as identity rather than alert, per
- * client feedback asking for the color back without that problem returning. Same footprint as
- * KpiCard's `lg` size (identical padding/icon sizing, see StatTileSkeleton below).
- */
-function StatCard({
-  icon: Icon,
-  tone: toneKey,
-  label,
-  value,
-  valueClassName,
-  caption,
-}: {
-  icon: ComponentType<{ size?: number; strokeWidth?: number }>
-  tone: keyof typeof STAT_TONE
-  label: string
-  value: ReactNode
-  valueClassName?: string
-  caption?: ReactNode
-}) {
-  const tone = STAT_TONE[toneKey]
-  return (
-    <Card className="px-6 pb-[17px] pt-[19px]" style={{ background: tone.cardBg }}>
-      <div className="mb-2 flex items-center gap-1.5">
-        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-control text-white" style={{ background: tone.chipBg }}>
-          <Icon size={12} strokeWidth={2.4} aria-hidden="true" />
-        </span>
-        <span className="text-meta font-medium uppercase tracking-wider text-muted-60">{label}</span>
-      </div>
-      <div className={cn('tabular text-hero-lg font-semibold tracking-tight', valueClassName)}>{value}</div>
-      {caption && <div className="mt-2 text-meta font-normal text-muted-60">{caption}</div>}
-    </Card>
   )
 }
 
