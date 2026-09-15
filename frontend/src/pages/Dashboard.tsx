@@ -1,18 +1,18 @@
 import { useMemo } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, ArrowDownCircle, ArrowUpCircle, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activeCurrencies, activityDate, isToday, stk, stockAsOf, txnIsOpen } from '@/lib/engine'
 import { fmt, fmtAmount, fmtQuote, fmtShortDate, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, statusMeta, CATEGORY_COLORS } from '@/lib/ui-helpers'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { KpiCard } from '@/components/ui/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useBootReady } from '@/lib/useBootReady'
 import { useCountUp } from '@/lib/useCountUp'
+import { cn } from '@/lib/utils'
 
 export function Dashboard() {
   const { state } = useStore()
@@ -40,6 +40,20 @@ export function Dashboard() {
     }
   }, [state.activity])
 
+  // Same rule TopBar's own strip uses, and for the identical reason: archived customers still
+  // owe/are owed real money, and a total that quietly dropped them would understate the desk's
+  // actual position. Duplicated here (not imported) because it is a small, page-local derivation,
+  // the same way Dashboard already computes its own stats above rather than importing them.
+  const owed = useMemo(() => {
+    const customers = state.accounts.filter((a) => a.type === 'Customer')
+    return {
+      receivable: customers.reduce((s, c) => s + (c.receivable || 0), 0),
+      receivableCount: customers.filter((c) => (c.receivable || 0) > 0).length,
+      payable: customers.reduce((s, c) => s + (c.payable || 0), 0),
+      payableCount: customers.filter((c) => (c.payable || 0) > 0).length,
+    }
+  }, [state.accounts])
+
   const recent = state.activity.slice(0, 6)
   const uncleared = state.cheques.filter((q) => q.status === 'Pending' || q.status === 'Deposited')
   const unclearedIn = uncleared.filter((q) => q.direction === 'Inward').reduce((s, q) => s + q.amount, 0)
@@ -66,23 +80,56 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="mb-[26px] flex items-end justify-between gap-4">
-        <div>
-          <h1 className="m-0 mb-[3px] text-heading font-semibold tracking-tight">Dashboard</h1>
-          <div className="text-body font-normal text-muted-70">Trading day {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => navigate('/purchase')}>
-            <ArrowDownToLine size={14} strokeWidth={2} aria-hidden="true" />
-            Buy Currency
-          </Button>
-          <Button variant="primary" onClick={() => navigate('/sale')}>
-            <ArrowUpFromLine size={14} strokeWidth={2} aria-hidden="true" />
-            Sell Currency
-          </Button>
-        </div>
+      <div className="mb-[26px]">
+        <h1 className="m-0 mb-[3px] text-heading font-semibold tracking-tight">Dashboard</h1>
+        <div className="text-body font-normal text-muted-70">Trading day {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
       </div>
 
+      {/* Owed to you / You owe, promoted to the same visual weight as the operational stats below
+          — for this business, standing receivables/payables are more decision-relevant day to day
+          than today's transaction count, so they lead rather than sitting in the thin strip above
+          the title (that strip stays — it's global chrome other pages rely on too, and drilling
+          into it is still how you reach a filtered customer list; this is the Dashboard's own
+          prominent read of the same real numbers, not a replacement for it). Same totals rule as
+          TopBar's strip: archived customers are still owed/owe real money and stay counted. */}
+      <div className="mb-5 grid grid-cols-2 gap-5">
+        {!ready ? (
+          <>
+            <StatTileSkeleton />
+            <StatTileSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              icon={ArrowDownCircle}
+              iconTone="positive"
+              label="Owed to you"
+              value={fmt(owed.receivable)}
+              valueClassName="text-positive-text"
+              caption={`${owed.receivableCount} customers`}
+              onClick={() => navigate('/customers?owe=receivable')}
+            />
+            <StatCard
+              icon={ArrowUpCircle}
+              iconTone="negative"
+              label="You owe"
+              value={fmt(owed.payable)}
+              valueClassName="text-negative-text"
+              caption={`${owed.payableCount} customers`}
+              onClick={() => navigate('/customers?owe=payable')}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Sales/Purchases/Net cash: neutral card surfaces now, matching the rest of the dashboard's
+          dark-surface style, with a small colored icon chip for identity instead of a full-card
+          solid fill. The old whole-card color made "Net cash movement" read as an alarm regardless
+          of whether the number was routine — color now lives on the figure itself, and only where
+          the sign is actually meaningful (Sales/Purchases are magnitudes with nothing to sign; Net
+          cash genuinely can land on either side of zero, so only it is sign-colored). KpiCard's
+          bold solid-fill treatment is untouched — it's still right for Salary/Cheques/CustomerDetail,
+          which weren't part of this request. */}
       <div className="mb-[34px] grid grid-cols-3 gap-5">
         {!ready ? (
           <>
@@ -92,30 +139,27 @@ export function Dashboard() {
           </>
         ) : (
           <>
-            <KpiCard tone="inflow" icon={ArrowUpFromLine} label="Sales today" caption={`${stats.salesCount} sales booked`}>
-              <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.salesValue)}</div>
-            </KpiCard>
-            <KpiCard tone="outflow" icon={ArrowDownToLine} label="Purchases today" caption="Cost of currency taken in today">
-              <div className="tabular text-hero-lg font-semibold tracking-tight text-white">{fmt(stats.purchasesValue)}</div>
-            </KpiCard>
-            <KpiCard
-              tone={stats.net >= 0 ? 'positive' : 'negative'}
+            <StatCard icon={ArrowUpFromLine} iconTone="inflow" label="Sales today" value={fmt(stats.salesValue)} caption={`${stats.salesCount} sales booked`} />
+            <StatCard icon={ArrowDownToLine} iconTone="outflow" label="Purchases today" value={fmt(stats.purchasesValue)} caption="Cost of currency taken in today" />
+            <StatCard
               icon={Wallet}
+              iconTone="accent"
               label="Net cash movement"
+              value={
+                <span className={cn('flex items-center gap-2', stats.net >= 0 ? 'text-positive-text' : 'text-negative-text')}>
+                  {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
+                  {stats.net >= 0 ? '+' : '−'}
+                  {/* Magnitude counts up once on first load; the sign and icon above stay
+                      driven by the real value so direction never flickers mid-count. */}
+                  {fmt(netCountUp)}
+                </span>
+              }
               caption={
                 <span className="tabular">
                   In {fmt(stats.inflow)} · out {fmt(stats.outflow)}
                 </span>
               }
-            >
-              <div className="tabular flex items-center gap-2 text-hero-lg font-semibold tracking-tight text-white">
-                {stats.net >= 0 ? <TrendingUp size={26} strokeWidth={2.2} aria-hidden="true" /> : <TrendingDown size={26} strokeWidth={2.2} aria-hidden="true" />}
-                {stats.net >= 0 ? '+' : '−'}
-                {/* Magnitude counts up once on first load; the sign and icon above stay
-                    driven by the real value so direction never flickers mid-count. */}
-                {fmt(netCountUp)}
-              </div>
-            </KpiCard>
+            />
           </>
         )}
       </div>
@@ -144,7 +188,11 @@ export function Dashboard() {
               const meta = ACTIVITY_META[row.type]
               const Icon = meta.icon
               const cheque = row.chequeId ? state.cheques.find((q) => q.id === row.chequeId) : undefined
-              const statusLabel = cheque ? cheque.status : row.type === 'sale' || row.type === 'purchase' ? (txnIsOpen(row, state.accounts) ? 'Open' : 'Settled') : 'Posted'
+              // txnIsOpen already returns the right answer for every activity type, not just
+              // sale/purchase (a receive/pay row has no outstanding balance, so it reads Settled) —
+              // the old sale/purchase-only branch is what left a completed payment hardcoded to
+              // "Posted" here, one word for the same state Transactions.tsx calls "Settled".
+              const statusLabel = cheque ? cheque.status : txnIsOpen(row, state.accounts) ? 'Open' : 'Settled'
               const status = statusMeta(statusLabel)
               const StatusIcon = status.icon
               return (
@@ -264,23 +312,119 @@ export function Dashboard() {
             )}
           </Card>
 
+          {/* True actions only — each row opens a form to DO something. "Customers"/"Cheques"
+              below aren't actions, they're navigation to a list, so they moved out to their own
+              card: the two were presented identically here before, which blurred a real
+              difference (this row starts a transaction; that one is just a shortcut). Buy/Sell
+              Currency moved in from the page header, which duplicated the sidebar's own Currency
+              Purchase/Currency Sale entries for the same action — one place to start a new
+              transaction now, not two. */}
           <Card variant="flat" className="overflow-hidden">
             <div className="border-b border-divider px-3.5 py-3 text-body font-semibold tracking-tight">Quick actions</div>
-            {[
-              { label: 'Receive Payment', to: '/receive' },
-              { label: 'Make Payment', to: '/pay' },
-              { label: 'Customers', to: '/customers' },
-              { label: 'Cheques', to: '/cheques' },
-            ].map((a, i, arr) => (
-              <div key={a.to} onClick={() => navigate(a.to)} className={`flex cursor-pointer items-center justify-between px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover ${i < arr.length - 1 ? 'border-b border-divider' : ''}`}>
-                <span className="text-body font-medium">{a.label}</span>
-                <span className="text-muted-60" aria-hidden="true">→</span>
-              </div>
-            ))}
+            <ActionList
+              items={[
+                { label: 'Receive Payment', to: '/receive' },
+                { label: 'Make Payment', to: '/pay' },
+                { label: 'Buy Currency', to: '/purchase' },
+                { label: 'Sell Currency', to: '/sale' },
+              ]}
+              onNavigate={navigate}
+            />
+          </Card>
+
+          {/* Navigation shortcuts, visually distinct from the actions above — same list shape but
+              its own card and heading, so "opens a form" and "goes to a list" don't read as the
+              same kind of row. */}
+          <Card variant="flat" className="overflow-hidden">
+            <div className="border-b border-divider px-3.5 py-3 text-body font-semibold tracking-tight">Shortcuts</div>
+            <ActionList
+              items={[
+                { label: 'Customers', to: '/customers' },
+                { label: 'Cheques', to: '/cheques' },
+              ]}
+              onNavigate={navigate}
+            />
           </Card>
         </div>
       </div>
     </div>
+  )
+}
+
+// Icon-chip tint pairs for StatCard — the same semantic tones KpiCard's whole-card fill used to
+// carry (see kpi-card.tsx's own tone comment), just applied to a small chip instead of the full
+// card now. `accent` is Net Cash Movement's chip specifically: the card/icon stay neutral no
+// matter which way the number leans, since only the figure itself is meant to carry the sign.
+const STAT_TONE = {
+  inflow: { bg: 'var(--color-inflow-bg)', color: 'var(--color-inflow)' },
+  outflow: { bg: 'var(--color-outflow-bg)', color: 'var(--color-outflow)' },
+  positive: { bg: 'var(--color-positive-bg)', color: 'var(--color-positive)' },
+  negative: { bg: 'var(--color-negative-bg)', color: 'var(--color-negative)' },
+  accent: { bg: 'var(--color-accent-bg)', color: 'var(--color-accent)' },
+} as const
+
+/**
+ * Neutral-surface stat card — Dashboard's own headline figures (Owed to you/You owe, Sales/
+ * Purchases/Net cash), deliberately NOT KpiCard: that component's whole point is a bold solid-fill
+ * card, which is exactly what made every one of these read as a colored alarm regardless of
+ * whether the number was routine. Same footprint as KpiCard's `lg` size (identical padding/icon
+ * sizing, see StatTileSkeleton below) so the two read as one consistent row size — just a plain
+ * `Card` background with a small tinted icon chip for identity, and color reserved for `value`
+ * itself where the caller has a real signed figure to show.
+ */
+function StatCard({
+  icon: Icon,
+  iconTone,
+  label,
+  value,
+  valueClassName,
+  caption,
+  onClick,
+}: {
+  icon: ComponentType<{ size?: number; strokeWidth?: number }>
+  iconTone: keyof typeof STAT_TONE
+  label: string
+  value: ReactNode
+  valueClassName?: string
+  caption?: ReactNode
+  onClick?: () => void
+}) {
+  const tone = STAT_TONE[iconTone]
+  return (
+    <Card
+      onClick={onClick}
+      className={cn('px-6 pb-[17px] pt-[19px]', onClick && 'cursor-pointer transition-shadow duration-150 hover:shadow-sm')}
+    >
+      <div className="mb-2 flex items-center gap-1.5">
+        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-control" style={{ background: tone.bg, color: tone.color }}>
+          <Icon size={12} strokeWidth={2.4} aria-hidden="true" />
+        </span>
+        <span className="text-meta font-medium uppercase tracking-wider text-muted-60">{label}</span>
+      </div>
+      <div className={cn('tabular text-hero-lg font-semibold tracking-tight', valueClassName)}>{value}</div>
+      {caption && <div className="mt-2 text-meta font-normal text-muted-60">{caption}</div>}
+    </Card>
+  )
+}
+
+/** Shared row list for the two right-column action/shortcut cards — same shape, different intent
+ *  per card (see the two call sites' own comments), so the list markup itself stays one place. */
+function ActionList({ items, onNavigate }: { items: { label: string; to: string }[]; onNavigate: (to: string) => void }) {
+  return (
+    <>
+      {items.map((a, i, arr) => (
+        <div
+          key={a.to}
+          onClick={() => onNavigate(a.to)}
+          className={`flex cursor-pointer items-center justify-between px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover ${i < arr.length - 1 ? 'border-b border-divider' : ''}`}
+        >
+          <span className="text-body font-medium">{a.label}</span>
+          <span className="text-muted-60" aria-hidden="true">
+            →
+          </span>
+        </div>
+      ))}
+    </>
   )
 }
 

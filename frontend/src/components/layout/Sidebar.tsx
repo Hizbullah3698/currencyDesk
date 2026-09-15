@@ -38,7 +38,11 @@ const BOOKS: NavItemDef[] = [
   // even when already sitting on the Accounts page, not just on a fresh navigation into it.
   { to: '/accounts?new=Customer', label: 'New Account', icon: Plus, category: 'neutral', adminOnly: true, action: true },
   { to: '/customers', label: 'Customers', icon: UserRound, category: 'customers' },
-  { to: '/transactions', label: 'Transactions', icon: List, category: 'neutral' },
+  // "All Transactions", not the bare "Transactions" this used to say — that collided at a glance
+  // with the TRANSACTIONS section header directly above this one, two different things sharing
+  // one word on the same screen. Matches the Dashboard's own "All transactions →" link to the
+  // same page, so the wording is consistent wherever this list is reached from.
+  { to: '/transactions', label: 'All Transactions', icon: List, category: 'neutral' },
   { to: '/ledger', label: 'Customer Ledger', icon: BookOpen, category: 'customers' },
   // Renamed from the bare "Ledgers": this page is the CURRENCY stock ledger, and leaving it as
   // "Ledgers" beside the new "Customer Ledger" would have left two entries whose names suggest the
