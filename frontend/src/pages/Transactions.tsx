@@ -44,10 +44,12 @@ interface Row {
   meta: (typeof ACTIVITY_META)[keyof typeof ACTIVITY_META]
   who: string
   detail: string
-  /** Cash/Bank/Cheque/Credit, purchase and sale rows only — pulled out of `detail` into its own
-   *  small badge so a long IRR amount + rate string never has to compete with it for the same
-   *  cramped cell. Null everywhere else: a payment's own method is already the whole of its detail
-   *  string ("via Bank"), and a cheque/journal row has no comparable "terms" concept at all. */
+  /** Cash/Bank/Cheque/Credit, purchase and sale rows only — pulled out of `detail` so a long IRR
+   *  amount + rate string never has to compete with it for the same cramped cell. No longer its
+   *  own badge (that duplicated "Open" — see the STATUS pill's own comment); an open trade row
+   *  now shows this word in Open's place instead. Null everywhere else: a payment's own method is
+   *  already the whole of its detail string ("via Bank"), and a cheque/journal row has no
+   *  comparable "terms" concept at all. */
   terms: string | null
   status: string
   /** The settlement value in PKR, formatted — always the bottom-line figure, never the foreign-
@@ -197,6 +199,15 @@ export function Transactions() {
               const Icon = r.meta.icon
               const status = statusMeta(r.status)
               const StatusIcon = status.icon
+              // Every open trade row on this desk is a credit transaction (Trade.tsx posts every
+              // purchase/sale on Credit only, settlement UI hidden) — so "Open" next to a separate
+              // "Credit" badge said the same thing twice. One pill, one word: the payment terms
+              // *are* the open state's meaning, so show them in Open's place rather than beside it.
+              // `status` (and its pending variant/Clock icon) is still looked up from the real
+              // underlying 'Open' status, so styling is unchanged — only the word changes. If a
+              // genuinely different NOT-on-credit open state is ever introduced, it needs a status
+              // value of its own here rather than this line quietly relabelling it "Credit" too.
+              const pillLabel = r.status === 'Open' && r.terms ? r.terms : r.status
               return (
                 <div key={r.type + r.id} onClick={() => r.customerId && navigate(`/customers/${r.customerId}`)} className="flex cursor-pointer items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">
                   {/* Monospace, not just small/muted: the font itself signals "this is a code,
@@ -221,15 +232,11 @@ export function Transactions() {
                   <div className={cn(COL.detail, 'truncate text-body font-normal text-muted-70')} title={r.detail}>
                     {r.detail}
                   </div>
-                  <div className={cn(COL.status, 'flex flex-col items-start gap-1')}>
+                  <div className={COL.status}>
                     <Badge variant={status.variant}>
                       <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
-                      {r.status}
+                      {pillLabel}
                     </Badge>
-                    {/* Payment terms, moved out of Detail (see the `terms` field's own comment) —
-                        neutral, not colored: Credit/Cash is a fact about how the deal settles, not
-                        a state judgement the way the Status badge above it is. */}
-                    {r.terms && <Badge variant="neutral">{r.terms}</Badge>}
                   </div>
                   <div className={COL.amount}>
                     <div className="tabular text-body font-medium">{r.money}</div>
