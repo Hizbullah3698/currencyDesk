@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDownToLine, ArrowUpFromLine, ArrowDownCircle, ArrowUpCircle, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Wallet, Coins, Inbox, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activeCurrencies, activityDate, isToday, stk, stockAsOf, txnIsOpen } from '@/lib/engine'
 import { fmt, fmtAmount, fmtQuote, fmtShortDate, txnAmountParts } from '@/lib/format'
@@ -40,24 +40,7 @@ export function Dashboard() {
     }
   }, [state.activity])
 
-  // Same rule TopBar's own strip uses, and for the identical reason: archived customers still
-  // owe/are owed real money, and a total that quietly dropped them would understate the desk's
-  // actual position. Duplicated here (not imported) because it is a small, page-local derivation,
-  // the same way Dashboard already computes its own stats above rather than importing them.
-  const owed = useMemo(() => {
-    const customers = state.accounts.filter((a) => a.type === 'Customer')
-    return {
-      receivable: customers.reduce((s, c) => s + (c.receivable || 0), 0),
-      receivableCount: customers.filter((c) => (c.receivable || 0) > 0).length,
-      payable: customers.reduce((s, c) => s + (c.payable || 0), 0),
-      payableCount: customers.filter((c) => (c.payable || 0) > 0).length,
-    }
-  }, [state.accounts])
-
   const recent = state.activity.slice(0, 6)
-  const uncleared = state.cheques.filter((q) => q.status === 'Pending' || q.status === 'Deposited')
-  const unclearedIn = uncleared.filter((q) => q.direction === 'Inward').reduce((s, q) => s + q.amount, 0)
-  const unclearedOut = uncleared.filter((q) => q.direction === 'Outward').reduce((s, q) => s + q.amount, 0)
   const startOfTodayT = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -85,51 +68,19 @@ export function Dashboard() {
         <div className="text-body font-normal text-muted-70">Trading day {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
       </div>
 
-      {/* Owed to you / You owe, promoted to the same visual weight as the operational stats below
-          — for this business, standing receivables/payables are more decision-relevant day to day
-          than today's transaction count, so they lead rather than sitting in the thin strip above
-          the title (that strip stays — it's global chrome other pages rely on too, and drilling
-          into it is still how you reach a filtered customer list; this is the Dashboard's own
-          prominent read of the same real numbers, not a replacement for it). Same totals rule as
-          TopBar's strip: archived customers are still owed/owe real money and stay counted. */}
-      <div className="mb-5 grid grid-cols-2 gap-5">
-        {!ready ? (
-          <>
-            <StatTileSkeleton />
-            <StatTileSkeleton />
-          </>
-        ) : (
-          <>
-            <StatCard
-              icon={ArrowDownCircle}
-              iconTone="positive"
-              label="Owed to you"
-              value={fmt(owed.receivable)}
-              valueClassName="text-positive-text"
-              caption={`${owed.receivableCount} customers`}
-              onClick={() => navigate('/customers?owe=receivable')}
-            />
-            <StatCard
-              icon={ArrowUpCircle}
-              iconTone="negative"
-              label="You owe"
-              value={fmt(owed.payable)}
-              valueClassName="text-negative-text"
-              caption={`${owed.payableCount} customers`}
-              onClick={() => navigate('/customers?owe=payable')}
-            />
-          </>
-        )}
-      </div>
-
-      {/* Sales/Purchases/Net cash: neutral card surfaces now, matching the rest of the dashboard's
-          dark-surface style, with a small colored icon chip for identity instead of a full-card
-          solid fill. The old whole-card color made "Net cash movement" read as an alarm regardless
-          of whether the number was routine — color now lives on the figure itself, and only where
-          the sign is actually meaningful (Sales/Purchases are magnitudes with nothing to sign; Net
-          cash genuinely can land on either side of zero, so only it is sign-colored). KpiCard's
-          bold solid-fill treatment is untouched — it's still right for Salary/Cheques/CustomerDetail,
-          which weren't part of this request. */}
+      {/* Sales/Purchases/Net cash: each card carries its own soft tinted background again (teal/
+          orange/warm-red identity), per client feedback that the flat neutral surface read as
+          empty. Deliberately a soft `-bg` tint, not KpiCard's bold solid fill — that solid
+          treatment is what made "Net cash movement" read as an alarm regardless of the actual
+          value, and this client feedback asked for color back without reintroducing that: "clean
+          and not overly saturated... a soft/muted tinted background." The icon chip stays a solid
+          tone fill for a bit of pop against the softer card (reusing the *-solid tokens already
+          checked for white icon/text contrast — see their own comments in index.css). The number
+          itself keeps its own logic on top: Sales/Purchases are magnitudes with nothing to sign,
+          so they're plain ink; Net cash genuinely can land on either side of zero, so it stays
+          colored by its real sign regardless of the card's fixed warm identity — confirmed live in
+          both directions, not just assumed. KpiCard itself is untouched — still right for Salary/
+          Cheques/CustomerDetail, outside this request. */}
       <div className="mb-[34px] grid grid-cols-3 gap-5">
         {!ready ? (
           <>
@@ -139,11 +90,11 @@ export function Dashboard() {
           </>
         ) : (
           <>
-            <StatCard icon={ArrowUpFromLine} iconTone="inflow" label="Sales today" value={fmt(stats.salesValue)} caption={`${stats.salesCount} sales booked`} />
-            <StatCard icon={ArrowDownToLine} iconTone="outflow" label="Purchases today" value={fmt(stats.purchasesValue)} caption="Cost of currency taken in today" />
+            <StatCard icon={ArrowUpFromLine} tone="inflow" label="Sales today" value={fmt(stats.salesValue)} caption={`${stats.salesCount} sales booked`} />
+            <StatCard icon={ArrowDownToLine} tone="outflow" label="Purchases today" value={fmt(stats.purchasesValue)} caption="Cost of currency taken in today" />
             <StatCard
               icon={Wallet}
-              iconTone="accent"
+              tone="negative"
               label="Net cash movement"
               value={
                 <span className={cn('flex items-center gap-2', stats.net >= 0 ? 'text-positive-text' : 'text-negative-text')}>
@@ -225,32 +176,10 @@ export function Dashboard() {
           )}
         </Card>
 
+        {/* No "Uncleared cheques" summary card here any more — it duplicated the Cheques page for
+            no reason a dashboard glance needed; "Cheques" under Shortcuts below is the one entry
+            point into that data now, per client feedback. */}
         <div className="flex flex-col gap-5">
-          <Card variant="flat" onClick={() => navigate('/cheques')} className="cursor-pointer p-[13px] transition-[box-shadow,background-color] duration-150 hover:bg-surface-hover hover:shadow-sm">
-            <div className="mb-2 flex items-baseline justify-between">
-              <div className="text-body font-semibold tracking-tight">Uncleared cheques</div>
-              <span className="text-meta font-medium text-accent">Cheques →</span>
-            </div>
-            {!ready ? (
-              <SideCardSkeleton />
-            ) : (
-              <>
-                <div className="tabular text-heading font-semibold tracking-tight">{fmt(unclearedIn + unclearedOut)}</div>
-                <div className="mt-0.5 text-meta font-normal text-muted-60">{uncleared.length} not yet cleared — no balance moved</div>
-                <div className="mt-2.5 flex gap-4 border-t border-divider pt-2">
-                  <div>
-                    <div className="text-meta font-medium uppercase tracking-wide text-muted-60">Inward</div>
-                    <div className="tabular text-body font-medium text-positive">{fmt(unclearedIn)}</div>
-                  </div>
-                  <div>
-                    <div className="text-meta font-medium uppercase tracking-wide text-muted-60">Outward</div>
-                    <div className="tabular text-body font-medium text-muted-70">{fmt(unclearedOut)}</div>
-                  </div>
-                </div>
-              </>
-            )}
-          </Card>
-
           <Card variant="flat" className="p-[13px]">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -351,52 +280,48 @@ export function Dashboard() {
   )
 }
 
-// Icon-chip tint pairs for StatCard — the same semantic tones KpiCard's whole-card fill used to
-// carry (see kpi-card.tsx's own tone comment), just applied to a small chip instead of the full
-// card now. `accent` is Net Cash Movement's chip specifically: the card/icon stay neutral no
-// matter which way the number leans, since only the figure itself is meant to carry the sign.
+// Card background (soft tint) + icon chip (solid, so it still pops against that softer card) per
+// stat. Reuses the app's existing *-bg and *-solid token pairs rather than inventing new colors —
+// the *-solid values are the same ones index.css already documents as checked for white text/icon
+// contrast (5.36:1 inflow, 5.02:1 outflow), so the chip's contrast is inherited, not assumed.
+// `negative` is Net Cash Movement's fixed card identity ("a warm/red tone", per client feedback) —
+// distinct from whether the FIGURE inside is colored, which is handled separately by `valueClassName`
+// at the call site based on the real sign. A card can have a constant color identity and a number
+// that still tells the truth about which way it actually went.
 const STAT_TONE = {
-  inflow: { bg: 'var(--color-inflow-bg)', color: 'var(--color-inflow)' },
-  outflow: { bg: 'var(--color-outflow-bg)', color: 'var(--color-outflow)' },
-  positive: { bg: 'var(--color-positive-bg)', color: 'var(--color-positive)' },
-  negative: { bg: 'var(--color-negative-bg)', color: 'var(--color-negative)' },
-  accent: { bg: 'var(--color-accent-bg)', color: 'var(--color-accent)' },
+  inflow: { cardBg: 'var(--color-inflow-bg)', chipBg: 'var(--color-inflow-solid)' },
+  outflow: { cardBg: 'var(--color-outflow-bg)', chipBg: 'var(--color-outflow-solid)' },
+  negative: { cardBg: 'var(--color-negative-bg)', chipBg: 'var(--color-negative-solid)' },
 } as const
 
 /**
- * Neutral-surface stat card — Dashboard's own headline figures (Owed to you/You owe, Sales/
- * Purchases/Net cash), deliberately NOT KpiCard: that component's whole point is a bold solid-fill
- * card, which is exactly what made every one of these read as a colored alarm regardless of
- * whether the number was routine. Same footprint as KpiCard's `lg` size (identical padding/icon
- * sizing, see StatTileSkeleton below) so the two read as one consistent row size — just a plain
- * `Card` background with a small tinted icon chip for identity, and color reserved for `value`
- * itself where the caller has a real signed figure to show.
+ * Dashboard's three headline stat cards (Sales/Purchases/Net cash). Deliberately not KpiCard:
+ * that component's whole-card BOLD solid fill is what made "Net cash movement" read as an alarm
+ * regardless of the actual value when this first got flagged — this uses a soft tint for the card
+ * (barely-there, not a saturated block) so the color reads as identity rather than alert, per
+ * client feedback asking for the color back without that problem returning. Same footprint as
+ * KpiCard's `lg` size (identical padding/icon sizing, see StatTileSkeleton below).
  */
 function StatCard({
   icon: Icon,
-  iconTone,
+  tone: toneKey,
   label,
   value,
   valueClassName,
   caption,
-  onClick,
 }: {
   icon: ComponentType<{ size?: number; strokeWidth?: number }>
-  iconTone: keyof typeof STAT_TONE
+  tone: keyof typeof STAT_TONE
   label: string
   value: ReactNode
   valueClassName?: string
   caption?: ReactNode
-  onClick?: () => void
 }) {
-  const tone = STAT_TONE[iconTone]
+  const tone = STAT_TONE[toneKey]
   return (
-    <Card
-      onClick={onClick}
-      className={cn('px-6 pb-[17px] pt-[19px]', onClick && 'cursor-pointer transition-shadow duration-150 hover:shadow-sm')}
-    >
+    <Card className="px-6 pb-[17px] pt-[19px]" style={{ background: tone.cardBg }}>
       <div className="mb-2 flex items-center gap-1.5">
-        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-control" style={{ background: tone.bg, color: tone.color }}>
+        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-control text-white" style={{ background: tone.chipBg }}>
           <Icon size={12} strokeWidth={2.4} aria-hidden="true" />
         </span>
         <span className="text-meta font-medium uppercase tracking-wider text-muted-60">{label}</span>
