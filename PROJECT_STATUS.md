@@ -196,12 +196,98 @@ Worth noting because it represents real completed work, whether or not it maps t
 - **Operator restrictions enforced server-side**, including keeping profit figures away from
   operator accounts entirely.
 - **Printable reports** with fixed formatting regardless of screen theme.
+- **A Margin Ledger page** showing profit per currency sale over any date range, with a monthly
+  close that freezes a month's profit figure and blocks new trades from being backdated into it.
+  A new client ask, not one of the original eight — see the 2026-09-17 entry in Part 3.
 
 ---
 
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-17 — Margin Ledger page and monthly period close
+
+### Done
+
+*At a glance: a new client ask — see profit per sale, review it over any date range, and lock a
+month's figure once reviewed. Investigated before building, per the client's own instruction: two
+of the three pieces already existed and needed no new code. Built, tested, and watched working live
+on the real screen before being called done. Committed locally, not shipped.*
+
+**What was asked for.** The client wants to see the profit on every currency sale, review the total
+over a date range ("last 10 days", "last month"), and formally close a month once it has been
+reviewed — similar to a monthly accounting close.
+
+**Two of the three pieces already existed.** Before writing anything, the codebase was checked
+against two specific questions, per the client's own instruction:
+
+- **Is profit worked out once, in one place, and used consistently?** Yes. One shared formula
+  already produces the profit figure shown on the Sale screen at the moment of sale **and** the
+  figure saved permanently to that sale's own record — the same calculation, not two copies that
+  could ever disagree. And it already **was** being saved permanently, not recalculated later from
+  today's rates — a sale from three months ago still shows the profit it actually made at the time,
+  even if costs have moved since.
+- **How does the desk price stock bought at different rates on different days?** By a running
+  blended average across every purchase of that currency — not "the oldest stock sold first"
+  (a method called FIFO). This was already the desk's method everywhere: the Sale screen, the
+  Currency Stock page, and the balance sheet's stock valuation all already work this way, and the
+  checking tool already verifies against it. Switching to "oldest first" would have meant rebuilding
+  how the whole desk prices stock, not just this new page — a much larger and riskier change than
+  what was asked for. **Flagged to you directly before building anything, and you confirmed: keep
+  the existing blended-average method.**
+
+**What was actually new: a page to see it, and a way to close a month.**
+
+- **Margin Ledger**, a new page under Books (admin-only, matching the Balance Sheet and Income
+  Statement). Every sale, with its date, customer, currency, amount, the rate bought at, the rate
+  sold at, and the profit. Quick date filters (last 7/10/30 days, this month, last month, or a
+  custom range), a running total for whatever range is selected, and — when more than one currency
+  was sold in that range — a separate subtotal per currency as well as the combined total, so
+  currencies are never blended into one misleading figure. Sortable by date or by profit, to spot
+  the best and worst deals at a glance.
+- **Close a period.** An admin can close a calendar month. Doing so permanently freezes that
+  month's total profit figure — computed from the same saved per-sale figures the ledger already
+  shows, so the frozen number can never disagree with what was on screen when it was closed — and
+  from then on refuses any new purchase or sale dated back into that month, with a plain message
+  naming the month and saying an admin can reopen it first. Reopening is a separate, explicit
+  action; it does not happen automatically. Deliberately scoped to purchases and sales only, per
+  the ask — manual accounting entries are not affected by a closed period.
+
+**Verified live, not just in tests.** Closed September 2026 on a running copy of the desk with real
+trade data, watched the page show it as Closed with the frozen total and who closed it and when,
+then tried to record a backdated sale into September — refused, with the exact message: *"September
+2026 is closed for trading. An admin can reopen it from the Margin Ledger before this can be
+posted."* Reopened it from the same page and confirmed a September sale went through normally
+again afterward.
+
+**A real bug caught and fixed before it could bite.** The automated test suite resets its own
+practice database between test files by clearing out the business tables — the new "closed periods"
+table was left off that reset list. Left as found, a month closed by one test would have stayed
+closed for every test after it in the same run, and an unrelated test posting a trade into that
+month would have failed for a reason that had nothing to do with what it was actually testing.
+Caught before it could cause a confusing false alarm later, and fixed.
+
+**Full suite green:** 55 calculator tests (up from 46, the new ones covering the date-range
+shortcuts and the period-close rules), 172 server tests (up from 160, 12 of them new — covering the
+close/reopen actions, the admin-only restriction, and the trading block itself), and 99 screen
+tests, unaffected. Type-checking and the linter both clean.
+
+**Committed locally as `6cb8ce9`, not pushed.** Same discipline as the prior features in this log.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The two "does this already exist" questions the client asked to have answered first — both answered, with evidence, before any code was written | n/a — this is the requested process working as asked | **Confirmed 2026-09-17**: profit is already one shared, already-saved calculation; cost basis is already blended-average everywhere, not FIFO |
+| The test database's per-file reset was missing the new closed-periods table | Low today (nothing else uses that table yet), but would have caused a confusing, unrelated test failure the first time a test closed a period | **Fixed 2026-09-17**, caught during this session's own testing rather than by a later report |
+
+### Next — in priority order
+
+Unchanged from before this session: phase 5 of requirement 7 (switching the reports to read the
+accounting record) remains the largest open item. This session's work did not touch that — the
+Margin Ledger page reads the same saved per-sale figures the reports already use, not the
+accounting record.
 
 ## 2026-09-11 — audit cleanup pass: dead code, stale docs, duplicated constants, hygiene
 
