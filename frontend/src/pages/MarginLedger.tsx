@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Printer, ArrowUpDown, Lock, LockOpen, SearchX } from 'lucide-react'
+import { Printer, Info, ArrowUp, ArrowDown, Lock, LockOpen, SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { rangeBounds, marginLedger, currencyName, activityDate, stampTime, fmtDateTime, isClosedPeriod, periodLabel } from '@/lib/engine'
 import { fmt, fmtAmount, fmtQuote, fmtRate, fmtLongDate, todayISO } from '@/lib/format'
-import type { ReportPreset } from '@/lib/types'
+import type { Activity, ReportPreset } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
 import { SignedAmount } from '@/components/ui/signed-amount'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PrintHeader } from '@/components/PrintHeader'
 import { cn } from '@/lib/utils'
 
@@ -23,12 +24,8 @@ const PRESETS: { key: ReportPreset; label: string }[] = [
   { key: 'lastMonth', label: 'Last month' },
 ]
 
-type SortKey = 'date' | 'marginDesc' | 'marginAsc'
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'date', label: 'Date' },
-  { key: 'marginDesc', label: 'Highest margin' },
-  { key: 'marginAsc', label: 'Lowest margin' },
-]
+type SortKey = 'date' | 'margin'
+type SortDir = 'asc' | 'desc'
 
 // Column widths shared between the header and the rows — see Transactions.tsx's own COL for why
 // this must not be two separate sets of classes.
@@ -42,6 +39,29 @@ const COL = {
   margin: 'w-[140px] flex-none text-right',
 } as const
 
+const PERIOD_COL = {
+  month: 'min-w-0 flex-1',
+  status: 'w-[168px] flex-none',
+  closedBy: 'w-[140px] flex-none',
+  closedAt: 'w-[172px] flex-none',
+  margin: 'w-[120px] flex-none text-right',
+  action: 'w-[96px] flex-none text-right',
+} as const
+
+// Plain colored text for a signed margin figure — no pill/badge background. Used everywhere a
+// margin appears as one line among several (a sale row, a per-currency subtotal, a closed
+// period's frozen figure), so the pill styling stays reserved for the one headline total and
+// doesn't compete with it for visual weight. Both tokens are dark/bright enough on a plain
+// surface background to clear WCAG AA (4.5:1) in both themes — verified, not assumed.
+function marginClass(v: number): string {
+  if (!v) return 'text-muted-60'
+  return v > 0 ? 'text-positive-text' : 'text-negative-deep'
+}
+function marginText(v: number): string {
+  if (!v) return fmt(0)
+  return (v > 0 ? '+' : '−') + fmt(Math.abs(v))
+}
+
 export function MarginLedger() {
   const { state, closePeriod, reopenPeriod } = useStore()
   const navigate = useNavigate()
@@ -50,6 +70,7 @@ export function MarginLedger() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const [closeMonth, setCloseMonth] = useState(() => todayISO().slice(0, 7))
   const [periodMsg, setPeriodMsg] = useState('')
@@ -65,13 +86,15 @@ export function MarginLedger() {
     [state.accounts, state.activity, state.stocks, bounds],
   )
 
+  // One toggle per sort key, exactly like Date/Margin column-header sorting elsewhere: clicking
+  // the active key flips its direction, clicking the other key switches to it (newest/highest
+  // first by default) — never two separate buttons doing one job two different ways.
   const rows = useMemo(() => {
     const sorted = [...margin.sales]
-    if (sortKey === 'date') sorted.sort((a, b) => stampTime(activityDate(b)) - stampTime(activityDate(a)))
-    else if (sortKey === 'marginDesc') sorted.sort((a, b) => (b.margin || 0) - (a.margin || 0))
-    else sorted.sort((a, b) => (a.margin || 0) - (b.margin || 0))
+    const val = (t: Activity) => (sortKey === 'date' ? stampTime(activityDate(t)) : t.margin || 0)
+    sorted.sort((a, b) => (sortDir === 'desc' ? val(b) - val(a) : val(a) - val(b)))
     return sorted
-  }, [margin.sales, sortKey])
+  }, [margin.sales, sortKey, sortDir])
 
   const currencyRows = margin.byCurrency.filter((c) => c.count > 0)
   const rangeActive = !!(from || to)
@@ -81,6 +104,14 @@ export function MarginLedger() {
     if (key !== 'custom') {
       setFrom('')
       setTo('')
+    }
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDir('desc')
     }
   }
 
@@ -100,13 +131,23 @@ export function MarginLedger() {
       <PrintHeader title="Margin Ledger" period={`Showing ${bounds.label}.`} />
 
       <div className="flex items-start justify-between gap-3 print:hidden">
-        <h1 className="m-0 mb-[3px] font-serif text-report font-normal tracking-tight">Margin Ledger</h1>
+        <h1 className="m-0 mb-[3px] text-heading font-semibold tracking-tight">Margin Ledger</h1>
         <Button variant="secondary" size="sm" className="whitespace-nowrap text-meta font-medium" onClick={() => window.print()}>
           <Printer size={13} strokeWidth={2} aria-hidden="true" />
           Print
         </Button>
       </div>
-      <div className="mb-3 text-body font-normal text-muted-60 print:hidden">Realized margin on every currency sale, at the weighted-average cost recorded when it was sold.</div>
+      <div className="mb-3 flex items-center gap-1 text-body font-normal text-muted-60 print:hidden">
+        Profit earned on each currency sale this period.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="inline-flex flex-none items-center rounded-control p-0.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-ink" aria-label="How margin is calculated">
+              <Info size={13} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Calculated using weighted-average cost basis, recorded at the time of sale.</TooltipContent>
+        </Tooltip>
+      </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2 print:hidden">
         <span className="text-meta font-medium uppercase tracking-wide text-muted-60">Period</span>
@@ -181,9 +222,7 @@ export function MarginLedger() {
                   {c.count} sale{c.count === 1 ? '' : 's'} · {fmtAmount(c.qty, c.code)} {c.code} sold
                 </div>
               </div>
-              <div className="tabular text-body font-semibold">
-                <SignedAmount value={c.margin} />
-              </div>
+              <div className={cn('tabular text-body font-semibold', marginClass(c.margin))}>{marginText(c.margin)}</div>
             </div>
           ))}
       </Card>
@@ -191,20 +230,24 @@ export function MarginLedger() {
       <div className="mb-2 flex items-center justify-between gap-2 print:hidden">
         <span className="text-meta font-medium uppercase tracking-wide text-muted-60">Sales</span>
         <div className="flex items-center gap-1.5">
-          <ArrowUpDown size={12} strokeWidth={2.2} className="text-muted-60" aria-hidden="true" />
-          {SORTS.map((s) => (
-            <Button
-              key={s.key}
-              type="button"
-              variant="secondary"
-              size="sm"
-              aria-pressed={sortKey === s.key}
-              onClick={() => setSortKey(s.key)}
-              className={cn('text-meta', sortKey === s.key && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
-            >
-              {s.label}
-            </Button>
-          ))}
+          {(['date', 'margin'] as SortKey[]).map((key) => {
+            const active = sortKey === key
+            const DirIcon = sortDir === 'asc' ? ArrowUp : ArrowDown
+            return (
+              <Button
+                key={key}
+                type="button"
+                variant="secondary"
+                size="sm"
+                aria-pressed={active}
+                onClick={() => toggleSort(key)}
+                className={cn('text-meta', active && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+              >
+                {key === 'date' ? 'Date' : 'Margin'}
+                {active && <DirIcon size={12} strokeWidth={2.4} aria-hidden="true" />}
+              </Button>
+            )
+          })}
         </div>
       </div>
 
@@ -245,9 +288,7 @@ export function MarginLedger() {
                   </div>
                   <div className={cn(COL.buyRate, 'tabular text-body font-normal text-muted-70')}>{buyRate}</div>
                   <div className={cn(COL.sellRate, 'tabular text-body font-normal text-muted-70')}>{fmtRate(t.rate || 0, code)}</div>
-                  <div className={COL.margin}>
-                    <SignedAmount value={t.margin || 0} />
-                  </div>
+                  <div className={cn(COL.margin, 'tabular text-body font-semibold', marginClass(t.margin || 0))}>{marginText(t.margin || 0)}</div>
                 </div>
               )
             })}
@@ -279,32 +320,53 @@ export function MarginLedger() {
         {state.periods.length === 0 ? (
           <div className="px-[13px] py-4 text-body font-normal text-muted-60">No periods closed yet.</div>
         ) : (
-          state.periods.map((p) => {
-            const closed = isClosedPeriod(p)
-            return (
-              <div key={p.id} className="flex flex-wrap items-center gap-2.5 border-b border-divider px-[13px] py-2 last:border-b-0">
-                <div className="flex-1">
-                  <div className="flex items-center gap-1.5 text-body font-semibold">
-                    {periodLabel(p.id)}
-                    <Badge variant={closed ? 'pending' : 'neutral'}>
-                      {closed ? <Lock size={10} strokeWidth={2.4} aria-hidden="true" /> : <LockOpen size={10} strokeWidth={2.4} aria-hidden="true" />}
-                      {closed ? 'Closed' : 'Reopened'}
-                    </Badge>
-                  </div>
-                  <div className="text-meta font-normal text-muted-60">
-                    {closed ? `Closed by ${p.closedBy} on ${fmtDateTime(p.closedAt)}` : `Reopened by ${p.reopenedBy} on ${fmtDateTime(p.reopenedAt)} · last closed ${fmtDateTime(p.closedAt)}`}
-                  </div>
-                </div>
-                <div className="tabular text-body font-semibold">{fmt(p.closedMargin)}</div>
-                {closed && (
-                  <Button type="button" variant="secondary" size="sm" disabled={periodBusy} onClick={() => doReopen(p.id)}>
-                    <LockOpen size={13} strokeWidth={2.2} aria-hidden="true" />
-                    Reopen
-                  </Button>
-                )}
+          <div className="overflow-x-auto">
+            <div className="min-w-[680px]">
+              <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
+                <div className={PERIOD_COL.month}>Month</div>
+                <div className={PERIOD_COL.status}>Status</div>
+                <div className={PERIOD_COL.closedBy}>Closed By</div>
+                <div className={PERIOD_COL.closedAt}>Closed At</div>
+                <div className={PERIOD_COL.margin}>Margin</div>
+                <div className={PERIOD_COL.action} />
               </div>
-            )
-          })
+              {state.periods.map((p) => {
+                const closed = isClosedPeriod(p)
+                return (
+                  <div key={p.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 last:border-b-0">
+                    <div className={cn(PERIOD_COL.month, 'text-body font-semibold')}>{periodLabel(p.id)}</div>
+                    <div className={PERIOD_COL.status}>
+                      <Badge variant={closed ? 'pending' : 'neutral'}>
+                        {closed ? <Lock size={10} strokeWidth={2.4} aria-hidden="true" /> : <LockOpen size={10} strokeWidth={2.4} aria-hidden="true" />}
+                        {closed ? 'Closed' : 'Reopened'}
+                      </Badge>
+                      {/* Reopen is a secondary fact about a period whose headline state is now
+                          "Reopened" — a muted sub-line under the badge, rather than folded into
+                          one run-on sentence with everything else about the row. */}
+                      {!closed && (
+                        <div className="mt-0.5 text-meta font-normal text-muted-60">
+                          by {p.reopenedBy}, {fmtDateTime(p.reopenedAt)}
+                        </div>
+                      )}
+                    </div>
+                    <div className={cn(PERIOD_COL.closedBy, 'truncate text-body font-normal text-muted-70')} title={p.closedBy}>
+                      {p.closedBy}
+                    </div>
+                    <div className={cn(PERIOD_COL.closedAt, 'whitespace-nowrap text-meta font-normal text-muted-70')}>{fmtDateTime(p.closedAt)}</div>
+                    <div className={cn(PERIOD_COL.margin, 'tabular text-body font-semibold', marginClass(p.closedMargin))}>{marginText(p.closedMargin)}</div>
+                    <div className={PERIOD_COL.action}>
+                      {closed && (
+                        <Button type="button" variant="secondary" size="sm" disabled={periodBusy} onClick={() => doReopen(p.id)}>
+                          <LockOpen size={13} strokeWidth={2.2} aria-hidden="true" />
+                          Reopen
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
       </Card>
     </div>
