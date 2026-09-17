@@ -1,4 +1,4 @@
-import type { Account, Activity, Cheque, JournalEntry, Stocks } from '@currencydesk/engine'
+import type { Account, Activity, Cheque, JournalEntry, Period, Stocks } from '@currencydesk/engine'
 import { sinceLabel } from '@currencydesk/engine'
 import { resolveActor, type UserNameMap } from './userLookup.js'
 
@@ -269,6 +269,29 @@ export function mapJournalRow(
   if (row.cheque_id) entry.chequeId = row.cheque_id
   if (row.txn_date) entry.txnDate = row.txn_date
   return entry
+}
+
+export interface PeriodRow {
+  id: string
+  closed_margin: number
+  closed_at: Date
+  closed_by: string | null
+  reopened_at: Date | null
+  reopened_by: string | null
+}
+
+export function mapPeriodRow(row: PeriodRow, names: UserNameMap): Period {
+  const p: Period = {
+    id: row.id,
+    closedMargin: row.closed_margin,
+    closedAt: new Date(row.closed_at).toISOString(),
+    closedBy: resolveActor(row.closed_by, names),
+  }
+  if (row.reopened_at) {
+    p.reopenedAt = new Date(row.reopened_at).toISOString()
+    p.reopenedBy = resolveActor(row.reopened_by, names)
+  }
+  return p
 }
 
 export interface StockRow {

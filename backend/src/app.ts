@@ -14,6 +14,7 @@ import { journalRouter } from './routes/journal.js'
 import { salaryRouter } from './routes/salary.js'
 import { accountsRouter } from './routes/accounts.js'
 import { settingsRouter } from './routes/settings.js'
+import { periodsRouter } from './routes/periods.js'
 
 export function createApp() {
   const app = express()
@@ -59,6 +60,7 @@ export function createApp() {
   app.use('/api/salary', salaryRouter)
   app.use('/api/accounts', accountsRouter)
   app.use('/api/settings', settingsRouter)
+  app.use('/api/periods', periodsRouter)
 
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     console.error(err)

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Account, AccountType, Activity, Cheque, JournalEntry, SettlementMethod, Stocks } from './types'
+import type { Account, AccountType, Activity, Cheque, JournalEntry, Period, SettlementMethod, Stocks } from './types'
 import { ACCOUNT_TYPES } from './types'
 import { inUseAccountIds as buildInUseAccountIds, postedAccountIds as buildPostedAccountIds } from './accountRefs'
 import { useAuth } from './auth'
@@ -15,9 +15,10 @@ export interface AppState {
   cheques: Cheque[]
   journalEntries: JournalEntry[]
   stocks: Stocks
+  periods: Period[]
 }
 
-const EMPTY_STATE: AppState = { accounts: [], activity: [], cheques: [], journalEntries: [], stocks: {} }
+const EMPTY_STATE: AppState = { accounts: [], activity: [], cheques: [], journalEntries: [], stocks: {}, periods: [] }
 
 // Matches auth.tsx's AuthStatus naming convention — the same "what phase is this async data in"
 // modeling, one level down (business data instead of identity). No 'unreachable' distinction
@@ -198,6 +199,11 @@ interface StoreCtx {
 
   postJournal: (input: { debitAccount: string; debitAmount: number; creditAccount: string; creditAmount: number; narration: string }) => Promise<string>
 
+  /** `id` is the calendar month, 'YYYY-MM'. Snapshots the period's realized sales margin and
+   *  blocks any further Sale/Purchase backdated into it — see the engine's Period type. */
+  closePeriod: (id: string) => Promise<string>
+  reopenPeriod: (id: string) => Promise<string>
+
   depositCheque: (id: string) => Promise<string>
   clearCheque: (id: string) => Promise<string>
   returnCheque: (id: string) => Promise<string>
@@ -342,6 +348,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     confirmPay: (input) => mutateResult('POST', '/api/settlements/pay', input),
 
     postJournal: (input) => mutateString('POST', '/api/journal', input),
+
+    closePeriod: (id) => mutateString('POST', `/api/periods/${id}/close`),
+    reopenPeriod: (id) => mutateString('POST', `/api/periods/${id}/reopen`),
 
     depositCheque: (id) => mutateString('POST', `/api/cheques/${id}/deposit`),
     clearCheque: (id) => mutateString('POST', `/api/cheques/${id}/clear`),

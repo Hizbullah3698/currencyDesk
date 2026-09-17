@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Banknote, SquarePen, Lock, Users2, Wallet, UserRound, List, Coins, Landmark, TrendingUp, SlidersHorizontal, BookOpen, Plus } from 'lucide-react'
+import { LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Banknote, SquarePen, Lock, Users2, Wallet, UserRound, List, Coins, Landmark, TrendingUp, PiggyBank, SlidersHorizontal, BookOpen, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStore } from '@/lib/store'
 import { SIDEBAR_CATEGORY_COLORS, type Category } from '@/lib/ui-helpers'
@@ -48,6 +48,7 @@ const BOOKS: NavItemDef[] = [
   // "Ledgers" beside the new "Customer Ledger" would have left two entries whose names suggest the
   // same thing. The route is unchanged.
   { to: '/stock', label: 'Currency Stock', icon: Coins, category: 'fx' },
+  { to: '/margin-ledger', label: 'Margin Ledger', icon: PiggyBank, category: 'reports', adminOnly: true },
   { to: '/balance-sheet', label: 'Balance Sheet', icon: Landmark, category: 'reports', adminOnly: true },
   { to: '/income-statement', label: 'Income Statement', icon: TrendingUp, category: 'reports', adminOnly: true },
   { to: '/settings', label: 'Settings', icon: SlidersHorizontal, category: 'neutral', adminOnly: true },

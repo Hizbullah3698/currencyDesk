@@ -12,9 +12,14 @@ import {
   nextChequeNumber,
   custEffects,
   customerBalanceAsOf,
+  rangeBounds,
+  periodIdFor,
+  isClosedPeriod,
+  closedPeriodFor,
+  periodLabel,
 } from './engine.js'
 import { pkrPerUnit, quoteRate, pkrValueOf, currencyMeta, DEFAULT_CURRENCY } from './currencies.js'
-import type { Account, Activity, Cheque, JournalEntry } from './types.js'
+import type { Account, Activity, Cheque, JournalEntry, Period } from './types.js'
 
 function activity(overrides: Partial<Activity>): Activity {
   return {
@@ -456,5 +461,60 @@ describe('weighted-average cost across a mix of AED and IRR', () => {
     const irr = stockAsOf('IRR', liveStocks, mixed, midT)
     expect(irr.available).toBe(1_000_000)
     expect(irr.avgCost).toBeCloseTo(1 / 4952.53, 12)
+  })
+})
+
+describe('rangeBounds 7d/10d presets (Margin Ledger quick filters)', () => {
+  it('7d spans exactly 7 calendar days including today', () => {
+    const b = rangeBounds('7d', '', '')
+    expect(Math.round((b.toT - b.fromT) / 86400000)).toBe(7)
+    expect(b.label).toBe('Last 7 days')
+  })
+
+  it('10d spans exactly 10 calendar days including today', () => {
+    const b = rangeBounds('10d', '', '')
+    expect(Math.round((b.toT - b.fromT) / 86400000)).toBe(10)
+    expect(b.label).toBe('Last 10 days')
+  })
+})
+
+function period(overrides: Partial<Period>): Period {
+  return {
+    id: '2026-09',
+    closedMargin: 0,
+    closedAt: '2026-09-30T12:00:00.000Z',
+    closedBy: 'admin',
+    ...overrides,
+  }
+}
+
+describe('period close helpers (periodIdFor / isClosedPeriod / closedPeriodFor / periodLabel)', () => {
+  it('derives a YYYY-MM id from a bare txnDate by slicing, not parsing', () => {
+    expect(periodIdFor('2026-09-17')).toBe('2026-09')
+  })
+
+  it('is closed once it has a row that was never reopened', () => {
+    expect(isClosedPeriod(period({}))).toBe(true)
+  })
+
+  it('is open again once reopenedAt is set', () => {
+    expect(isClosedPeriod(period({ reopenedAt: '2026-10-01T00:00:00.000Z', reopenedBy: 'admin' }))).toBe(false)
+  })
+
+  it('finds the closed period a txnDate falls into', () => {
+    expect(closedPeriodFor('2026-09-15', [period({})])?.id).toBe('2026-09')
+  })
+
+  it('does not match a period that was closed then reopened', () => {
+    const periods = [period({ reopenedAt: '2026-10-01T00:00:00.000Z', reopenedBy: 'admin' })]
+    expect(closedPeriodFor('2026-09-15', periods)).toBeUndefined()
+  })
+
+  it('does not match a txnDate outside the closed month', () => {
+    expect(closedPeriodFor('2026-08-31', [period({})])).toBeUndefined()
+  })
+
+  it('labels an id as its month and year', () => {
+    expect(periodLabel('2026-09')).toBe('September 2026')
   })
 })

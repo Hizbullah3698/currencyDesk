@@ -19,6 +19,7 @@ import { Journal } from '@/pages/Journal'
 import { Transactions } from '@/pages/Transactions'
 import { BalanceSheet } from '@/pages/BalanceSheet'
 import { IncomeStatement } from '@/pages/IncomeStatement'
+import { MarginLedger } from '@/pages/MarginLedger'
 import { Salary } from '@/pages/Salary'
 import { Denied } from '@/pages/Denied'
 import { Settings } from '@/pages/Settings'
@@ -100,6 +101,14 @@ function RoutedApp() {
         <Route path="/transactions" element={<Transactions />} />
         <Route path="/ledger" element={<Ledger />} />
         <Route path="/ledger/:id" element={<LedgerDetail />} />
+        <Route
+          path="/margin-ledger"
+          element={
+            <RequireAdmin label="the Margin Ledger">
+              <MarginLedger />
+            </RequireAdmin>
+          }
+        />
         <Route
           path="/balance-sheet"
           element={

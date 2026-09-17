@@ -6,6 +6,7 @@ import { getAccount, settlementIdFor, settlementName, stockAccountIdFor, MARGIN_
 import { insertCheque } from './chequeHelpers.js'
 import { buildVoucherLegs, postVoucher } from './journalService.js'
 import { purchaseSides, saleSides } from './voucherPostings.js'
+import { assertPeriodOpen } from './periodsService.js'
 
 export interface TradeInput {
   customerId: string
@@ -67,6 +68,11 @@ export async function purchase(client: PoolClient, input: TradeInput, actorId: s
   const code = input.currency
   const { amount, rate, pkrValue, paidNow, outstanding } = buyCalc(input.amount, input.rate, input.method, input.paidNow, code)
 
+  // Decided here, before any lock or write, so a backdated post into a closed period fails fast
+  // rather than after taking the stock lock — see periodsService.ts's assertPeriodOpen.
+  const txnDate = input.txnDate ?? deskToday()
+  await assertPeriodOpen(client, txnDate)
+
   const cur = await lockStock(client, code)
   const newAvail = cur.available + amount
   // stock_positions.avg_cost is canonical PKR-per-unit, so the incoming leg has to be converted
@@ -107,10 +113,10 @@ export async function purchase(client: PoolClient, input: TradeInput, actorId: s
      ON CONFLICT (code) DO UPDATE SET available = $2, avg_cost = $3, updated_at = now()`,
     [code, newAvail, newAvg],
   )
-  // The date is decided HERE, on the desk's calendar, never left to the column's CURRENT_DATE
-  // default — that default is the database's day, which is UTC on Neon and yesterday for the
-  // first five hours of every desk day. RETURNING it still, so the voucher copies what was stored.
-  const txnDate = input.txnDate ?? deskToday()
+  // The date was decided above (before the period-close check), on the desk's calendar, never
+  // left to the column's CURRENT_DATE default — that default is the database's day, which is UTC
+  // on Neon and yesterday for the first five hours of every desk day. RETURNING it still, so the
+  // voucher copies what was stored.
   const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, currency, customer_id, customer_name, amount, rate, pkr_value, method, paid_now, outstanding, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
      VALUES ('purchase', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $14)
@@ -152,6 +158,11 @@ export async function sale(client: PoolClient, input: TradeInput, actorId: strin
     throw appError(400, 'A credit sale cannot carry an amount received now — there is no settlement account to debit.')
   }
 
+  // Decided here, before any lock or write, so a backdated post into a closed period fails fast
+  // rather than after taking the stock lock — see periodsService.ts's assertPeriodOpen.
+  const txnDate = input.txnDate ?? deskToday()
+  await assertPeriodOpen(client, txnDate)
+
   const cur = await lockStock(client, input.currency)
   // Re-validated AFTER the lock, against the row's current value, not a pre-transaction read —
   // this is what actually prevents two concurrent sales from both passing this check against
@@ -188,8 +199,8 @@ export async function sale(client: PoolClient, input: TradeInput, actorId: strin
   }
 
   await client.query('UPDATE stock_positions SET available = available - $1, updated_at = now() WHERE code = $2', [amount, input.currency])
-  // Dated on the desk's calendar for the same reason as purchase() above.
-  const txnDate = input.txnDate ?? deskToday()
+  // Dated on the desk's calendar, decided above (before the period-close check), for the same
+  // reason as purchase() above.
   const { rows: posted } = await client.query<{ id: string; txn_date: string }>(
     `INSERT INTO activity (type, currency, customer_id, customer_name, amount, rate, pkr_value, cost, margin, method, paid_now, outstanding, cheque_held, cheque_id, settlement_account_id, txn_date, created_by, updated_by)
      VALUES ('sale', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::date, $16, $16)

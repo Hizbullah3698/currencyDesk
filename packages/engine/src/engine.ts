@@ -3,6 +3,7 @@ import type {
   Activity,
   Cheque,
   JournalEntry,
+  Period,
   ReportPreset,
   RangeBounds,
   Stocks,
@@ -131,6 +132,16 @@ export function rangeBounds(preset: ReportPreset, from: string, to: string): Ran
     const f = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const t = new Date(now.getFullYear(), now.getMonth(), 0)
     return { fromT: startOf(f), toT: endOf(t), isAll: false, hasFrom: true, hasTo: true, label: f.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) }
+  }
+  if (preset === '7d') {
+    const f = new Date(now)
+    f.setDate(f.getDate() - 6)
+    return { fromT: startOf(f), toT: endOf(now), isAll: false, hasFrom: true, hasTo: true, label: 'Last 7 days' }
+  }
+  if (preset === '10d') {
+    const f = new Date(now)
+    f.setDate(f.getDate() - 9)
+    return { fromT: startOf(f), toT: endOf(now), isAll: false, hasFrom: true, hasTo: true, label: 'Last 10 days' }
   }
   if (preset === '30d') {
     const f = new Date(now)
@@ -273,6 +284,20 @@ export function stockAsOf(code: string, stocks: Stocks, activity: Activity[], to
 // `avgCost` in sellCalc is the opposite: it is always canonical PKR-per-unit, never a quote
 // rate, because it is a derived weighted average rather than something a dealer typed. That is
 // why `cost` multiplies unconditionally while `saleValue` goes through the conversion.
+//
+// COST BASIS IS DESK-WIDE WEIGHTED-AVERAGE, NOT FIFO. `avgCost` is whatever `stock_positions`
+// holds for the currency at the moment of sale — one blended PKR-per-unit figure across every
+// purchase ever made of that currency, re-weighted in place on each new purchase (see
+// `tradesService.purchase`), not a queue of discrete lots consumed oldest-first. A sale that
+// spans stock bought at several different rates is costed at the single blended average, never
+// split across the original purchase rates. This is deliberate and load-bearing far beyond this
+// function — `stockAsOf`/`openingStock` above replay this same weighted average for historical
+// valuation, the balance sheet prices currency stock with it, and `npm run reconcile` checks
+// against it — so switching to FIFO is a cost-basis change for the whole desk, not something a
+// caller of `sellCalc` can opt into locally. THIS IS THE SINGLE SOURCE OF TRUTH for realized
+// sale margin: both the Sale screen's live badge (`Trade.tsx`) and the persisted
+// `activity.cost`/`activity.margin` columns (`tradesService.sale`) call this exact function with
+// this exact `avgCost`, so they can never disagree.
 export function buyCalc(amount: number, rate: number, method: string, paidNowRaw: number, code = 'AED') {
   const pkrValue = pkrValueOf(code, amount, rate)
   const paidNow = method === 'Credit' ? 0 : Math.min(paidNowRaw || 0, pkrValue)
@@ -361,6 +386,37 @@ export function marginLedger(accounts: Account[], activity: Activity[], journalE
     adjRows.push({ label: e.ref + ' · ' + (e.narration || 'Journal entry'), sub: 'Dr ' + e.debitLabel + ' · Cr ' + e.creditLabel, amount: v })
   })
   return { salesMargin, journalAdj, total: salesMargin + journalAdj, adjRows, byCurrency, sales }
+}
+
+// ---------------------------------------------------------------------------
+// Period close — Sale/Purchase only, see types.ts's Period doc comment
+// ---------------------------------------------------------------------------
+
+/** The period id ('YYYY-MM') a bare 'YYYY-MM-DD' `txnDate` falls in. Plain string slicing, not a
+ *  parsed Date — `txnDate` is already the literal day with no time-of-day to shift. */
+export function periodIdFor(txnDate: string): string {
+  return txnDate.slice(0, 7)
+}
+
+/** False once an admin has reopened the period — the row is kept for its close history rather
+ *  than deleted, so "closed" is "has never been reopened", not merely "has a row at all". */
+export function isClosedPeriod(p: Period): boolean {
+  return !p.reopenedAt
+}
+
+/** The closed period a `txnDate` falls inside, or undefined if that month is open (never closed,
+ *  or closed then reopened). Used to block a new Sale/Purchase from backdating into it. */
+export function closedPeriodFor(txnDate: string, periods: Period[]): Period | undefined {
+  const id = periodIdFor(txnDate)
+  return periods.find((p) => p.id === id && isClosedPeriod(p))
+}
+
+/** 'YYYY-MM' -> 'September 2026'. Constructed from the parsed year/month directly (never a bare
+ *  `new Date('YYYY-MM')`, which some engines resolve as UTC) — only month+year are read back, so
+ *  there is no day-of-month for a timezone offset to shift. */
+export function periodLabel(id: string): string {
+  const [y, m] = id.split('-').map(Number)
+  return new Date(y, (m || 1) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
 // ---------------------------------------------------------------------------

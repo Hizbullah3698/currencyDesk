@@ -1,7 +1,20 @@
 import type { Pool, PoolClient } from 'pg'
-import type { Account, Activity, Cheque, JournalEntry, Stocks } from '@currencydesk/engine'
+import type { Account, Activity, Cheque, JournalEntry, Period, Stocks } from '@currencydesk/engine'
 import { loadUserNames } from './userLookup.js'
-import { mapAccountRow, mapActivityRow, mapChequeRow, mapJournalRow, mapStocks, type AccountRow, type ActivityRow, type ChequeRow, type JournalRow, type StockRow } from './mappers.js'
+import {
+  mapAccountRow,
+  mapActivityRow,
+  mapChequeRow,
+  mapJournalRow,
+  mapPeriodRow,
+  mapStocks,
+  type AccountRow,
+  type ActivityRow,
+  type ChequeRow,
+  type JournalRow,
+  type PeriodRow,
+  type StockRow,
+} from './mappers.js'
 
 export interface StateSnapshot {
   accounts: Account[]
@@ -9,6 +22,7 @@ export interface StateSnapshot {
   cheques: Cheque[]
   journalEntries: JournalEntry[]
   stocks: Stocks
+  periods: Period[]
 }
 
 /**
@@ -62,6 +76,7 @@ export async function getSnapshot(client: Pool | PoolClient, view: SnapshotView)
   const cheques = await client.query<ChequeRow>('SELECT * FROM cheques ORDER BY created_at DESC')
   const journalEntries = await client.query<JournalRow>('SELECT * FROM journal_entries ORDER BY created_at DESC')
   const stocks = await client.query<StockRow>('SELECT * FROM stock_positions ORDER BY code')
+  const periods = await client.query<PeriodRow>('SELECT * FROM periods ORDER BY id DESC')
 
   // Which accounts are Income, so mapJournalRow can withhold entries that disclose the desk's
   // profit from a non-admin. Derived from the rows already read above rather than hardcoding
@@ -78,5 +93,11 @@ export async function getSnapshot(client: Pool | PoolClient, view: SnapshotView)
       .map((r) => mapJournalRow(r, names, view.includeMargin, incomeAccountIds))
       .filter((e): e is JournalEntry => e !== null),
     stocks: mapStocks(stocks.rows),
+    // A closed period's frozen figure discloses realized margin exactly like activity.margin
+    // does, so it is gated the same way — omitted entirely for a non-admin rather than shown
+    // with the figure stripped, matching mapActivityRow/mapJournalRow's own reasoning. The trade
+    // block itself (assertPeriodOpen) still applies to every role regardless: an Operator gets
+    // the 409 at post time even though they never see this list.
+    periods: view.includeMargin ? periods.rows.map((r) => mapPeriodRow(r, names)) : [],
   }
 }

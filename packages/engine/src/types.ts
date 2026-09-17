@@ -176,7 +176,7 @@ export interface StockPosition {
 
 export type Stocks = Record<string, StockPosition>
 
-export type ReportPreset = 'all' | 'month' | 'lastMonth' | '30d' | 'ytd' | 'custom'
+export type ReportPreset = 'all' | 'month' | 'lastMonth' | '7d' | '10d' | '30d' | 'ytd' | 'custom'
 
 export interface RangeBounds {
   fromT: number
@@ -185,4 +185,24 @@ export interface RangeBounds {
   hasFrom: boolean
   hasTo: boolean
   label: string
+}
+
+/**
+ * A closed accounting month for the Margin Ledger — `id` is 'YYYY-MM'. Closing snapshots the
+ * period's realized sales margin so it stays fixed even if something downstream later changes;
+ * `closedMargin` is that frozen figure, not a live recomputation. Scoped to Sale/Purchase only
+ * (see `closedPeriodFor` in engine.ts) — this is not a full accounting-grade period close, and
+ * manual journal entries are not locked by it.
+ *
+ * `reopenedAt`/`reopenedBy` absent means the period is currently closed; present means an admin
+ * reopened it. The row is kept (not deleted) on reopen so `closedMargin`/`closedAt`/`closedBy`
+ * remain a record of the last close, and closing again overwrites them with a fresh snapshot.
+ */
+export interface Period {
+  id: string
+  closedMargin: number
+  closedAt: string
+  closedBy: string
+  reopenedAt?: string
+  reopenedBy?: string
 }
