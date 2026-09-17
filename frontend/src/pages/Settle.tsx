@@ -51,6 +51,14 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   // but must not be offered as a destination for a NEW one — the same rule Customer pickers
   // already follow (Trade.tsx, this screen's own customer combobox above).
   const banks = state.accounts.filter((a) => a.type === 'Bank' && !a.archived)
+  const bankOptions = useMemo(
+    () =>
+      state.accounts
+        .filter((a) => a.type === 'Bank' && !a.archived)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((a) => ({ value: a.id, label: a.name })),
+    [state.accounts],
+  )
   // Cheque uses the identical field: which of the desk's own accounts the cheque is drawn on /
   // deposited into (`settlementIdFor` resolves it exactly the same way for Bank and Cheque — see
   // settlementsService.ts). It is NOT the same thing as `chqBank` below, which is a free-text note
@@ -148,25 +156,22 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
           </div>
           {needsBankAccount && (
             <div>
-              <label className="mb-1.5 block text-meta font-semibold text-muted-70">
+              <label htmlFor="settle-bank" className="mb-1.5 block text-meta font-semibold text-muted-70">
                 {method === 'Cheque' ? (mode === 'receive' ? 'Deposit into' : 'Drawn from') : mode === 'receive' ? 'Receiving account' : 'Paying account'}
               </label>
               {banks.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {banks.map((b) => (
-                    <Button
-                      key={b.id}
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      aria-pressed={bankId === b.id}
-                      onClick={() => setBankId(b.id)}
-                      className={cn('text-meta', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
-                    >
-                      {b.name}
-                    </Button>
-                  ))}
-                </div>
+                // Same control as the Customer field above — a row of individual buttons stopped
+                // scaling past a handful of accounts (wrapped awkwardly, crowded the form), and a
+                // native <select> can't show a search box or a "no matches" state the way this can.
+                <Combobox
+                  id="settle-bank"
+                  value={bankId}
+                  onChange={setBankId}
+                  options={bankOptions}
+                  placeholder="Select account…"
+                  searchPlaceholder="Search accounts…"
+                  emptyLabel="No account matches."
+                />
               ) : (
                 <div className="text-meta font-normal text-muted-60">No active bank accounts — add one from Accounts.</div>
               )}
