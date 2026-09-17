@@ -32,8 +32,11 @@ export async function settlementName(client: PoolClient, id: string): Promise<st
   return a?.name || '—'
 }
 
+/** Excludes archived accounts — a retired bank account is not where a new, unaddressed deposit
+ *  should silently land. Today's callers always send an explicit `bankId` from an active-only
+ *  picker (see Settle.tsx), so this only matters if a caller ever omits it. */
 export async function defaultBankId(client: PoolClient): Promise<string> {
-  const { rows } = await client.query<{ id: string }>("SELECT id FROM accounts WHERE type = 'Bank' ORDER BY created_at ASC LIMIT 1")
+  const { rows } = await client.query<{ id: string }>("SELECT id FROM accounts WHERE type = 'Bank' AND NOT archived ORDER BY created_at ASC LIMIT 1")
   return rows[0]?.id || 'bank'
 }
 

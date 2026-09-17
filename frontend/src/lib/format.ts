@@ -1,4 +1,5 @@
 import { currencyMeta, quoteRate } from './engine'
+import type { Account } from './types'
 
 /** Credit/debit balances are always shown as positive numbers — sign is conveyed by a label, never a minus sign. */
 export function fmt(n: number): string {
@@ -99,6 +100,19 @@ export function txnAmountParts(t: { type: string; currency?: string; amount?: nu
     primary: `${fmtAmount(t.amount || 0, code)} ${code}`,
     secondary: fmt(t.pkrValue || 0),
   }
+}
+
+/**
+ * Which of the desk's own bank accounts a Bank/Cheque payment moved through, or null when the
+ * method has no such concept (Cash, Credit) — callers should render nothing for null, not a
+ * blank line. `settlementAccountId` is stored on every Bank/Cheque activity row (see
+ * settlementsService.ts / tradesService.ts), so the fallback string is for the edge case that
+ * row predates the field or its account can no longer be resolved — never a blank or "undefined".
+ */
+export function settlementAccountLabel(t: { method?: string; settlementAccountId?: string }, accounts: Account[]): string | null {
+  if (t.method !== 'Bank' && t.method !== 'Cheque') return null
+  const acct = t.settlementAccountId ? accounts.find((a) => a.id === t.settlementAccountId) : undefined
+  return acct?.name || 'account not recorded'
 }
 
 export function todayISO(): string {

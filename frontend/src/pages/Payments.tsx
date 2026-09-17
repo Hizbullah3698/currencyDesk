@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activityDate, auditLine, rangeBounds, stampTime } from '@/lib/engine'
-import { fmtLongDate, txnAmountParts } from '@/lib/format'
+import { fmtLongDate, settlementAccountLabel, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META } from '@/lib/ui-helpers'
 import type { ReportPreset } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,7 @@ const PRESETS: PeriodPreset[] = [
 const COL = {
   type: 'w-[108px] flex-none',
   party: 'min-w-0 flex-1',
-  method: 'w-[90px] flex-none',
+  method: 'w-[150px] flex-none',
   amount: 'w-[130px] flex-none text-right',
   date: 'w-[104px] flex-none text-right',
 } as const
@@ -101,7 +101,7 @@ export function Payments() {
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <div className="min-w-[700px]">
+          <div className="min-w-[760px]">
             <div className="flex items-center gap-4 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
               <div className={COL.type}>Type</div>
               <div className={COL.party}>Customer</div>
@@ -112,6 +112,7 @@ export function Payments() {
             {rows.map((t) => {
               const meta = ACTIVITY_META[t.type]
               const Icon = meta.icon
+              const bankLabel = settlementAccountLabel(t, state.accounts)
               return (
                 <div
                   key={t.id}
@@ -127,7 +128,16 @@ export function Payments() {
                   <div className={cn(COL.party, 'truncate text-body font-semibold')} title={t.customerName}>
                     {t.customerName}
                   </div>
-                  <div className={cn(COL.method, 'text-body font-normal text-muted-70')}>{t.method}</div>
+                  <div className={cn(COL.method, 'min-w-0')}>
+                    <div className="truncate text-body font-normal text-muted-70">{t.method}</div>
+                    {/* Persisted on every Bank/Cheque payment (settlement_account_id) but never
+                        shown until now — which of the desk's own accounts it moved through. */}
+                    {bankLabel && (
+                      <div className="truncate text-meta font-normal text-muted-60" title={bankLabel}>
+                        {bankLabel}
+                      </div>
+                    )}
+                  </div>
                   {/* Routed through the same helper as every other screen. Receipts and payments move
                       rupees and nothing else, so it returns the rupee amount with no conversion line —
                       the uniformity is the point, not a change in what this shows. */}

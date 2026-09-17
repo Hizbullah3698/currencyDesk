@@ -28,7 +28,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   const [addCustomerOpen, setAddCustomerOpen] = useState(false)
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<SettlementMethod>('Bank')
-  const [bankId, setBankId] = useState(state.accounts.find((a) => a.type === 'Bank')?.id || 'bank')
+  const [bankId, setBankId] = useState(state.accounts.find((a) => a.type === 'Bank' && !a.archived)?.id || '')
   const [chqNo, setChqNo] = useState('')
   const [chqBank, setChqBank] = useState('')
   const [error, setError] = useState('')
@@ -47,7 +47,15 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
     [state.accounts],
   )
   const cust = getAccount(customerId)
-  const banks = state.accounts.filter((a) => a.type === 'Bank')
+  // Archived accounts stay resolvable by id for OLD payments (see Payments.tsx/Transactions.tsx),
+  // but must not be offered as a destination for a NEW one — the same rule Customer pickers
+  // already follow (Trade.tsx, this screen's own customer combobox above).
+  const banks = state.accounts.filter((a) => a.type === 'Bank' && !a.archived)
+  // Cheque uses the identical field: which of the desk's own accounts the cheque is drawn on /
+  // deposited into (`settlementIdFor` resolves it exactly the same way for Bank and Cheque — see
+  // settlementsService.ts). It is NOT the same thing as `chqBank` below, which is a free-text note
+  // about the cheque itself (the payer's own bank), not the desk's account.
+  const needsBankAccount = method === 'Bank' || method === 'Cheque'
   const outstanding = mode === 'receive' ? cust?.receivable || 0 : cust?.payable || 0
   const amt = parseFloat(amount) || 0
   const remaining = Math.max(outstanding - amt, 0)
@@ -59,6 +67,9 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
     // just catches it before the review step rather than after a round trip.
     if (!txnDate) return setError('Enter the date this payment was made.')
     if (txnDate > todayISO()) return setError('The transaction date cannot be in the future — a payment can only be recorded on or after the day it was made.')
+    if (needsBankAccount && !bankId) {
+      return setError(banks.length === 0 ? 'No active bank accounts — add one from Accounts before recording this.' : 'Select which bank account this payment is going through.')
+    }
     setError('')
     setStep('review')
   }
@@ -135,21 +146,30 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               ))}
             </div>
           </div>
-          {method === 'Bank' && (
-            <div className="flex flex-wrap gap-1.5">
-              {banks.map((b) => (
-                <Button
-                  key={b.id}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  aria-pressed={bankId === b.id}
-                  onClick={() => setBankId(b.id)}
-                  className={cn('text-meta', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
-                >
-                  {b.name}
-                </Button>
-              ))}
+          {needsBankAccount && (
+            <div>
+              <label className="mb-1.5 block text-meta font-semibold text-muted-70">
+                {method === 'Cheque' ? (mode === 'receive' ? 'Deposit into' : 'Drawn from') : mode === 'receive' ? 'Receiving account' : 'Paying account'}
+              </label>
+              {banks.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {banks.map((b) => (
+                    <Button
+                      key={b.id}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      aria-pressed={bankId === b.id}
+                      onClick={() => setBankId(b.id)}
+                      className={cn('text-meta', bankId === b.id && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                    >
+                      {b.name}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-meta font-normal text-muted-60">No active bank accounts — add one from Accounts.</div>
+              )}
             </div>
           )}
           {method === 'Cheque' && (
@@ -216,6 +236,12 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               <span className="font-normal text-muted-70">Method</span>
               <b className="font-semibold">{method}</b>
             </div>
+            {needsBankAccount && (
+              <div className="flex justify-between">
+                <span className="font-normal text-muted-70">{method === 'Cheque' ? (mode === 'receive' ? 'Deposit into' : 'Drawn from') : 'Account'}</span>
+                <b className="font-semibold">{getAccount(bankId)?.name || '—'}</b>
+              </div>
+            )}
           </div>
           {error && <div className="mt-3 text-body font-semibold text-negative">{error}</div>}
           <div className="mt-3.5 flex justify-end gap-2">

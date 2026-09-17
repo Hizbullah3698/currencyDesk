@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer, Pencil, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activityDate, auditLine, currencyMeta, relLabel, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtRate, txnAmountParts } from '@/lib/format'
+import { fmt, fmtRate, settlementAccountLabel, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, statusMeta } from '@/lib/ui-helpers'
 import { BackButton } from '@/components/BackButton'
 import { PrintHeader } from '@/components/PrintHeader'
@@ -212,7 +212,8 @@ export function CustomerDetail() {
           const StatusIcon = status.icon
           const code = t.currency || 'AED'
           // Which currency, how much, and the rate in that currency's own quote convention.
-          const detail = t.type === 'sale' || t.type === 'purchase' ? `at ${fmtRate(t.rate || 0, code)} ${currencyMeta(code).rateLabel}` : `via ${t.method}`
+          const bankLabel = settlementAccountLabel(t, state.accounts)
+          const detail = t.type === 'sale' || t.type === 'purchase' ? `at ${fmtRate(t.rate || 0, code)} ${currencyMeta(code).rateLabel}` : `via ${t.method}` + (bankLabel ? ` · ${bankLabel}` : '')
           const money = txnAmountParts(t)
           return (
             <div key={t.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 transition-colors duration-150 hover:bg-surface-hover">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { activityDate, auditLine, isVoucherLeg, stampTime, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtAmount, fmtLongDate, fmtRate, shortRef } from '@/lib/format'
+import { fmt, fmtAmount, fmtLongDate, fmtRate, settlementAccountLabel, shortRef } from '@/lib/format'
 import { ACTIVITY_META, CHEQUE_META, JOURNAL_META, statusMeta } from '@/lib/ui-helpers'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -86,7 +86,10 @@ export function Transactions() {
       // ("Credit", currently the only one live — see Trade.tsx) is deliberately NOT concatenated
       // in here any more: an IRR amount already runs to nine figures, and appending "· Credit" to
       // that was exactly what forced the mid-word ellipsis. It's carried separately as `terms`.
-      const detail = isTrade ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)}` : `via ${t.method}`
+      // Persisted on every Bank/Cheque payment (settlement_account_id) but not previously shown
+      // anywhere — which of the desk's own accounts it moved through.
+      const bankLabel = settlementAccountLabel(t, state.accounts)
+      const detail = isTrade ? `${fmtAmount(t.amount || 0, code)} ${code} @ ${fmtRate(t.rate || 0, code)}` : `via ${t.method}` + (bankLabel ? ` · ${bankLabel}` : '')
       return {
         id: t.id,
         ref: shortRef(t.id),

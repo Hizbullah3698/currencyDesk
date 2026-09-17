@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { shortRef, txnAmountParts } from './format'
+import { shortRef, txnAmountParts, settlementAccountLabel } from './format'
+import type { Account } from './types'
 
 // The client's report: buy AED 1,000 from a customer, open their record, and the amount reads
 // "PKR 77,000" — a currency that was never part of the deal. Every screen was reaching for the
@@ -81,5 +82,52 @@ describe('shortRef', () => {
 
   it('uppercases whatever it returns, so the column reads consistently', () => {
     expect(shortRef('jv-7')).toBe('JV-7')
+  })
+})
+
+// The Bank chip on Make/Receive Payment used to look like a dead single pill because the seed
+// data has exactly one Bank account named "Bank" — the picker itself was already wired end to
+// end. This helper is the display half: showing WHICH account a payment used wherever the
+// method is already shown, instead of it being persisted but invisible.
+function bankAccount(overrides: Partial<Account>): Account {
+  return {
+    id: 'bank1',
+    type: 'Bank',
+    name: 'Meezan Bank - Current',
+    notes: '',
+    since: 'Jan 2026',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    createdBy: 'admin',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    updatedBy: 'admin',
+    ...overrides,
+  }
+}
+
+describe('settlementAccountLabel', () => {
+  const accounts = [bankAccount({ id: 'bank1', name: 'Meezan Bank - Current' }), bankAccount({ id: 'bank2', name: 'HBL - Savings' })]
+
+  it('resolves the account name for a Bank payment', () => {
+    expect(settlementAccountLabel({ method: 'Bank', settlementAccountId: 'bank2' }, accounts)).toBe('HBL - Savings')
+  })
+
+  it('resolves the account name for a Cheque payment the same way', () => {
+    expect(settlementAccountLabel({ method: 'Cheque', settlementAccountId: 'bank1' }, accounts)).toBe('Meezan Bank - Current')
+  })
+
+  it('returns null for Cash — the method has no account concept', () => {
+    expect(settlementAccountLabel({ method: 'Cash', settlementAccountId: 'bank1' }, accounts)).toBeNull()
+  })
+
+  it('returns null for Credit', () => {
+    expect(settlementAccountLabel({ method: 'Credit' }, accounts)).toBeNull()
+  })
+
+  it('falls back to a plain phrase rather than blank/undefined when the id is missing', () => {
+    expect(settlementAccountLabel({ method: 'Bank' }, accounts)).toBe('account not recorded')
+  })
+
+  it('falls back the same way when the id no longer resolves to a real account', () => {
+    expect(settlementAccountLabel({ method: 'Bank', settlementAccountId: 'deleted-id' }, accounts)).toBe('account not recorded')
   })
 })
