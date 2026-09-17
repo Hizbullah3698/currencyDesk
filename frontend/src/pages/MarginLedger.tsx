@@ -299,10 +299,18 @@ export function MarginLedger() {
 
       <Card className="print:hidden">
         <div className="border-b border-divider px-[13px] py-2.5">
-          <div className="text-body font-bold">Period Close</div>
-          <div className="text-meta font-normal text-muted-60">
-            Locks a calendar month's Sale/Purchase trades from being backdated into it and freezes that month's realized margin. Scoped to trades only — manual journal entries are unaffected.
+          <div className="flex items-center gap-1 text-body font-bold">
+            Period Close
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="inline-flex flex-none items-center rounded-control p-0.5 text-muted-60 transition-colors duration-150 hover:bg-surface-tint hover:text-ink" aria-label="What closing a period does">
+                  <Info size={13} strokeWidth={2} aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Scoped to trades only — manual journal entries are unaffected.</TooltipContent>
+            </Tooltip>
           </div>
+          <div className="text-meta font-normal text-muted-60">Locks a month's sales and purchases so the numbers can't change later.</div>
         </div>
 
         <div className="flex flex-wrap items-end gap-2 border-b border-divider px-[13px] py-2.5">
