@@ -14,7 +14,52 @@ interface TsMigration {
   up: (client: PoolClient) => Promise<void>
 }
 
+// Which database is this actually pointed at? Printed on every run, because the whole risk of a
+// migration is running it somewhere you did not mean to — and against production there is no undo.
+// Same reporting as resetBusinessData.ts, for the same reason.
+function target(): string {
+  try {
+    const u = new URL(process.env.DATABASE_URL || '')
+    return `${u.pathname.replace(/^\//, '') || '(unknown)'} @ ${u.host}`
+  } catch {
+    return '(unparseable DATABASE_URL)'
+  }
+}
+
 async function run() {
+  // --dry-run reports what WOULD be applied and changes nothing, not even schema_migrations.
+  // It exists for the production path: `npm run migrate:prod:check` is how you find out what a
+  // release is about to do to the live schema BEFORE it does it. Structural changes must land
+  // before the software that depends on them, and that is only safe if you know what they are.
+  const dryRun = process.argv.includes('--dry-run')
+
+  console.log(`migrate  ${target()}`)
+  console.log(`mode     ${dryRun ? 'DRY RUN — nothing will be applied' : 'APPLY'}\n`)
+
+  if (dryRun) {
+    // A database that has never been migrated has no schema_migrations table, and a dry run must
+    // not create one — so treat "missing table" as "nothing applied yet" rather than erroring.
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith('.sql') || f.endsWith('.ts'))
+      .sort()
+    let applied = new Set<string>()
+    try {
+      const { rows } = await pool.query('SELECT name FROM schema_migrations')
+      applied = new Set(rows.map((r) => r.name as string))
+    } catch {
+      console.log('schema_migrations does not exist — this database has never been migrated.\n')
+    }
+    const pending = files.filter((f) => !applied.has(f))
+    files.forEach((f) => console.log(`${applied.has(f) ? 'applied ' : 'PENDING '} ${f}`))
+    console.log(
+      pending.length === 0
+        ? '\nUp to date — nothing pending.'
+        : `\n${pending.length} pending. Nothing was applied; re-run without --dry-run to apply.`,
+    )
+    await pool.end()
+    return
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       name       text PRIMARY KEY,
