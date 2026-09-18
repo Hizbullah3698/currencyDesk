@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, SearchX, Users } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { relLabel } from '@/lib/engine'
-import { fmt } from '@/lib/format'
+import { activityDate } from '@/lib/engine'
+import { fmt, fmtLongDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -44,8 +44,12 @@ export function Customers() {
       state.accounts
         .filter((a) => a.type === 'Customer')
         .map((c) => {
-          const last = state.activity.filter((t) => t.customerId === c.id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
-          return { id: c.id, name: c.name, archived: c.archived, receivable: c.receivable, payable: c.payable, lastActivity: last ? relLabel(last.createdAt) : '—' }
+          // Picked AND displayed on activityDate() — the day the deal was struck — not createdAt.
+          // The two must agree: ordering on the keyed-in date while printing the deal date would
+          // let a backdated row entered this morning win "latest" and then print an older date
+          // than a deal that really is more recent.
+          const last = state.activity.filter((t) => t.customerId === c.id).sort((a, b) => +new Date(activityDate(b)) - +new Date(activityDate(a)))[0]
+          return { id: c.id, name: c.name, archived: c.archived, receivable: c.receivable, payable: c.payable, lastActivity: last ? fmtLongDate(activityDate(last)) : '—' }
         }),
     [state.accounts, state.activity],
   )

@@ -40,17 +40,6 @@ function dayIndex(d: Date): number {
   return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000)
 }
 
-export function relLabel(iso?: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
-  const diff = dayIndex(new Date()) - dayIndex(d)
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Yesterday'
-  if (diff > 1 && diff < 7) return diff + ' days ago'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 export function isToday(iso?: string): boolean {
   return !!iso && dayIndex(new Date(iso)) === dayIndex(new Date())
 }

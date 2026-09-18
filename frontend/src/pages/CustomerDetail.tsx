@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, ArrowUpFromLine, ArrowDownToLine, Inbox, Printer, Pencil, MoreVertical, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { activityDate, auditLine, currencyMeta, relLabel, txnIsOpen } from '@/lib/engine'
-import { fmt, fmtRate, settlementAccountLabel, txnAmountParts } from '@/lib/format'
+import { activityDate, auditLine, currencyMeta, txnIsOpen } from '@/lib/engine'
+import { fmt, fmtLongDate, fmtRate, settlementAccountLabel, txnAmountParts } from '@/lib/format'
 import { ACTIVITY_META, statusMeta } from '@/lib/ui-helpers'
 import { BackButton } from '@/components/BackButton'
 import { PrintHeader } from '@/components/PrintHeader'
@@ -201,7 +201,7 @@ export function CustomerDetail() {
           <div className="flex-1">Detail</div>
           <div className="min-w-[70px]">Status</div>
           <div className="min-w-[110px] text-right">Amount</div>
-          <div className="min-w-[62px] text-right">Date</div>
+          <div className="w-[104px] flex-none text-right">Date</div>
         </div>
         {txns.map((t) => {
           const meta = ACTIVITY_META[t.type]
@@ -239,8 +239,8 @@ export function CustomerDetail() {
               </div>
               {/* The deal date, not the keyed-in date — a backdated purchase reads as the day it
                   was actually struck on the customer's own statement. */}
-              <div className="min-w-[62px] text-right text-meta font-normal text-muted-60" title={auditLine(t)}>
-                {relLabel(activityDate(t))}
+              <div className="w-[104px] flex-none text-right text-meta font-normal text-muted-60" title={auditLine(t)}>
+                {fmtLongDate(activityDate(t))}
               </div>
             </div>
           )
