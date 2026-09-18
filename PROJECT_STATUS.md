@@ -206,6 +206,174 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-19 — a release to production was stopped before it could take the desk down
+
+### Done
+
+*At a glance: a routine "push this live" was requested and deliberately not carried out. Checking
+what would actually ship revealed that releasing right now would stop the entire desk working —
+not one page, the whole thing. Nothing was released. Production is untouched and healthy.*
+
+**What was asked for.** Release the two small screen fixes from the previous day to the live system.
+
+**What the check found.** The release would not have carried two changes. It would have carried
+**nine** — everything built since the Margin Ledger, none of which had ever been released. That by
+itself is only untidy. The problem is what is inside it.
+
+**Why releasing would have stopped the desk.** The Margin Ledger work added a new table to the
+database (the one that records closed months). Three facts combine badly:
+
+- **Adding a table to the live database is a separate, manual step.** It does not happen
+  automatically when software is released. This is deliberate and long-standing.
+- **The new software asks that table a question on every single request** — not only when someone
+  opens the Margin Ledger page.
+- **That question sits inside the one routine every screen and every action depends on.** It is
+  what loads the desk when you sign in, and it also runs inside every purchase, sale, payment,
+  cheque movement and accounting entry before the entry is saved.
+
+So releasing the software before adding the table means the desk asks for a table that is not
+there, on every request. The result is not a broken Margin Ledger page. **Nothing loads, and
+nothing can be recorded at all** — a full stop for the client's business, until the table is added.
+
+**The correct order, which is not optional.** Add the table to the live database first. Confirm it
+is there. Then release. Getting this the wrong way round is precisely the failure above.
+
+**One thing that does not exist yet.** Every other job that runs against the live system has a
+dedicated, named command for it — the security check, the data snapshot, the carry-over program,
+the desk-clearing routine. **Adding a table to the live database does not.** There is no rehearsed,
+written-down path for it, which is part of why this step is easy to forget. That gap is now
+recorded rather than left to be rediscovered.
+
+**Also worth a look before release, separately from all of the above.** The Accounts page change
+from 2026-09-18 makes real bank and cash balances visible to the client where the screen previously
+showed a dash. The figures are correct and agree with the Balance Sheet — but it is a visible
+change in what the client can see, and worth a glance before it goes out rather than after.
+
+**Nothing was committed or changed in this session.** The work was reading, checking and recording.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| Releasing the current software to the live system would stop the entire desk working — every screen and every action, not one page — because it depends on a database table that has to be added by hand first | **Critical**, had it been released | **Caught before release, 2026-09-19.** Nothing was pushed; production untouched. Recorded here and in Notion so it cannot be walked into again |
+| Nine sessions' worth of finished, tested work has accumulated without ever being released | Medium — the work is safe and committed, but the longer it sits the larger and riskier a single release becomes | **Recorded 2026-09-19**, awaiting the decision below |
+| There is no dedicated command for adding a table to the live database, unlike every other live-system job | Low on its own, but it is a contributing cause of the finding above | **Open** — worth adding before the next release |
+
+### Next — in priority order
+
+1. **Decide what actually ships.** Either add the new table to the live database and release all
+   nine changes together, or release only the two screen fixes on their own — they need no database
+   change at all and carry no risk of the above. This is a decision, not a technical problem.
+2. Add a proper named command for the "add a table to the live database" step, so the next schema
+   change has a rehearsed path instead of an improvised one.
+3. Unchanged: phase 5 of requirement 7 remains the largest open piece of work.
+
+## 2026-09-18 — bank and cash balances appear on the Accounts page; vague dates removed for good
+
+### Done
+
+*At a glance: two screen fixes. The Accounts page was showing a dash where every bank and cash
+balance should have been. Separately, the last two screens still saying "Today" and "Yesterday"
+instead of a real date were fixed, which removes that habit from the system entirely.*
+
+**The Accounts page was not showing bank balances at all.** Every bank and cash account displayed a
+plain dash in the Balance column. The figures were never missing or wrong — the page simply never
+asked for them, filling in a zero for every account that was not a customer.
+
+**Fixed by reusing the Balance Sheet's own calculation rather than writing a second one.** This
+matters more than it sounds. The balance shown on the Accounts page is now produced by the exact
+same routine that produces the Balance Sheet's bank and cash figures — so the two screens cannot
+drift apart and start telling the client different things about the same account. It correctly
+accounts for the account's opening balance, every payment made or received through that account,
+and cheques that have cleared through it.
+
+**Checked, not assumed.** The same books were read on both screens side by side and the figures
+match exactly — Bank 6,250, Meezan Bank – Current 2,000, Cash in hand 22,000. Nothing about the
+Balance Sheet changed; this only displays a figure it was already producing.
+
+**The vague-dates problem, finally finished.** On 2026-09-15 the Transactions and Payments tables
+were changed to show a real date ("Sep 17, 2026") instead of "Today" / "Yesterday" / "3 days ago",
+on the grounds that a relative label is not an acceptable date on a financial record. Two screens
+were missed at the time:
+
+- The **customer's own transaction history** — flagged in an earlier session, never actually fixed.
+- The **customer list's "Last activity" column** — found while fixing the first.
+
+Both now show the real date, using the same shared piece of formatting the other two screens
+already used. Worth recording that the earlier fixes had been done properly — one shared piece of
+formatting, not copy-pasted four times — so this was reusing it rather than repairing it.
+
+**One subtlety that would have been a quiet wrong answer.** The customer list's "Last activity"
+now picks *and* displays the same date — the day the deal was struck. Previously it chose the most
+recently *typed-in* deal. Left half-changed, a deal entered this morning for an old date would have
+won "most recent" and then displayed that old date — showing an older date than a deal that really
+was more recent. Both halves were changed together.
+
+**Full suite green: 332 tests** (105 screen, 172 server, 55 calculator), up from 326. Type-checking
+and the linter clean. Both screens were checked in the running desk in light and dark mode.
+
+**Committed locally as `1f59ab1` and `61b3b1f`, not released** — see the 2026-09-19 entry above for
+why nothing has been released.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The Accounts page showed a dash instead of the balance for every bank and cash account | Medium — no figure was wrong, but the client could not see balances on the page where they would expect them | **Fixed 2026-09-18** by reusing the Balance Sheet's own calculation, so the two cannot disagree |
+| The customer's transaction history and the customer list still showed "Today" / "Yesterday" instead of real dates | Medium — not acceptable on a financial record, and previously flagged but never actually fixed | **Fixed 2026-09-18**; relative dates are now gone from the system entirely |
+| The customer list chose "last activity" by the date a deal was typed in, while intending to show the date it was struck | Low today, wrong answer the moment a deal is backdated | **Fixed in the same change**, both halves together |
+
+### Next — in priority order
+
+Unchanged. Phase 5 of requirement 7 remains the largest open item; nothing in this session touched
+how any figure is calculated.
+
+## 2026-09-17 — later the same day: payments now record which bank account the money moved through
+
+### Done
+
+*At a glance: when money is received or paid, the desk now records which bank account it actually
+went through, and shows it everywhere that payment appears. Previously it recorded only "by bank",
+which is not enough to check against a real bank statement.*
+
+**What was missing.** Receiving or making a payment recorded the method — cash, bank, cheque — but
+not *which* bank account. The client has several (Meezan, HBL and others). "Paid by bank" with no
+account named cannot be reconciled against an actual bank statement, which is the main thing that
+information is for.
+
+**What changed.** The Receive Payment and Make Payment screens now let the dealer choose the bank
+account, and that choice is saved with the payment and displayed wherever that payment appears —
+the Payments list, the Transactions list, and the customer's own history. The display is produced
+by one shared piece of logic rather than three separate copies, for the same reason as always: three
+copies eventually disagree.
+
+**The account chooser is a searchable dropdown, not a row of buttons.** A row of buttons works for
+three accounts and falls apart at ten. This was changed after the first version, on review.
+
+**No new database table was needed.** Bank accounts were already ordinary accounts in the existing
+chart of accounts, which already supported being created, edited and retired like any other. This
+is also what made the following day's Accounts page work possible at all.
+
+**The trade screens were deliberately left alone, and this was re-confirmed with the client.**
+Currency Purchase and Currency Sale still have no payment section — every trade is recorded as
+unpaid, and money is settled afterwards through Receive/Make Payment. The client confirmed again
+this session that this is exactly how he works: the deal is recorded when struck, and paid later,
+sometimes the next day, sometimes later than that. The older payment section remains commented out
+in place with instructions for restoring it. **This is a settled decision, not an open question.**
+
+**Committed locally as `133499e`, `afd8157` and `a4d4992`, not released.**
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| Payments recorded the method but not which bank account, making them impossible to reconcile against a real bank statement | Medium — a real gap in the records, not just a display issue | **Fixed 2026-09-17** |
+| The bank account chooser was first built as a row of buttons, which does not scale past a handful of accounts | Low — caught on review before it reached the client | **Changed to a searchable dropdown** the same session |
+
+### Next — in priority order
+
+Unchanged from the Margin Ledger entry below.
+
 ## 2026-09-17 — Margin Ledger page and monthly period close
 
 ### Done
