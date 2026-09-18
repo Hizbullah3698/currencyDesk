@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '@/lib/store'
 import { fmt } from '@/lib/format'
+import { ledgerBalance } from '@/lib/reports'
 import { ACCOUNT_TYPES } from '@/lib/types'
 import type { Account, AccountType } from '@/lib/types'
 import { Lock, SearchX, Wallet } from 'lucide-react'
@@ -81,8 +82,24 @@ export function Accounts() {
       .sort((a, b) => ACCOUNT_TYPES.indexOf(a.type) - ACCOUNT_TYPES.indexOf(b.type) || a.name.localeCompare(b.name))
   }, [visible, search, typeFilter])
 
+  // Bank/Cash balances, computed with the same ledgerBalance() the Balance Sheet uses — same
+  // function, same "All time" cutoff (keep everything) — so this figure always agrees with what
+  // the Balance Sheet reports for the account. Not reimplemented here.
+  const bankBalances = useMemo(() => {
+    const m = new Map<string, number>()
+    state.accounts.forEach((a) => {
+      if (a.type !== 'Bank' && a.type !== 'Cash') return
+      m.set(a.id, ledgerBalance(a.id, state.journalEntries, state.activity, state.cheques, () => true))
+    })
+    return m
+  }, [state.accounts, state.journalEntries, state.activity, state.cheques])
+
   function balanceOf(a: Account) {
     if (a.type === 'Customer') return { dr: a.receivable || 0, cr: a.payable || 0 }
+    if (a.type === 'Bank' || a.type === 'Cash') {
+      const net = bankBalances.get(a.id) ?? 0
+      return { dr: net > 0 ? net : 0, cr: net < 0 ? -net : 0 }
+    }
     return { dr: 0, cr: 0 }
   }
 
