@@ -197,7 +197,11 @@ interface StoreCtx {
     chqBank: string
   }) => Promise<{ ok: boolean; error?: string }>
 
-  postJournal: (input: { debitAccount: string; debitAmount: number; creditAccount: string; creditAmount: number; narration: string }) => Promise<string>
+  /** `txnDate` is optional on the same terms as a trade's: omitted, the server dates the entry on
+   *  the desk's own today (routes/journal.ts). The Journal page still does not send one; the
+   *  customer-to-customer transfer on Settle does, because that screen has a date picker and a
+   *  transfer backdated to the day it was agreed belongs in that day's figures. */
+  postJournal: (input: { debitAccount: string; debitAmount: number; creditAccount: string; creditAmount: number; narration: string; txnDate?: string }) => Promise<string>
 
   /** `id` is the calendar month, 'YYYY-MM'. Snapshots the period's realized sales margin and
    *  blocks any further Sale/Purchase backdated into it — see the engine's Period type. */

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AlertTriangle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { fmt, fmtLongDate, todayISO } from '@/lib/format'
 import type { SettlementMethod } from '@/lib/types'
@@ -16,8 +17,37 @@ import { cn } from '@/lib/utils'
 
 const METHODS: SettlementMethod[] = ['Cash', 'Bank', 'Cheque']
 
+// ---------------------------------------------------------------------------
+// JV — a customer-to-customer transfer
+// ---------------------------------------------------------------------------
+//
+// Customer A says "take 10 lac out of my account and give it to B", and B wants it on his running
+// balance rather than paid out. No money touches a Bank or Cash account: one customer's ledger
+// balance is debited and the other's credited.
+//
+// IT IS NOT A SettlementMethod, deliberately. `SettlementMethod` is stamped on `activity.method`
+// and read by ledgerBalance, settlementAccountLabel and cashLegAmount among others — every one of
+// which would need a branch for a value that never produces an activity row at all. A JV writes a
+// journal entry and nothing else, so it sits BESIDE the method selector as its own control and the
+// union stays honest.
+//
+// IT POSTS THROUGH postJournal, NOT postVoucher. journalService.ts is explicit that vouchers exist
+// for movements that also write an activity row and move balances separately; a standalone
+// balanced pair (manual entries, salary, opening balances) needs none. A JV is that shape. Routing
+// it through postVoucher would also make isVoucherLeg() hide it from the reports.
+//
+// The accounting was already possible from the admin-only Journal page — postJournal moves BOTH
+// customers' balances (applyDebitToCustomer / applyCreditToCustomer) and its picker never filtered
+// by account type. This screen is a purpose-built way in, not new accounting.
+//
+// MAKE PAYMENT ONLY, and the direction is fixed: the customer named at the top is DEBITED (money
+// leaves their account) and the second customer is CREDITED. "Take it out of A, give it to B" is
+// a payment out of A's account, so that is the screen it belongs on; the mirror case is reached by
+// swapping who you pick rather than by a second, oppositely-worded form on Receive.
+const JV_LABEL = 'JV (transfer to customer)'
+
 export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
-  const { state, confirmReceive, confirmPay, getAccount } = useStore()
+  const { state, confirmReceive, confirmPay, getAccount, postJournal, isAdmin } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
   const presetCustomerId = (location.state as { customerId?: string } | null)?.customerId || ''
@@ -31,6 +61,8 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   const [bankId, setBankId] = useState(state.accounts.find((a) => a.type === 'Bank' && !a.archived)?.id || '')
   const [chqNo, setChqNo] = useState('')
   const [chqBank, setChqBank] = useState('')
+  const [isJV, setIsJV] = useState(false)
+  const [toCustomerId, setToCustomerId] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [posted, setPosted] = useState<{ amount: number; remaining: number } | null>(null)
@@ -59,18 +91,44 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
         .map((a) => ({ value: a.id, label: a.name })),
     [state.accounts],
   )
+  // Creating a JV is admin-only — POST /api/journal is requireAdmin server-side, so offering the
+  // control to an Operator would only produce a 403 at the end of a filled-in form. The posted
+  // entry itself stays visible to every role: it carries no Income leg, so mapJournalRow does not
+  // withhold it, and a plain balance transfer discloses no margin.
+  const jvAvailable = mode === 'pay' && isAdmin
+  const jvOn = jvAvailable && isJV
   // Cheque uses the identical field: which of the desk's own accounts the cheque is drawn on /
   // deposited into (`settlementIdFor` resolves it exactly the same way for Bank and Cheque — see
   // settlementsService.ts). It is NOT the same thing as `chqBank` below, which is a free-text note
   // about the cheque itself (the payer's own bank), not the desk's account.
-  const needsBankAccount = method === 'Bank' || method === 'Cheque'
+  //
+  // A JV replaces the money side entirely, so no account is needed whatever `method` still holds.
+  const needsBankAccount = !jvOn && (method === 'Bank' || method === 'Cheque')
   const outstanding = mode === 'receive' ? cust?.receivable || 0 : cust?.payable || 0
   const amt = parseFloat(amount) || 0
   const remaining = Math.max(outstanding - amt, 0)
 
+  const toCust = getAccount(toCustomerId)
+  // The receiving side of a transfer. Excludes the customer already chosen above — postJournal
+  // rejects debiting and crediting one account anyway, so this keeps that from being reachable.
+  const transferOptions = useMemo(() => customerOptions.filter((o) => o.value !== customerId), [customerOptions, customerId])
+  // Transferring more than the customer holds is ALLOWED — a running "kata" balance legitimately
+  // crosses from credit into debt, and postJournal's allocation rule handles it without either
+  // column going negative. So this is a warning, not a block: same visual language as the Currency
+  // Sale over-sell panel, deliberately without its hard stop.
+  const overBy = jvOn && amt > outstanding ? amt - outstanding : 0
+
   function review() {
     if (!cust) return setError('Select a customer.')
-    if (amt <= 0 || amt > outstanding) return setError(`Enter an amount between 1 and the outstanding ${mode === 'receive' ? 'receivable' : 'payable'}.`)
+    // A transfer is NOT capped at the outstanding balance — see `overBy`. Only the lower bound
+    // applies, and the over-transfer case is surfaced as a warning on the form instead.
+    if (jvOn) {
+      if (amt <= 0) return setError('Enter an amount greater than 0.')
+      if (!toCustomerId) return setError('Select the customer receiving this transfer.')
+      if (toCustomerId === customerId) return setError('A transfer needs two different customers.')
+    } else if (amt <= 0 || amt > outstanding) {
+      return setError(`Enter an amount between 1 and the outstanding ${mode === 'receive' ? 'receivable' : 'payable'}.`)
+    }
     // Mirrors Trade.tsx's own pre-check. The server validates this too (routes/txnDate.ts) — this
     // just catches it before the review step rather than after a round trip.
     if (!txnDate) return setError('Enter the date this payment was made.')
@@ -83,8 +141,26 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   }
 
   async function confirm() {
-    const input = { customerId, txnDate, amount: amt, method, bankId, chqNo, chqBank }
     setSubmitting(true)
+    if (jvOn) {
+      // Dr the customer named at the top, Cr the one receiving — the direction this screen fixes.
+      // postJournal moves both stored balances itself under its allocation rule; nothing else here
+      // touches them, which is exactly the "has anything else already moved this balance" test
+      // journalService.ts sets out.
+      const err = await postJournal({
+        debitAccount: customerId,
+        debitAmount: amt,
+        creditAccount: toCustomerId,
+        creditAmount: amt,
+        narration: `Transfer from ${cust?.name ?? 'customer'} to ${toCust?.name ?? 'customer'}`,
+        txnDate,
+      })
+      setSubmitting(false)
+      if (err) return setError(err)
+      setPosted({ amount: amt, remaining: Math.max(outstanding - amt, 0) })
+      return setStep('done')
+    }
+    const input = { customerId, txnDate, amount: amt, method, bankId, chqNo, chqBank }
     const res = mode === 'receive' ? await confirmReceive(input) : await confirmPay(input)
     setSubmitting(false)
     if (!res.ok) return setError(res.error || 'Could not post this payment.')
@@ -101,7 +177,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
         <BackButton label={cust ? cust.name : 'Overview'} onBack={() => navigate(-1)} />
       </div>
       <h1 className="m-0 mb-[3px] text-heading font-semibold">{title}</h1>
-      <div className="mb-[26px] text-body text-muted-60">Applies against the customer's outstanding {mode === 'receive' ? 'receivable' : 'payable'}.</div>
+      <div className="mb-[26px] text-body text-muted-60">{jvOn ? "Moves balance straight from one customer's account to another — no cash or bank movement." : `Applies against the customer's outstanding ${mode === 'receive' ? 'receivable' : 'payable'}.`}</div>
 
       {step === 'form' && (
         <Card className="animate-step flex flex-col gap-3 p-4">
@@ -145,14 +221,36 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
                   type="button"
                   variant="secondary"
                   size="sm"
-                  aria-pressed={method === m}
-                  onClick={() => setMethod(m)}
-                  className={cn(method === m && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                  aria-pressed={!jvOn && method === m}
+                  onClick={() => {
+                    setIsJV(false)
+                    setMethod(m)
+                  }}
+                  className={cn(!jvOn && method === m && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
                 >
                   {m}
                 </Button>
               ))}
+              {/* Separated from the three methods by a divider rather than sitting flush among
+                  them: it is not a fourth way of moving money, it is a different kind of posting
+                  that replaces the money side entirely. */}
+              {jvAvailable && (
+                <>
+                  <span className="mx-0.5 self-stretch border-l border-divider" aria-hidden="true" />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    aria-pressed={jvOn}
+                    onClick={() => setIsJV((v) => !v)}
+                    className={cn(jvOn && 'border-accent bg-accent-bg text-accent shadow-none hover:bg-accent-bg')}
+                  >
+                    {JV_LABEL}
+                  </Button>
+                </>
+              )}
             </div>
+            {jvOn && <div className="mt-1.5 text-meta font-normal leading-[1.45] text-muted-60">No cash or bank movement — {cust?.name || 'this customer'}'s balance is reduced and the same amount is credited to the customer below.</div>}
           </div>
           {needsBankAccount && (
             <div>
@@ -177,7 +275,33 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               )}
             </div>
           )}
-          {method === 'Cheque' && (
+          {jvOn && (
+            <div>
+              <FieldLabel htmlFor="settle-transfer-to">Transfer to</FieldLabel>
+              <Combobox
+                id="settle-transfer-to"
+                value={toCustomerId}
+                onChange={setToCustomerId}
+                options={transferOptions}
+                placeholder="Select customer…"
+                searchPlaceholder="Search customers…"
+                emptyLabel="No other customer to transfer to."
+                footer={<AddCustomerAction onAdd={() => setAddCustomerOpen(true)} />}
+              />
+              {/* Over-transfer is allowed, so this warns rather than blocks — see `overBy`. Same
+                  panel language as the Currency Sale over-sell readout so the two read alike. */}
+              {overBy > 0 && (
+                <div className="mt-2 rounded-control bg-negative-bg px-2.5 py-2">
+                  <div className="flex items-center gap-1.5 text-meta font-medium text-negative-deep">
+                    <AlertTriangle size={12} strokeWidth={2.2} className="flex-none" aria-hidden="true" />
+                    That's {fmt(overBy)} more than {cust?.name || 'this customer'}'s balance.
+                  </div>
+                  <div className="mt-1 text-meta font-normal leading-[1.45] text-negative-deep">This is allowed — the transfer will leave them owing the desk {fmt(overBy)}.</div>
+                </div>
+              )}
+            </div>
+          )}
+          {!jvOn && method === 'Cheque' && (
             <div className="rounded-control border border-border bg-surface-sunken p-2.5">
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
@@ -193,11 +317,11 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
             </div>
           )}
           <div className="flex items-center justify-between border-t border-divider pt-2.5">
-            <span className="text-meta font-normal text-muted-70">Remaining after payment</span>
+            <span className="text-meta font-normal text-muted-70">{jvOn ? 'Remaining after transfer' : 'Remaining after payment'}</span>
             <div className="tabular flex items-baseline gap-1.5">
               <span className="text-body font-normal text-muted-60 line-through">{fmt(outstanding)}</span>
               <span className="text-body text-muted-42" aria-hidden="true">→</span>
-              <b className="text-body font-medium">{fmt(method === 'Cheque' ? outstanding : remaining)}</b>
+              <b className="text-body font-medium">{fmt(!jvOn && method === 'Cheque' ? outstanding : remaining)}</b>
             </div>
           </div>
           {error && <div className="text-body font-semibold text-negative">{error}</div>}
@@ -206,7 +330,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               Cancel
             </Button>
             <Button type="button" variant="primary" onClick={review}>
-              Review Payment
+              {jvOn ? 'Review Transfer' : 'Review Payment'}
             </Button>
           </div>
         </Card>
@@ -214,7 +338,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
 
       {step === 'review' && cust && (
         <Card variant="flat" className="animate-step p-4">
-          <div className="mb-2.5 text-meta font-semibold uppercase tracking-wide text-muted-60">Review payment</div>
+          <div className="mb-2.5 text-meta font-semibold uppercase tracking-wide text-muted-60">{jvOn ? 'Review transfer' : 'Review payment'}</div>
           <div className="flex flex-col gap-1.5 text-body">
             <div className="flex justify-between">
               <span className="font-normal text-muted-70">Customer</span>
@@ -228,18 +352,35 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               <span className="font-normal text-muted-70">{mode === 'receive' ? 'Receivable' : 'Payable'} (original)</span>
               <b className="tabular font-semibold">{fmt(outstanding)}</b>
             </div>
+            {jvOn && (
+              <div className="flex justify-between">
+                <span className="font-normal text-muted-70">Transfer to</span>
+                <b className="font-semibold">{toCust?.name || '—'}</b>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span className="font-normal text-muted-70">Amount {mode === 'receive' ? 'received' : 'paid'}</span>
+              <span className="font-normal text-muted-70">{jvOn ? 'Amount transferred' : `Amount ${mode === 'receive' ? 'received' : 'paid'}`}</span>
               <b className="tabular font-semibold">{fmt(amt)}</b>
             </div>
             <div className="flex justify-between border-t border-divider pt-2">
               <span className="font-normal text-muted-70">Remaining</span>
-              <b className="tabular text-body font-semibold">{fmt(method === 'Cheque' ? outstanding : remaining)}</b>
+              <b className="tabular text-body font-semibold">{fmt(!jvOn && method === 'Cheque' ? outstanding : remaining)}</b>
             </div>
-            {method === 'Cheque' && <div className="rounded-control border border-border bg-surface-sunken px-2.5 py-2 text-meta font-normal leading-[1.45] text-muted-70">Held as a pending cheque — the balance won't move until it clears.</div>}
+            {/* Repeated at the review step on purpose: it is the last point before posting, and an
+                over-transfer is the one outcome on this form that leaves a customer owing money
+                they did not owe a moment ago. */}
+            {overBy > 0 && (
+              <div className="flex items-start gap-1.5 rounded-control bg-negative-bg px-2.5 py-2 text-meta font-medium leading-[1.45] text-negative-deep">
+                <AlertTriangle size={12} strokeWidth={2.2} className="mt-0.5 flex-none" aria-hidden="true" />
+                <span>
+                  This is {fmt(overBy)} more than {cust?.name}'s balance — it will leave them owing the desk {fmt(overBy)}.
+                </span>
+              </div>
+            )}
+            {!jvOn && method === 'Cheque' && <div className="rounded-control border border-border bg-surface-sunken px-2.5 py-2 text-meta font-normal leading-[1.45] text-muted-70">Held as a pending cheque — the balance won't move until it clears.</div>}
             <div className="flex justify-between">
               <span className="font-normal text-muted-70">Method</span>
-              <b className="font-semibold">{method}</b>
+              <b className="font-semibold">{jvOn ? 'JV — customer transfer' : method}</b>
             </div>
             {needsBankAccount && (
               <div className="flex justify-between">
@@ -254,7 +395,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
               Back
             </Button>
             <Button type="button" variant="primary" disabled={submitting} onClick={confirm}>
-              {submitting ? 'Posting…' : 'Confirm Payment'}
+              {submitting ? 'Posting…' : jvOn ? 'Confirm Transfer' : 'Confirm Payment'}
             </Button>
           </div>
         </Card>
@@ -262,9 +403,17 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
 
       {step === 'done' && posted && (
         <Card variant="flat" className={cn('animate-step border-l-[3px] p-4', mode === 'receive' ? 'border-l-positive' : 'border-l-negative')}>
-          <div className={`mb-2 text-meta font-semibold uppercase tracking-wide ${mode === 'receive' ? 'text-positive' : 'text-negative'}`}>{mode === 'receive' ? 'Payment received' : 'Payment made'}</div>
+          <div className={`mb-2 text-meta font-semibold uppercase tracking-wide ${mode === 'receive' ? 'text-positive' : 'text-negative'}`}>{jvOn ? 'Transfer posted' : mode === 'receive' ? 'Payment received' : 'Payment made'}</div>
           <div className="text-body font-normal leading-[1.6]">
-            {mode === 'receive' ? 'Received' : 'Paid'} {fmt(posted.amount)} {mode === 'receive' ? 'from' : 'to'} <b className="font-semibold">{cust?.name}</b>.
+            {jvOn ? (
+              <>
+                Transferred {fmt(posted.amount)} from <b className="font-semibold">{cust?.name}</b> to <b className="font-semibold">{toCust?.name}</b>.
+              </>
+            ) : (
+              <>
+                {mode === 'receive' ? 'Received' : 'Paid'} {fmt(posted.amount)} {mode === 'receive' ? 'from' : 'to'} <b className="font-semibold">{cust?.name}</b>.
+              </>
+            )}
           </div>
           <div className="mb-3.5 mt-1.5 text-body font-normal leading-[1.6]">
             Remaining: <b className="tabular font-semibold">{fmt(posted.remaining)}</b>.
