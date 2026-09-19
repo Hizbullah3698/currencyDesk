@@ -167,11 +167,13 @@ export function customerLedger(
     else if (t.type === 'receive' && !t.chequeHeld) priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable - (t.amount || 0) }) })
     else if (t.type === 'pay' && !t.chequeHeld) priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable - (t.amount || 0) }) })
   }
+  // Allocated, not subtracted — see customerBalanceAsOf. A cheque for more than the customer owes
+  // settles the debt and leaves the remainder as a credit, which is what the server now stores.
   for (const q of myCheques) {
     if (!beforePeriod(chequeDate(q))) continue
     const at = stampTime(chequeDate(q))
-    if (q.direction === 'Inward') priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable - q.amount }) })
-    else priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable - q.amount }) })
+    if (q.direction === 'Inward') priorSteps.push({ at, apply: (b) => allocateCredit(b, q.amount) })
+    else priorSteps.push({ at, apply: (b) => allocateDebit(b, q.amount) })
   }
   for (const e of myEntries) {
     if (!beforePeriod(activityDate(e))) continue
@@ -244,10 +246,15 @@ export function customerLedger(
       at: stampTime(date),
       date,
       build: (run) => {
-        const receivableDelta = q.direction === 'Inward' ? -q.amount : 0
-        const payableDelta = q.direction === 'Outward' ? -q.amount : 0
-        run.receivable += receivableDelta
-        run.payable += payableDelta
+        // Deltas derived by difference from the allocation, exactly as the journal row does: on a
+        // cheque that over-covers the debt both columns move and neither delta equals the cheque's
+        // own figure, so a flat ±amount would contradict the running balance printed beside it.
+        const before = { receivable: run.receivable, payable: run.payable }
+        const after = q.direction === 'Inward' ? allocateCredit(before, q.amount) : allocateDebit(before, q.amount)
+        run.receivable = after.receivable
+        run.payable = after.payable
+        const receivableDelta = after.receivable - before.receivable
+        const payableDelta = after.payable - before.payable
         return {
           id: q.id,
           date: isoDay(date),

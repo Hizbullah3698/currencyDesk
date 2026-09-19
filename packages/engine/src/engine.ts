@@ -309,13 +309,17 @@ export function customerBalanceAsOf(
     else if (t.type === 'pay' && !t.chequeHeld) steps.push({ order, apply: (b) => ({ ...b, payable: b.payable - (t.amount || 0) }) })
   }
 
+  // A cleared cheque goes through the SAME allocation as a journal entry, because the server does:
+  // a cheque can be for more than the customer owes, and since 2026-09-19 the excess crosses over
+  // as a credit rather than driving the column negative (chequeService.ts). Plain subtraction here
+  // would make the replay disagree with the books the moment one over-covers a debt.
   for (const q of cheques) {
     if (q.customerId !== cust.id || q.status !== 'Cleared') continue
     const when = q.updatedAt || q.createdAt
     if (!keep(when)) continue
     const order = stampTime(when)
-    if (q.direction === 'Inward') steps.push({ order, apply: (b) => ({ ...b, receivable: b.receivable - q.amount }) })
-    else steps.push({ order, apply: (b) => ({ ...b, payable: b.payable - q.amount }) })
+    if (q.direction === 'Inward') steps.push({ order, apply: (b) => allocateCredit(b, q.amount) })
+    else steps.push({ order, apply: (b) => allocateDebit(b, q.amount) })
   }
 
   for (const e of customerJournalEntries(cust.id, journalEntries, keep)) {

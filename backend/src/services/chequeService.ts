@@ -40,10 +40,47 @@ export async function clearCheque(client: PoolClient, id: string, actorId: strin
 
   const q = rows[0]
   if (q.customer_id) {
+    // A CHEQUE CAN BE FOR MORE THAN THE CUSTOMER OWES, and the excess is not handed back over the
+    // counter — it stays with the desk as a credit the customer can draw on later. Confirmed with
+    // the client 2026-09-19 (AUDIT.md §3 #3, option A).
+    //
+    // Until then this was a plain `receivable = receivable - $1` with no guard of any kind, and
+    // `accounts.receivable` carries no CHECK — so an inward cheque larger than the debt simply
+    // stored a NEGATIVE receivable. The net was arithmetically right and the split was wrong,
+    // which is the half that gets read: "Receivable −70,000" where the books mean "Payable 70,000".
+    // It also understated the TopBar total and would let deleteAccount's balance check pass for a
+    // customer who was still owed money. Cheque clearing was the only balance-moving path in the
+    // codebase with neither a guard nor an allocation rule.
+    //
+    // SAME RULE AS postJournal AND THE JV TRANSFER: settle what is outstanding in the opposite
+    // direction first, then let the remainder cross over. An inward cheque credits the customer, an
+    // outward one debits them — so this is `applyCreditToCustomer`/`applyDebitToCustomer` by
+    // another name, and the engine replays it with the identical allocateCredit/allocateDebit.
+    //
+    // ONE STATEMENT, NO READ-MODIFY-WRITE, so no `SELECT … FOR UPDATE` is needed: SQL evaluates
+    // every SET against the pre-update row, and Postgres serialises concurrent writers on the same
+    // row. That is the reasoning journalService.ts already sets out for the identical shape, where
+    // it notes this is STRONGER than the lock-then-update the settlement paths use. The audit asked
+    // for a row lock, but it did so while option B (guard + 409, which really is a lock-then-update)
+    // was still on the table; choosing option A makes the lock redundant rather than optional.
     if (q.direction === 'Inward') {
-      await client.query('UPDATE accounts SET receivable = receivable - $1, updated_at = now() WHERE id = $2', [q.amount, q.customer_id])
+      await client.query(
+        `UPDATE accounts SET
+           payable    = payable + GREATEST($1 - receivable, 0),
+           receivable = GREATEST(receivable - $1, 0),
+           updated_at = now()
+         WHERE id = $2`,
+        [q.amount, q.customer_id],
+      )
     } else {
-      await client.query('UPDATE accounts SET payable = payable - $1, updated_at = now() WHERE id = $2', [q.amount, q.customer_id])
+      await client.query(
+        `UPDATE accounts SET
+           receivable = receivable + GREATEST($1 - payable, 0),
+           payable    = GREATEST(payable - $1, 0),
+           updated_at = now()
+         WHERE id = $2`,
+        [q.amount, q.customer_id],
+      )
     }
 
     // Clearing is the only cheque transition that posts anything — see chequeClearingSides.
