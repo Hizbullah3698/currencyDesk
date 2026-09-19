@@ -66,6 +66,17 @@ interface Row {
    *  the display changed, the sort key that drives row order did not. */
   sortT: number
   audit: string
+  /** Who keyed the row in, shown on the row rather than only in `audit`'s tooltip.
+   *
+   *  A hover is not a record. A JV bypasses Bank and Cash entirely, so its journal entry is the
+   *  only trace that the transfer happened and the only record of who authorised it — and that
+   *  was reachable solely by hovering the Date cell. Every row type carries the same field, so
+   *  this is not a JV-only affordance: a trade, a cheque and an opening balance all say who
+   *  recorded them on the same line.
+   *
+   *  Reads sensibly for rows nobody keyed in: resolveActor gives 'System' for a null actor (the
+   *  backfilled and migration-seeded entries) and 'Unknown user' for one whose account is gone. */
+  by: string
   customerId: string | null
 }
 
@@ -104,6 +115,7 @@ export function Transactions() {
         date: activityDate(t),
         sortT: stampTime(t.createdAt),
         audit: auditLine(t),
+        by: t.createdBy,
         customerId: t.customerId,
       }
     })
@@ -121,6 +133,7 @@ export function Transactions() {
       date: q.createdAt,
       sortT: stampTime(q.createdAt),
       audit: auditLine(q),
+      by: q.createdBy,
       customerId: q.customerId,
     }))
     // Voucher legs are the bookkeeping behind a trade, not events in their own right — the trade
@@ -139,6 +152,7 @@ export function Transactions() {
       date: e.createdAt,
       sortT: stampTime(e.createdAt),
       audit: auditLine(e),
+      by: e.createdBy,
       customerId: null,
     }))
     const all = [...txnRows, ...chequeRows, ...journalRows].sort((a, b) => b.sortT - a.sortT)
@@ -226,8 +240,15 @@ export function Transactions() {
                     </div>
                     <span className="text-body font-medium text-ink">{r.meta.label}</span>
                   </div>
-                  <div className={cn(COL.party, 'truncate text-body font-semibold')} title={r.who}>
-                    {r.who}
+                  {/* Party over "posted by". Stacked here rather than given a column of its own
+                      because this is the one flexible cell on the row — a new fixed column would
+                      mean re-balancing all six others, which is the exact change that produced the
+                      header/row drift recorded in COL's comment above. */}
+                  <div className={cn(COL.party, 'min-w-0')}>
+                    <div className="truncate text-body font-semibold" title={r.who}>
+                      {r.who}
+                    </div>
+                    <div className="truncate text-meta font-normal text-muted-60">posted by {r.by}</div>
                   </div>
                   {/* title carries the full string as a safety net — the column is now sized for
                       the realistic worst case (a nine-figure IRR amount @ its rate), but nothing

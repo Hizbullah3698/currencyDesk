@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SquarePen } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { isVoucherLeg } from '@/lib/engine'
+import { auditLine, isVoucherLeg } from '@/lib/engine'
 import { ACCOUNT_TYPES } from '@/lib/types'
 import { fmt } from '@/lib/format'
 import { statusMeta } from '@/lib/ui-helpers'
@@ -134,12 +134,21 @@ export function Journal() {
               <div className="flex-1 text-body font-normal">{e.narration}</div>
               <div className="tabular text-body font-medium">{fmt(e.amount)}</div>
             </div>
-            <div className="mt-1 flex gap-4 text-meta font-normal text-muted-70">
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-meta font-normal text-muted-70">
               <span>
                 Dr <b className="font-semibold text-ink">{e.debitLabel}</b>
               </span>
               <span>
                 Cr <b className="font-semibold text-ink">{e.creditLabel}</b>
+              </span>
+              {/* This list showed the entry and its two legs but never who posted it — not even on
+                  hover, unlike the Transactions page. For a customer-to-customer transfer that is
+                  the only record of who authorised money moving, since no Bank or Cash account is
+                  involved. `auditLine` stays on the title for the exact time and any later edit;
+                  the name itself no longer needs discovering. Reads correctly for the entries
+                  nobody keyed in too — a null actor resolves to 'System'. */}
+              <span className="text-muted-60" title={auditLine(e)}>
+                posted by <b className="font-medium text-muted-70">{e.createdBy}</b>
               </span>
             </div>
           </div>
