@@ -270,7 +270,7 @@ describe('customer receivable/payable replay (custEffects / customerBalanceAsOf)
     const activities: Activity[] = [
       activity({ id: 's1', type: 'sale', customerId: 'cust1', pkrValue: 5000, createdAt: '2026-01-01T00:00:00.000Z' }),
     ]
-    const balance = customerBalanceAsOf(cust, activities, [], new Date('2026-01-05T00:00:00.000Z').getTime())
+    const balance = customerBalanceAsOf(cust, activities, [], [], new Date('2026-01-05T00:00:00.000Z').getTime())
     expect(balance.receivable).toBe(7000)
   })
 
@@ -281,21 +281,21 @@ describe('customer receivable/payable replay (custEffects / customerBalanceAsOf)
   // created 2026-09-01, and the last remaining disagreement in `npm run reconcile`.
   it('does not apply an opening balance at a date before the account existed', () => {
     const cust = account({ id: 'cust1', openingReceivable: 10_000, createdAt: '2026-09-01T00:00:00.000Z' })
-    const before = customerBalanceAsOf(cust, [], [], new Date('2026-08-31T23:59:59.999Z').getTime())
+    const before = customerBalanceAsOf(cust, [], [], [], new Date('2026-08-31T23:59:59.999Z').getTime())
     expect(before.receivable, 'nothing was on the books before the account was opened').toBe(0)
     expect(before.payable).toBe(0)
   })
 
   it('applies the opening balance from the day the account was created onwards', () => {
     const cust = account({ id: 'cust1', openingReceivable: 10_000, createdAt: '2026-09-01T00:00:00.000Z' })
-    expect(customerBalanceAsOf(cust, [], [], new Date('2026-09-01T00:00:00.000Z').getTime()).receivable).toBe(10_000)
-    expect(customerBalanceAsOf(cust, [], [], new Date('2026-12-31T00:00:00.000Z').getTime()).receivable).toBe(10_000)
+    expect(customerBalanceAsOf(cust, [], [], [], new Date('2026-09-01T00:00:00.000Z').getTime()).receivable).toBe(10_000)
+    expect(customerBalanceAsOf(cust, [], [], [], new Date('2026-12-31T00:00:00.000Z').getTime()).receivable).toBe(10_000)
   })
 
   it('dates an opening payable on the same terms as an opening receivable', () => {
     const cust = account({ id: 'cust1', openingPayable: 4_000, createdAt: '2026-09-01T00:00:00.000Z' })
-    expect(customerBalanceAsOf(cust, [], [], new Date('2026-08-20T00:00:00.000Z').getTime()).payable).toBe(0)
-    expect(customerBalanceAsOf(cust, [], [], new Date('2026-09-02T00:00:00.000Z').getTime()).payable).toBe(4_000)
+    expect(customerBalanceAsOf(cust, [], [], [], new Date('2026-08-20T00:00:00.000Z').getTime()).payable).toBe(0)
+    expect(customerBalanceAsOf(cust, [], [], [], new Date('2026-09-02T00:00:00.000Z').getTime()).payable).toBe(4_000)
   })
 })
 

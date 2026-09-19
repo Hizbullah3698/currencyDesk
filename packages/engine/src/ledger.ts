@@ -1,5 +1,5 @@
-import type { Account, Activity, Cheque } from './types.js'
-import { activityDate, stampTime } from './engine.js'
+import type { Account, Activity, Cheque, JournalEntry } from './types.js'
+import { activityDate, allocateCredit, allocateDebit, customerJournalEntries, stampTime } from './engine.js'
 
 // ---------------------------------------------------------------------------
 // Customer ledger / statement
@@ -20,7 +20,7 @@ import { activityDate, stampTime } from './engine.js'
 // the customer's actual position and have no way to account for the gap. They are included, typed
 // distinctly, and carry no currency or rate because they have none.
 
-export type LedgerRowType = 'purchase' | 'sale' | 'receive' | 'pay' | 'cheque'
+export type LedgerRowType = 'purchase' | 'sale' | 'receive' | 'pay' | 'cheque' | 'journal'
 
 export interface LedgerRow {
   id: string
@@ -122,7 +122,13 @@ export interface LedgerRange {
  * which silently pulled future transactions into the balance brought forward, making a
  * mid-history statement open at the wrong figure. Bounds make the three cases distinguishable.
  */
-export function customerLedger(cust: Account, activity: Activity[], cheques: Cheque[], range: LedgerRange = {}): CustomerLedger {
+export function customerLedger(
+  cust: Account,
+  activity: Activity[],
+  cheques: Cheque[],
+  journalEntries: JournalEntry[],
+  range: LedgerRange = {},
+): CustomerLedger {
   const fromT = range.fromT ?? -Infinity
   const toT = range.toT ?? Infinity
   const inPeriod = (iso: string) => {
@@ -135,23 +141,48 @@ export function customerLedger(cust: Account, activity: Activity[], cheques: Che
 
   const mine = activity.filter((t) => t.customerId === cust.id)
   const myCheques = cheques.filter((q) => q.customerId === cust.id && q.status === 'Cleared')
+  // Manual entries and customer-to-customer transfers move this balance too, and until now the
+  // statement could not see them — it took activity and cheques only, so a transfer moved both
+  // customers' balances while appearing on neither one's statement, and the closing figure was
+  // short by exactly that amount. `customerJournalEntries` excludes voucher legs (a trade's
+  // activity row already carries it) and the account's own opening entry (seeded below instead,
+  // so replaying it here would count it twice).
+  const myEntries = customerJournalEntries(cust.id, journalEntries, () => true)
 
   // --- opening balance: strictly what happened BEFORE the period, plus the account's own opening
   // figures. Anything after the period end is not brought forward — it has not happened yet as far
   // as this statement is concerned.
-  const before = <T>(items: T[], dateOf: (x: T) => string) => items.filter((x) => beforePeriod(dateOf(x)))
-  let openingReceivable = cust.openingReceivable || 0
-  let openingPayable = cust.openingPayable || 0
-  for (const t of before(mine, activityDate)) {
-    if (t.type === 'sale') openingReceivable += owedOn(t)
-    if (t.type === 'purchase') openingPayable += owedOn(t)
-    if (t.type === 'receive' && !t.chequeHeld) openingReceivable -= t.amount || 0
-    if (t.type === 'pay' && !t.chequeHeld) openingPayable -= t.amount || 0
+  //
+  // ONE CHRONOLOGICAL FOLD, not three independent sums. Activity and cheques each know their own
+  // direction so they could be added in any order, but a journal entry's effect depends on the
+  // running pair at that moment (see allocateDebit/allocateCredit) — so the moment manual entries
+  // joined the statement, "sum each kind separately" stopped being able to express the answer.
+  let opening = { receivable: cust.openingReceivable || 0, payable: cust.openingPayable || 0 }
+  const priorSteps: { at: number; apply: (b: typeof opening) => typeof opening }[] = []
+  for (const t of mine) {
+    if (!beforePeriod(activityDate(t))) continue
+    const at = stampTime(activityDate(t))
+    if (t.type === 'sale') priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable + owedOn(t) }) })
+    else if (t.type === 'purchase') priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable + owedOn(t) }) })
+    else if (t.type === 'receive' && !t.chequeHeld) priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable - (t.amount || 0) }) })
+    else if (t.type === 'pay' && !t.chequeHeld) priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable - (t.amount || 0) }) })
   }
-  for (const q of before(myCheques, chequeDate)) {
-    if (q.direction === 'Inward') openingReceivable -= q.amount
-    else openingPayable -= q.amount
+  for (const q of myCheques) {
+    if (!beforePeriod(chequeDate(q))) continue
+    const at = stampTime(chequeDate(q))
+    if (q.direction === 'Inward') priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable - q.amount }) })
+    else priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable - q.amount }) })
   }
+  for (const e of myEntries) {
+    if (!beforePeriod(activityDate(e))) continue
+    const at = stampTime(activityDate(e))
+    if (e.debitAccount === cust.id) priorSteps.push({ at, apply: (b) => allocateDebit(b, e.amount) })
+    if (e.creditAccount === cust.id) priorSteps.push({ at, apply: (b) => allocateCredit(b, e.amount) })
+  }
+  priorSteps.sort((a, b) => a.at - b.at)
+  for (const step of priorSteps) opening = step.apply(opening)
+  const openingReceivable = opening.receivable
+  const openingPayable = opening.payable
 
   // --- rows in the period ---
   interface Pending {
@@ -226,6 +257,39 @@ export function customerLedger(cust: Account, activity: Activity[], cheques: Che
           pkrValue: q.amount,
           receivableDelta,
           payableDelta,
+          runningReceivable: run.receivable,
+          runningPayable: run.payable,
+          runningNet: run.receivable - run.payable,
+        }
+      },
+    })
+  }
+
+  for (const e of myEntries) {
+    const date = activityDate(e)
+    if (!inPeriod(date)) continue
+    pending.push({
+      at: stampTime(date),
+      date,
+      build: (run) => {
+        // The allocation is applied to the RUNNING pair, so the deltas are whatever it actually
+        // moved rather than a flat ±amount — on an entry that settles one column and crosses the
+        // remainder into the other, both deltas are non-zero and neither equals the entry's own
+        // figure. Derived by difference so the row can never disagree with the running balance it
+        // is printed beside.
+        const before = { receivable: run.receivable, payable: run.payable }
+        const after = e.debitAccount === cust.id ? allocateDebit(before, e.amount) : allocateCredit(before, e.amount)
+        run.receivable = after.receivable
+        run.payable = after.payable
+        return {
+          id: e.id,
+          date: isoDay(date),
+          at: stampTime(date),
+          type: 'journal',
+          description: e.narration || `Journal entry ${e.ref}`,
+          pkrValue: e.amount,
+          receivableDelta: after.receivable - before.receivable,
+          payableDelta: after.payable - before.payable,
           runningReceivable: run.receivable,
           runningPayable: run.payable,
           runningNet: run.receivable - run.payable,

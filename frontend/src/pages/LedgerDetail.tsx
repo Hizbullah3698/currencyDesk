@@ -19,6 +19,10 @@ const TYPE_LABEL: Record<LedgerRow['type'], string> = {
   receive: 'Receipt',
   pay: 'Payment',
   cheque: 'Cheque',
+  // Manual entries and customer-to-customer transfers. Labelled "Journal" rather than "JV" or
+  // "Transfer": this row covers every hand-written posting against the customer, of which a
+  // transfer is one kind, and the narration alongside already says which.
+  journal: 'Journal',
 }
 
 /**
@@ -44,8 +48,8 @@ export function LedgerDetail() {
     // inside are listed, rows after are ignored — three cases a boolean filter cannot express.
     // The bounds themselves come from lib/statementRange.ts, which ends the "To" day at 23:59:59
     // local — see its comment for the day this page used to drop.
-    return customerLedger(cust, state.activity, state.cheques, statementRange(from, to))
-  }, [cust, state.activity, state.cheques, from, to])
+    return customerLedger(cust, state.activity, state.cheques, state.journalEntries, statementRange(from, to))
+  }, [cust, state.activity, state.cheques, state.journalEntries, from, to])
 
   if (!cust) {
     return (

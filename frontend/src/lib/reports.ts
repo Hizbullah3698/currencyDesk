@@ -137,28 +137,33 @@ export function computeBalanceSheet(
       //
       //   stored columns          authoritative for NOW. The server maintains them on every trade,
       //                           settlement, cheque clearing AND manual journal posting.
-      //   customerBalanceAsOf()   the engine's existing replay — opening balance plus custEffects
-      //                           up to the date. Correct for a PAST date, and it is what the
-      //                           Currency Stock branch's stockAsOf is to `stk`.
+      //   customerBalanceAsOf()   the engine's replay — the dated opening balance, then activity,
+      //                           cheques and manual journal entries walked in posting order.
+      //                           Correct for a PAST date, and it is what the Currency Stock
+      //                           branch's stockAsOf is to `stk`.
       //
       // THE REPLAY IS NOT USED WHEN NOTHING POSTDATES THE REPORTING DATE, and that is deliberate
-      // rather than an optimisation. `custEffects` models activity and cheques; it does NOT model
-      // manual journal entries, which `postJournal` also moves these columns for (see CLAUDE.md,
-      // "Whoever writes a customer's journal entry moves that balance exactly once"). So a
-      // from-scratch replay can disagree with the stored figure for any customer with a hand-written
-      // posting — and present-day figures are what the reconciliation harness and the client read.
-      // Preferring the stored columns whenever nothing is later makes today's sheet byte-identical
-      // to before **by construction**, not by measurement, while past dates get the replay.
+      // rather than an optimisation: preferring the stored columns whenever nothing is later keeps
+      // today's sheet identical **by construction** rather than by measurement, and today's figures
+      // are what the client and the reconciliation harness read.
       //
-      // Journal entries are deliberately absent from the `later` test: adding them would switch a
-      // customer to a replay that omits the very entry that triggered the switch, which is wrong in
-      // a new direction rather than less wrong. A past-dated sheet for a customer with manual
-      // postings is a known remaining gap — see reports.test.ts, which pins it rather than hiding it.
+      // JOURNAL ENTRIES ARE NOW PART OF THE `later` TEST. They were deliberately left out while the
+      // replay could not model them — including them would have switched a customer onto a replay
+      // that omitted the very entry that triggered the switch, which is wrong in a new direction
+      // rather than less wrong. `customerBalanceAsOf` now walks activity, cheques AND manual
+      // entries in one chronological pass under postJournal's allocation rule, so that objection is
+      // spent and leaving them out would now be the bug: a customer whose only movement is a
+      // transfer (the JV case — no activity row at all) would take the stored-columns branch at
+      // every historical date and report today's balance on a sheet dated before the account
+      // existed. Measured at PKR 1,000,000 in `npm run reconcile` before this changed.
       const laterMovement =
         activity.some((t) => t.customerId === a.id && stampTime(activityDate(t)) > asOfT) ||
-        cheques.some((q) => q.customerId === a.id && stampTime(q.updatedAt || q.createdAt) > asOfT)
+        cheques.some((q) => q.customerId === a.id && stampTime(q.updatedAt || q.createdAt) > asOfT) ||
+        journalEntries.some(
+          (e) => !isVoucherLeg(e) && (e.debitAccount === a.id || e.creditAccount === a.id) && stampTime(activityDate(e)) > asOfT,
+        )
       const { receivable, payable } = laterMovement
-        ? customerBalanceAsOf(a, activity, cheques, asOfT)
+        ? customerBalanceAsOf(a, activity, cheques, journalEntries, asOfT)
         : { receivable: a.receivable || 0, payable: a.payable || 0 }
       push('Customer', { id: a.id, label: a.name, sub: 'Customer', dr: receivable, cr: payable })
       return

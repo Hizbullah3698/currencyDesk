@@ -58,7 +58,7 @@ describe('customerLedger — running balance', () => {
       act({ id: 'p1', type: 'purchase', amount: 1000, rate: 77, pkrValue: 77_000, txnDate: '2026-02-01' }),
       act({ id: 'pay1', type: 'pay', amount: 30_000, method: 'Bank', txnDate: '2026-02-05' }),
     ]
-    const l = customerLedger(cust(), activity, [])
+    const l = customerLedger(cust(), activity, [], [])
 
     // A purchase means the desk owes the customer, so the net balance goes negative (Cr).
     expect(l.rows.map((r) => r.runningNet)).toEqual([-77_000, -47_000])
@@ -71,7 +71,7 @@ describe('customerLedger — running balance', () => {
       act({ id: 'b', type: 'purchase', amount: 100, rate: 77, pkrValue: 7_700, txnDate: '2026-02-10' }),
       act({ id: 'a', type: 'purchase', amount: 100, rate: 77, pkrValue: 7_700, txnDate: '2026-02-01' }),
     ]
-    const l = customerLedger(cust(), activity, [])
+    const l = customerLedger(cust(), activity, [], [])
     expect(l.rows.map((r) => r.id)).toEqual(['a', 'b'])
   })
 
@@ -87,7 +87,7 @@ describe('customerLedger — running balance', () => {
     const cheques = [chq({ id: 'q1', direction: 'Outward', amount: 5_000, updatedAt: '2026-02-09T10:00:00.000Z' })]
     const c = cust({ openingReceivable: 2_000, openingPayable: 1_000 })
 
-    const l = customerLedger(c, activity, cheques)
+    const l = customerLedger(c, activity, cheques, [])
     const effects = custEffects(c.id, activity, cheques, () => true)
 
     expect(l.closing.receivable).toBeCloseTo((c.openingReceivable || 0) + effects.receivable, 6)
@@ -100,7 +100,7 @@ describe('customerLedger — running balance', () => {
     const activity = [act({ id: 'p1', type: 'purchase', amount: 1000, rate: 77, pkrValue: 77_000, txnDate: '2026-02-01' })]
     const cheques = [chq({ id: 'q1', direction: 'Outward', amount: 77_000, updatedAt: '2026-02-20T10:00:00.000Z' })]
 
-    const l = customerLedger(cust(), activity, cheques)
+    const l = customerLedger(cust(), activity, cheques, [])
     expect(l.rows).toHaveLength(2)
     expect(l.rows[1].type).toBe('cheque')
     expect(l.rows[1].date.slice(0, 10)).toBe('2026-02-20')
@@ -110,7 +110,7 @@ describe('customerLedger — running balance', () => {
   it('does not let a cheque still pending move the balance', () => {
     const activity = [act({ id: 'p1', type: 'purchase', amount: 1000, rate: 77, pkrValue: 77_000, txnDate: '2026-02-01' })]
     const cheques = [chq({ id: 'q1', direction: 'Outward', amount: 77_000, status: 'Pending' })]
-    const l = customerLedger(cust(), activity, cheques)
+    const l = customerLedger(cust(), activity, cheques, [])
     expect(l.rows).toHaveLength(1)
     expect(l.closing.net).toBe(-77_000)
   })
@@ -127,7 +127,7 @@ describe('customerLedger — date range', () => {
     // The subtle one. A February statement that opened at zero would misstate every line in it.
     const from = stampTime('2026-02-01')
     const to = stampTime('2026-02-28')
-    const l = customerLedger(cust(), activity, [], { fromT: from, toT: to })
+    const l = customerLedger(cust(), activity, [], [], { fromT: from, toT: to })
 
     expect(l.rows.map((r) => r.id)).toEqual(['feb'])
     expect(l.opening.net, 'January is brought forward').toBe(-7_700)
@@ -135,7 +135,7 @@ describe('customerLedger — date range', () => {
   })
 
   it('covers everything when no range is given', () => {
-    const l = customerLedger(cust(), activity, [])
+    const l = customerLedger(cust(), activity, [], [])
     expect(l.rows).toHaveLength(3)
     expect(l.opening.net).toBe(0)
   })
@@ -153,7 +153,7 @@ describe('customerLedger — multi-currency', () => {
   ]
 
   it('keeps a separate running unit total per currency', () => {
-    const l = customerLedger(cust(), activity, [])
+    const l = customerLedger(cust(), activity, [], [])
     const byId = Object.fromEntries(l.rows.map((r) => [r.id, r]))
 
     // AED: 1000, then 3000. USD: 500, then 300 after the sale. Crucially the AED row after the USD
@@ -165,7 +165,7 @@ describe('customerLedger — multi-currency', () => {
   })
 
   it('reports one position per currency and never sums units across them', () => {
-    const l = customerLedger(cust(), activity, [])
+    const l = customerLedger(cust(), activity, [], [])
     expect(l.currencies.map((c) => c.code)).toEqual(['AED', 'USD'])
 
     const aed = l.currencies.find((c) => c.code === 'AED')!
@@ -183,7 +183,7 @@ describe('customerLedger — multi-currency', () => {
   it('still runs ONE rupee balance across all currencies, which is correct', () => {
     // Rupees ARE commensurable — the customer owes one rupee amount regardless of which currency
     // generated it. Splitting that would be as wrong as merging the unit totals.
-    const l = customerLedger(cust(), activity, [])
+    const l = customerLedger(cust(), activity, [], [])
     // Owed to customer: 77,000 + 141,000 + 156,000 = 374,000. Owed by customer: 57,000.
     expect(l.closing.payable).toBe(374_000)
     expect(l.closing.receivable).toBe(57_000)
@@ -192,7 +192,7 @@ describe('customerLedger — multi-currency', () => {
 
   it('leaves settlements and cheques out of the per-currency totals — they move rupees, not units', () => {
     const withSettlement = [...activity, act({ id: 'pay', type: 'pay', amount: 100_000, method: 'Bank', txnDate: '2026-02-05' })]
-    const l = customerLedger(cust(), withSettlement, [])
+    const l = customerLedger(cust(), withSettlement, [], [])
     const payRow = l.rows.find((r) => r.id === 'pay')!
     expect(payRow.currency).toBeUndefined()
     expect(payRow.runningCurrencyUnits).toBeUndefined()

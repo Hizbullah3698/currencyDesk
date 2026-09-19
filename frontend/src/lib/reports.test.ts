@@ -33,6 +33,7 @@ function activity(extra: Partial<Activity> & Pick<Activity, 'id' | 'type' | 'amo
 
 const NO_CHEQUES: Cheque[] = []
 const NO_JOURNAL: JournalEntry[] = []
+const NO_ACTIVITY: Activity[] = []
 const LATER = stampTime('2026-12-31T00:00:00.000Z')
 
 /** The system accounts every sheet carries, minus anything a given test adds itself. */
@@ -369,18 +370,10 @@ describe('computeBalanceSheet — customer balances as of a past date', () => {
     expect(june.groups.find((g) => g.title === 'Receivables & Payables — Customers')).toBeUndefined()
   })
 
-  it('KNOWN GAP: a past-dated sheet ignores manual journal postings against a customer', () => {
-    // Recorded as a test rather than a comment so it is visible and cannot rot silently.
-    //
-    // postJournal moves receivable/payable for a hand-written entry, but custEffects models only
-    // activity and cheques — so a replay cannot see that entry. Here the stored 30,000 comes from a
-    // manual posting, and the March sale is what forces the replay branch; the replay reports only
-    // the sale and the manual 10,000 is lost from the historical figure.
-    //
-    // Today's figure is unaffected (nothing postdates it, so the stored columns are used), which is
-    // why this is a gap in historical accuracy and not a regression in what the client reads.
-    // Closing it means folding activity, cheques and journal entries into ONE chronological replay
-    // that applies postJournal's allocation rule — phase 5 work, deliberately not done here.
+  // WAS "KNOWN GAP". This test pinned the opposite behaviour until the replay became chronological:
+  // `custEffects` summed activity and cheques and could not see a hand-written entry at all, so a
+  // past-dated sheet silently dropped it. It now reports the figure the customer genuinely owed.
+  it('reports a manual journal posting against a customer on a past-dated sheet', () => {
     const manual: JournalEntry[] = [
       {
         id: 'j1', ref: 'JV-1', narration: 'Adjustment', debitAccount: 'cust', creditAccount: 'capital',
@@ -390,13 +383,79 @@ describe('computeBalanceSheet — customer balances as of a past date', () => {
     ]
     const withManual = [...BASE_ACCOUNTS, account('cust', 'Customer', 'Ahmed Khan', { receivable: 90_000, payable: 0 })]
 
-    // February: the March sale postdates it, so the replay branch runs. The customer genuinely owed
-    // 10,000 at that date from January's manual posting — and the sheet reports nothing at all.
+    // February: the March sale postdates it, so the replay branch runs. January's manual posting
+    // has happened by then and the sheet now says so.
     const february = computeBalanceSheet(withManual, marchSale, NO_CHEQUES, manual, stocks, FEBRUARY)
-    expect(february.groups.find((g) => g.title === 'Receivables & Payables — Customers')).toBeUndefined()
+    expect(february.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.dr).toBeCloseTo(10_000, 2)
 
-    // Today is unaffected: nothing postdates it, so the stored 90,000 comes through untouched.
+    // Today is unchanged: nothing postdates it, so the stored 90,000 still comes through untouched.
+    // This is the constraint the whole rework had to hold — present-day figures must not move.
     const today = computeBalanceSheet(withManual, marchSale, NO_CHEQUES, manual, stocks, LATER)
     expect(today.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.dr).toBeCloseTo(90_000, 2)
+  })
+
+  it('reports nothing for a customer whose only movement is a later transfer', () => {
+    // The JV case, and the one the old `later` test could not reach: a customer with NO activity
+    // row and NO cheque at all. Journal entries were absent from that test, so this customer took
+    // the stored-columns branch at every historical date and reported today's balance on a sheet
+    // dated before the account existed. Measured at PKR 1,000,000 in `npm run reconcile`.
+    const transfer: JournalEntry[] = [
+      {
+        id: 'j2', ref: 'JV-9', narration: 'Transfer from Ahmed Khan to Kata Customer', debitAccount: 'cust', creditAccount: 'kata',
+        debitLabel: 'Ahmed Khan', creditLabel: 'Kata Customer', amount: 1_000_000,
+        createdAt: '2026-03-20T00:00:00.000Z', createdBy: 'Admin', updatedAt: '2026-03-20T00:00:00.000Z', updatedBy: 'Admin',
+      } as JournalEntry,
+    ]
+    const kata = account('kata', 'Customer', 'Kata Customer', { receivable: 0, payable: 1_000_000 })
+    const withKata = [...BASE_ACCOUNTS, kata]
+
+    const february = computeBalanceSheet(withKata, NO_ACTIVITY, NO_CHEQUES, transfer, stocks, FEBRUARY)
+    expect(february.groups.find((g) => g.title === 'Receivables & Payables — Customers'), 'nothing had reached this customer in February').toBeUndefined()
+
+    const today = computeBalanceSheet(withKata, NO_ACTIVITY, NO_CHEQUES, transfer, stocks, LATER)
+    expect(today.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.cr).toBeCloseTo(1_000_000, 2)
+  })
+
+  it('applies the allocation rule, settling the opposite column before crossing over', () => {
+    // The reason the replay had to become chronological rather than a sum. The customer is owed
+    // 4,000 by the desk; a 10,000 debit clears that first and only the remaining 6,000 becomes a
+    // receivable. A naive `receivable += 10,000` would report 10,000 against 4,000 and a net that
+    // happens to match — the split is what would be wrong, and the split is what is shown.
+    const entries: JournalEntry[] = [
+      {
+        id: 'j3', ref: 'JV-3', narration: 'Adjustment', debitAccount: 'cust', creditAccount: 'capital',
+        debitLabel: 'Ahmed Khan', creditLabel: 'Capital', amount: 10_000,
+        createdAt: '2026-01-10T00:00:00.000Z', createdBy: 'Admin', updatedAt: '2026-01-10T00:00:00.000Z', updatedBy: 'Admin',
+      } as JournalEntry,
+    ]
+    const owedByDesk = account('cust', 'Customer', 'Ahmed Khan', { receivable: 0, payable: 0, openingPayable: 4_000 })
+    const accts = [...BASE_ACCOUNTS, owedByDesk]
+
+    const february = computeBalanceSheet(accts, marchSale, NO_CHEQUES, entries, stocks, FEBRUARY)
+    const row = february.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]
+    expect(row?.cr, 'the 4,000 the desk owed is settled first').toBeCloseTo(0, 2)
+    expect(row?.dr, 'only the remaining 6,000 crosses over').toBeCloseTo(6_000, 2)
+  })
+
+  it('does not double-count a trade that also wrote voucher legs', () => {
+    // A trade writes an activity row AND voucher legs against the same customer. The replay counts
+    // the activity row, so counting the legs too would report the sale twice — isVoucherLeg is what
+    // keeps them out, exactly as the reports already do elsewhere.
+    const legs: JournalEntry[] = [
+      {
+        id: 'v1', ref: 'JV-5', narration: 'Currency sold to customer', debitAccount: 'cust', creditAccount: 'stockAED',
+        debitLabel: 'Ahmed Khan', creditLabel: 'Currency stock (AED)', amount: 80_000,
+        voucherId: 'voucher-1', activityId: 'a1',
+        createdAt: '2026-03-15T10:00:00.000Z', createdBy: 'Admin', updatedAt: '2026-03-15T10:00:00.000Z', updatedBy: 'Admin',
+      } as JournalEntry,
+    ]
+    // A cheque dated after the sale forces the replay branch without adding a customer movement.
+    const laterCheque: Cheque[] = []
+    const asOfMidMarch = stampTime('2026-03-16T00:00:00.000Z')
+    const withLegs = computeBalanceSheet(accounts, marchSale, laterCheque, legs, stocks, asOfMidMarch)
+    const withoutLegs = computeBalanceSheet(accounts, marchSale, laterCheque, NO_JOURNAL, stocks, asOfMidMarch)
+    const dr = (r: ReturnType<typeof computeBalanceSheet>) =>
+      r.groups.find((g) => g.title === 'Receivables & Payables — Customers')?.rows[0]?.dr ?? 0
+    expect(dr(withLegs), 'voucher legs must not add to the activity row they record').toBeCloseTo(dr(withoutLegs), 2)
   })
 })

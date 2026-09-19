@@ -211,10 +211,121 @@ export function openingBalanceAsOf(cust: Account, toT: number) {
   return { receivable: cust.openingReceivable || 0, payable: cust.openingPayable || 0 }
 }
 
-export function customerBalanceAsOf(cust: Account, activity: Activity[], cheques: Cheque[], toT: number) {
-  const opening = openingBalanceAsOf(cust, toT)
-  const effects = custEffects(cust.id, activity, cheques, (iso) => stampTime(iso) <= toT)
-  return { receivable: opening.receivable + effects.receivable, payable: opening.payable + effects.payable }
+export interface CustBalance {
+  receivable: number
+  payable: number
+}
+
+// ---------------------------------------------------------------------------
+// The allocation rule — the one order-dependent step in a customer's history
+// ---------------------------------------------------------------------------
+//
+// A customer carries TWO columns at once, `receivable` and `payable`, not one signed figure. A
+// bare `Dr customer X` says only which way the net moves, not which column should change, so
+// postJournal settles whatever is outstanding in the OPPOSITE direction first and lets the
+// remainder cross over.
+//
+// These two mirror `applyDebitToCustomer`/`applyCreditToCustomer` in backend journalService.ts
+// statement for statement — the SQL evaluates every SET against the pre-update row, which is what
+// reading both fields off the same `bal` reproduces. They are the reason a customer's history
+// cannot be replayed as a sum: the outcome of each one depends on the running pair at that moment,
+// so the events have to be walked in order.
+//
+// Neither column can go negative under them, so no guard is needed — the reduction is capped at
+// what is there and the remainder moves across.
+
+export function allocateDebit(bal: CustBalance, amount: number): CustBalance {
+  return {
+    receivable: bal.receivable + Math.max(amount - bal.payable, 0),
+    payable: Math.max(bal.payable - amount, 0),
+  }
+}
+
+export function allocateCredit(bal: CustBalance, amount: number): CustBalance {
+  return {
+    payable: bal.payable + Math.max(amount - bal.receivable, 0),
+    receivable: Math.max(bal.receivable - amount, 0),
+  }
+}
+
+/**
+ * The manual journal entries that move one customer's balance, in the order the server applied
+ * them.
+ *
+ * EXCLUDES VOUCHER LEGS. A trade writes an activity row AND voucher legs against the same
+ * customer; counting both doubles every deal. This is the same `isVoucherLeg` exclusion the
+ * reports already apply, for the same reason.
+ *
+ * EXCLUDES THE ACCOUNT'S OWN OPENING ENTRY. `createAccount` journals the opening balance against
+ * Capital, and `openingBalanceAsOf` already seeds that figure from the account's own columns —
+ * replaying the entry as well would count it twice. The entry is identified by `openingFor`, the
+ * same column the backfill uses as its idempotency key.
+ *
+ * INCLUDED by the entry's own date (`activityDate`, which journal entries satisfy structurally and
+ * which pins a bare 'YYYY-MM-DD' to local noon), but ORDERED by `createdAt` — the order the server
+ * actually applied them in, which is the order the stored columns were built up in. That is the
+ * same document-date/posting-date split `openingStock` already runs on, and it matters here
+ * precisely because the allocation above is order-dependent.
+ */
+export function customerJournalEntries(customerId: string, journalEntries: JournalEntry[], keep: (iso: string) => boolean): JournalEntry[] {
+  return journalEntries
+    .filter((e) => !isVoucherLeg(e) && e.openingFor !== customerId)
+    .filter((e) => e.debitAccount === customerId || e.creditAccount === customerId)
+    .filter((e) => keep(activityDate(e)))
+    .slice()
+    .sort((a, b) => stampTime(a.createdAt) - stampTime(b.createdAt))
+}
+
+/**
+ * A customer's receivable/payable as at a date, replayed from the opening balance forward.
+ *
+ * Activity and cheques move the columns by plain addition — each already knows its own direction,
+ * and the server's own settlement updates are guarded so they never drive a column negative.
+ * Journal entries go through the allocation rule above, which is why this walks the history in
+ * order instead of summing it the way `custEffects` does.
+ */
+export function customerBalanceAsOf(
+  cust: Account,
+  activity: Activity[],
+  cheques: Cheque[],
+  journalEntries: JournalEntry[],
+  toT: number,
+): CustBalance {
+  const keep = (iso: string) => stampTime(iso) <= toT
+  const owed = (t: Activity) => (t.pkrValue || 0) - (t.chequeHeld ? 0 : t.paidNow || 0)
+
+  interface Step {
+    order: number
+    apply: (b: CustBalance) => CustBalance
+  }
+  const steps: Step[] = []
+
+  for (const t of activity) {
+    if (t.customerId !== cust.id || !keep(activityDate(t))) continue
+    const order = stampTime(t.createdAt)
+    if (t.type === 'sale') steps.push({ order, apply: (b) => ({ ...b, receivable: b.receivable + owed(t) }) })
+    else if (t.type === 'purchase') steps.push({ order, apply: (b) => ({ ...b, payable: b.payable + owed(t) }) })
+    else if (t.type === 'receive' && !t.chequeHeld) steps.push({ order, apply: (b) => ({ ...b, receivable: b.receivable - (t.amount || 0) }) })
+    else if (t.type === 'pay' && !t.chequeHeld) steps.push({ order, apply: (b) => ({ ...b, payable: b.payable - (t.amount || 0) }) })
+  }
+
+  for (const q of cheques) {
+    if (q.customerId !== cust.id || q.status !== 'Cleared') continue
+    const when = q.updatedAt || q.createdAt
+    if (!keep(when)) continue
+    const order = stampTime(when)
+    if (q.direction === 'Inward') steps.push({ order, apply: (b) => ({ ...b, receivable: b.receivable - q.amount }) })
+    else steps.push({ order, apply: (b) => ({ ...b, payable: b.payable - q.amount }) })
+  }
+
+  for (const e of customerJournalEntries(cust.id, journalEntries, keep)) {
+    const order = stampTime(e.createdAt)
+    if (e.debitAccount === cust.id) steps.push({ order, apply: (b) => allocateDebit(b, e.amount) })
+    if (e.creditAccount === cust.id) steps.push({ order, apply: (b) => allocateCredit(b, e.amount) })
+  }
+
+  steps.sort((a, b) => a.order - b.order)
+  return steps.reduce<CustBalance>((b, s) => s.apply(b), openingBalanceAsOf(cust, toT))
 }
 
 // ---------------------------------------------------------------------------

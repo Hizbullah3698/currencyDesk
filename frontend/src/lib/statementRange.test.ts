@@ -63,7 +63,7 @@ describe('statementRange — the bounds a customer statement is cut on', () => {
 
   it('a statement for 1–30 September lists the 30 September deal and closes with it', () => {
     const activity = [sale('mid', '2026-09-15'), sale('last', '2026-09-30'), sale('after', '2026-10-01')]
-    const l = customerLedger(cust(), activity, [], statementRange('2026-09-01', '2026-09-30'))
+    const l = customerLedger(cust(), activity, [], [], statementRange('2026-09-01', '2026-09-30'))
 
     expect(l.rows.map((r) => r.id)).toEqual(['mid', 'last'])
     // Two sales of 80,000 each — the closing figure printed on the document.
@@ -74,7 +74,7 @@ describe('statementRange — the bounds a customer statement is cut on', () => {
     const range = statementRange('2026-09-15', '2026-09-30')
     const onFirstDay = sale('first', '2026-09-15')
     expect(stampTime(activityDate(onFirstDay))).toBeGreaterThanOrEqual(range.fromT!)
-    const l = customerLedger(cust(), [sale('before', '2026-09-14'), onFirstDay], [], range)
+    const l = customerLedger(cust(), [sale('before', '2026-09-14'), onFirstDay], [], [], range)
     expect(l.rows.map((r) => r.id)).toEqual(['first'])
     expect(l.opening.net, 'the 14th is brought forward, not listed').toBe(80_000)
   })
@@ -82,7 +82,7 @@ describe('statementRange — the bounds a customer statement is cut on', () => {
   it('leaves a blank side unbounded', () => {
     expect(statementRange('', '').fromT).toBeUndefined()
     expect(statementRange('', '').toT).toBeUndefined()
-    const l = customerLedger(cust(), [sale('a', '2026-09-30')], [], statementRange('', ''))
+    const l = customerLedger(cust(), [sale('a', '2026-09-30')], [], [], statementRange('', ''))
     expect(l.rows).toHaveLength(1)
   })
 })

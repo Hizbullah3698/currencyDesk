@@ -22,7 +22,7 @@
 
 import type { Account, Activity, Cheque, JournalEntry, Stocks } from './types'
 import { ledgerBalance } from './reports'
-import { activityDate, customerBalanceAsOf, marginLedger, stampTime, stockAsOf } from './engine'
+import { activityDate, customerBalanceAsOf, isVoucherLeg, marginLedger, stampTime, stockAsOf } from './engine'
 
 export interface Snapshot {
   accounts: Account[]
@@ -124,9 +124,12 @@ export function currentNet(
     // fixed. A mirror that has stopped mirroring measures nothing.
     const later =
       snap.activity.some((t) => t.customerId === account.id && stampTime(activityDate(t)) > asOfT) ||
-      snap.cheques.some((q) => q.customerId === account.id && stampTime(q.updatedAt || q.createdAt) > asOfT)
+      snap.cheques.some((q) => q.customerId === account.id && stampTime(q.updatedAt || q.createdAt) > asOfT) ||
+      snap.journalEntries.some(
+        (e) => !isVoucherLeg(e) && (e.debitAccount === account.id || e.creditAccount === account.id) && stampTime(activityDate(e)) > asOfT,
+      )
     if (!later) return { net: (account.receivable || 0) - (account.payable || 0), source: 'receivable/payable columns' }
-    const b = customerBalanceAsOf(account, snap.activity, snap.cheques, asOfT)
+    const b = customerBalanceAsOf(account, snap.activity, snap.cheques, snap.journalEntries, asOfT)
     return { net: b.receivable - b.payable, source: 'customerBalanceAsOf replay' }
   }
   if (account.type === 'Currency Stock') {
