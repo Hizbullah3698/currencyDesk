@@ -190,8 +190,29 @@ export function txnIsOpen(t: Activity, accounts: Account[]): boolean {
   return balance > 0
 }
 
+/**
+ * An account's opening balance as at a date — zero before the account existed.
+ *
+ * `openingReceivable`/`openingPayable` carry no date of their own, so every replay applied them at
+ * EVERY date, including dates before the account was created. `createAccount` journals the same
+ * figure against Capital as a dated entry, so a balance sheet cut before that date showed the
+ * customer's opening balance while the journal correctly showed nothing — measured as a PKR 10,000
+ * disagreement at 2026-08-31 for an account created 2026-09-01, and the only remaining
+ * disagreement in `npm run reconcile` once unrelated test data was removed.
+ *
+ * Dated on the ACCOUNT's `createdAt` rather than by looking up its opening journal entry, so this
+ * stays a pure function of the account and needs no journal argument: `createAccount` writes both
+ * in one transaction, so the two dates are the same by construction (verified on real data — the
+ * account and its JV-012 both carry 2026-09-01). The journal is what this has to agree WITH, so
+ * deriving the date from it would be circular.
+ */
+export function openingBalanceAsOf(cust: Account, toT: number) {
+  if (stampTime(cust.createdAt) > toT) return { receivable: 0, payable: 0 }
+  return { receivable: cust.openingReceivable || 0, payable: cust.openingPayable || 0 }
+}
+
 export function customerBalanceAsOf(cust: Account, activity: Activity[], cheques: Cheque[], toT: number) {
-  const opening = { receivable: cust.openingReceivable || 0, payable: cust.openingPayable || 0 }
+  const opening = openingBalanceAsOf(cust, toT)
   const effects = custEffects(cust.id, activity, cheques, (iso) => stampTime(iso) <= toT)
   return { receivable: opening.receivable + effects.receivable, payable: opening.payable + effects.payable }
 }
