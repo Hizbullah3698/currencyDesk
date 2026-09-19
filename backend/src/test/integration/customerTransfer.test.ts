@@ -128,7 +128,12 @@ describe('customer-to-customer transfer (JV)', () => {
     expect((await balance(toId)).payable, 'the receiving side is unaffected by the shortfall').toBe(500_000)
   })
 
-  it('refuses a transfer to the same customer', async () => {
+  it('refuses a transfer to the same customer, and writes nothing', async () => {
+    // A self-transfer nets to zero but would still leave a journal entry behind, which is a
+    // confusing artefact at best. The Settle screen excludes the chosen customer from the
+    // "Transfer to" list AND checks again before review, but neither is the guard that matters:
+    // postJournal refuses outright, so the API cannot be talked into one either.
+    await set(fromId, 0, 1_000_000)
     const res = await admin.post('/api/journal', {
       debitAccount: fromId,
       creditAccount: fromId,
@@ -137,6 +142,87 @@ describe('customer-to-customer transfer (JV)', () => {
       narration: 'self',
     })
     expect(res.status).toBe(400)
+
+    const { rows } = await pool.query<{ n: string }>('SELECT COUNT(*) AS n FROM journal_entries')
+    expect(Number(rows[0].n), 'no entry left behind by the refusal').toBe(0)
+    expect((await balance(fromId)).payable, 'and no balance moved').toBe(1_000_000)
+  })
+
+  // --- amount validation, server-side --------------------------------------
+  //
+  // The screen blocks these too, but a disabled button is not a guard: this is money moving on
+  // the books, so the refusal has to hold against the API directly. Nothing pinned this before —
+  // the layers existed (parseAmount, postJournal's own check, and a CHECK (amount > 0) on the
+  // column) but no test held any of them.
+
+  it.each([
+    ['zero', 0],
+    ['negative', -500_000],
+  ])('refuses a %s amount, and moves nothing', async (_label, amount) => {
+    await set(fromId, 0, 1_000_000)
+    await set(toId, 0, 0)
+
+    const res = await transfer(admin, amount as number)
+    expect(res.status).toBe(400)
+
+    const { rows } = await pool.query<{ n: string }>('SELECT COUNT(*) AS n FROM journal_entries')
+    expect(Number(rows[0].n), 'nothing posted').toBe(0)
+    expect((await balance(fromId)).payable, 'the sending side is untouched').toBe(1_000_000)
+    expect((await balance(toId)).payable, 'the receiving side is untouched').toBe(0)
+  })
+
+  it('refuses an amount that is not a number', async () => {
+    await set(fromId, 0, 1_000_000)
+    const res = await admin.post('/api/journal', {
+      debitAccount: fromId,
+      creditAccount: toId,
+      debitAmount: 'not-a-number',
+      creditAmount: 'not-a-number',
+      narration: 'rubbish',
+    })
+    expect(res.status).toBe(400)
+    expect((await balance(fromId)).payable).toBe(1_000_000)
+  })
+
+  it('refuses an out-of-balance entry where the two sides disagree', async () => {
+    // Settle always sends one figure for both sides, so this cannot arise from the screen — which
+    // is exactly why it is worth pinning at the API, where it can.
+    await set(fromId, 0, 1_000_000)
+    const res = await admin.post('/api/journal', {
+      debitAccount: fromId,
+      creditAccount: toId,
+      debitAmount: 500_000,
+      creditAmount: 400_000,
+      narration: 'lopsided',
+    })
+    expect(res.status).toBe(400)
+    expect((await balance(fromId)).payable).toBe(1_000_000)
+  })
+
+  // --- audit trail ---------------------------------------------------------
+
+  it('records which admin posted the transfer, on the entry itself', async () => {
+    // A JV bypasses Bank and Cash entirely, so this journal entry is the ONLY record that the
+    // transfer happened and the only record of who authorised it. It is stored on the row, not in
+    // a separate audit log, and served on the entry as `createdBy`.
+    await set(fromId, 0, 1_000_000)
+    expect((await transfer(admin, 300_000)).status).toBe(200)
+
+    const { rows } = await pool.query<{ created_by: string | null; email: string | null }>(
+      `SELECT j.created_by, u.email FROM journal_entries j LEFT JOIN users u ON u.id = j.created_by`,
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].created_by, 'the posting user is stamped on the row').not.toBeNull()
+    expect(rows[0].email, 'and resolves to the admin who posted it').toBe(ADMIN)
+
+    const res = await admin.get('/api/state')
+    const entries = JSON.parse(JSON.stringify((res.json as { journalEntries: unknown }).journalEntries)) as {
+      createdBy: string
+      createdAt: string
+    }[]
+    expect(entries).toHaveLength(1)
+    expect(entries[0].createdBy, 'and is served on the entry, not hidden behind a separate lookup').toBeTruthy()
+    expect(entries[0].createdAt).toBeTruthy()
   })
 
   // --- access -------------------------------------------------------------
