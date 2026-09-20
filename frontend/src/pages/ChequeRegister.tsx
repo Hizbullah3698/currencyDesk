@@ -52,39 +52,37 @@ export function ChequeRegister() {
             </div>
           </div>
           <div className="flex items-center gap-3 border-b border-divider px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
-            <div className="w-[168px] flex-none">Cheque date</div>
-            <div className="w-[86px] flex-none">Cheque no.</div>
+            <div className="w-[104px] flex-none">Cheque no.</div>
             <div className="w-[150px] flex-none">Account (Dr)</div>
             <div className="w-[150px] flex-none">Account (Cr)</div>
             <div className="min-w-0 flex-1">Description</div>
-            <div className="w-[104px] flex-none">Status</div>
-            <div className="w-[120px] flex-none text-right">Amount</div>
+            <div className="w-[100px] flex-none">Status</div>
+            {/* Numeric and date columns right-aligned so figures and dates stack for a straight
+                read down the column — the same treatment the Cheques table now gets. */}
+            <div className="w-[104px] flex-none text-right">Amount</div>
+            <div className="w-[152px] flex-none text-right">Cheque date</div>
           </div>
           {day.rows.map((r) => {
             const cheque = state.cheques.find((q) => q.id === r.id)
             return (
               <div key={r.id} className="flex items-center gap-3 border-b border-divider px-[13px] py-2.5 text-body transition-colors duration-150 hover:bg-surface-hover">
-                {/* Date and chip as separate elements with a real gap — see OverdueChip. */}
-                <div className="flex w-[168px] flex-none items-center gap-2">
-                  <span className="tabular whitespace-nowrap text-meta text-muted-70">{fmtLongDate(r.chequeDate)}</span>
-                  <OverdueFor cheque={cheque} today={today} />
-                </div>
-                <div className="tabular w-[86px] flex-none text-meta font-normal text-muted-70">{r.number}</div>
+                {/* The identifier on the physical cheque, weighted to read as one. */}
+                <div className="tabular w-[104px] flex-none truncate font-mono text-body font-semibold tracking-tight text-ink">{r.number}</div>
                 {/* Read-only, and styled as data rather than as fields: these are not choices
-                    anyone makes, they are what the posting will be. */}
-                <div className="w-[150px] flex-none truncate font-medium" title={r.debitAccount}>
-                  {r.debitAccount}
-                </div>
-                <div className="w-[150px] flex-none truncate font-medium" title={r.creditAccount}>
-                  {r.creditAccount}
-                </div>
-                <div className="min-w-0 flex-1 truncate font-normal text-muted-70" title={r.description}>
-                  {r.description}
-                </div>
-                <div className="w-[104px] flex-none">
+                    anyone makes, they are what the posting will be. Account names WRAP rather than
+                    truncate, for the same reason the Party column does. */}
+                <div className="w-[150px] flex-none break-words font-medium leading-snug">{r.debitAccount}</div>
+                <div className="w-[150px] flex-none break-words font-medium leading-snug">{r.creditAccount}</div>
+                <div className="min-w-0 flex-1 break-words font-normal leading-snug text-muted-70">{r.description}</div>
+                <div className="w-[100px] flex-none">
                   <ChequeStatusBadge status={r.status} />
                 </div>
-                <div className="tabular w-[120px] flex-none text-right font-medium">{fmt(r.amount)}</div>
+                <div className="tabular w-[104px] flex-none text-right font-medium">{fmt(r.amount)}</div>
+                {/* Chip to the LEFT so the dates stay flush right and stack cleanly. */}
+                <div className="flex w-[152px] flex-none items-center justify-end gap-2">
+                  <OverdueFor cheque={cheque} today={today} />
+                  <span className="tabular whitespace-nowrap text-meta text-muted-70">{fmtLongDate(r.chequeDate)}</span>
+                </div>
               </div>
             )
           })}

@@ -3,6 +3,7 @@ import { Banknote, Lock, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { chequeIsOpen, chequeIsOverdue } from '@/lib/engine'
 import { fmt, fmtShortDate, todayISO } from '@/lib/format'
+import { receivedDate } from '@/lib/chequeRegister'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -109,40 +110,59 @@ export function Cheques() {
             to offer and nothing lined up down the page. Reserving the zone here means the header
             and every row agree on where the data stops and the controls begin. */}
         <div className="flex items-center gap-3 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
-          <div className="w-[78px] flex-none">Direction</div>
-          <div className="w-[92px] flex-none">Cheque no.</div>
+          {/* Direction is an icon, not the repeated word: every row on a desk that only takes
+              inward cheques said "Inward", spending 78px to say nothing that varied. The width it
+              gave up went to Party and Cheque no., which are what the eye actually looks for. */}
+          <div className="w-7 flex-none" aria-hidden="true" />
+          <div className="w-[104px] flex-none">Cheque no.</div>
           <div className="min-w-0 flex-1">Party</div>
-          <div className="w-[96px] flex-none">Bank</div>
-          <div className="w-[104px] flex-none">Status</div>
-          <div className="w-[112px] flex-none text-right">Amount</div>
-          <div className="w-[136px] flex-none">Due</div>
-          <div className="w-[216px] flex-none text-right">Actions</div>
+          <div className="w-[72px] flex-none">Bank</div>
+          <div className="w-[100px] flex-none">Status</div>
+          <div className="w-[104px] flex-none text-right">Amount</div>
+          {/* Both dates right-aligned and identically styled, so they stack into two clean columns
+              that can be read straight down and compared across. */}
+          <div className="w-[76px] flex-none text-right">Received</div>
+          <div className="w-[118px] flex-none text-right">Due</div>
+          <div className="w-[182px] flex-none text-right">Actions</div>
         </div>
         {rows.map((q) => {
           const busy = pendingId === q.id
           const overdue = chequeIsOverdue(q, today)
+          const DirIcon = q.direction === 'Inward' ? ArrowDownCircle : ArrowUpCircle
           return (
-            <div key={q.id} className="border-b border-divider px-[13px] py-3 transition-colors duration-150 hover:bg-surface-hover">
+            <div key={q.id} className="border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
               <div className="flex items-center gap-3">
-                <div className={cn('w-[78px] flex-none text-body font-medium', q.direction === 'Inward' ? 'text-positive' : 'text-ink')}>{q.direction}</div>
-                <div className="tabular w-[92px] flex-none truncate text-body font-normal text-muted-70">{q.number}</div>
-                <div className="min-w-0 flex-1 truncate text-body font-semibold">{q.party}</div>
-                <div className="w-[96px] flex-none truncate text-body font-normal text-muted-70">{q.bank}</div>
-                <div className="w-[104px] flex-none">
+                {/* `title` keeps the word available on hover, since the icon alone carries it now. */}
+                <div className="flex w-7 flex-none justify-center" title={q.direction}>
+                  <DirIcon size={16} strokeWidth={2.2} className={q.direction === 'Inward' ? 'text-positive' : 'text-outflow'} aria-label={q.direction} />
+                </div>
+                {/* The identifier on the physical cheque — sized and weighted to read as one,
+                    in the same monospace the rest of the app uses for codes. */}
+                <div className="tabular w-[104px] flex-none truncate font-mono text-body font-semibold tracking-tight text-ink">{q.number}</div>
+                {/* WRAPS, never truncates. "Boundary Test Custo…" is not an acceptable way to name
+                    the other party on a financial record — a second line costs nothing, a guess
+                    costs correctness. */}
+                <div className="min-w-0 flex-1 break-words text-body font-semibold leading-snug">{q.party}</div>
+                <div className="w-[72px] flex-none truncate text-body font-normal text-muted-70" title={q.bank}>{q.bank}</div>
+                <div className="w-[100px] flex-none">
                   <ChequeStatusBadge status={q.status} />
                 </div>
-                <div className="tabular w-[112px] flex-none text-right text-body font-medium">{fmt(q.amount)}</div>
-                {/* Date and chip are separate elements with a real gap, not a word tacked onto the
-                    end of the date — see OverdueChip for why this is a chip of its own rather than
-                    a second status pill. */}
-                <div className="flex w-[136px] flex-none items-center gap-2">
-                  <span className={cn('tabular text-meta', overdue ? 'font-medium text-negative-deep' : 'font-normal text-muted-60')}>{fmtShortDate(q.due)}</span>
+                <div className="tabular w-[104px] flex-none text-right text-body font-medium">{fmt(q.amount)}</div>
+                {/* Received is the day the cheque was handed over — the transaction date of the
+                    payment behind it, via the same receivedDate() the Register uses. It was only
+                    ever visible as "Recorded …" inside the greyed-out history caption. */}
+                <div className="tabular w-[76px] flex-none text-right text-meta font-normal text-muted-70">{fmtShortDate(receivedDate(q, state.activity))}</div>
+                {/* Chip sits to the LEFT of the date so the dates themselves stay flush right and
+                    stack cleanly down the column. Separate elements with a real gap — see
+                    OverdueChip for why this is a chip rather than a second status pill. */}
+                <div className="flex w-[118px] flex-none items-center justify-end gap-2">
                   <OverdueFor cheque={q} today={today} />
+                  <span className={cn('tabular text-meta', overdue ? 'font-medium text-negative-deep' : 'font-normal text-muted-70')}>{fmtShortDate(q.due)}</span>
                 </div>
                 {/* One zone, fixed width, right-aligned, whatever the row offers. Its width holds
                     the widest pair ("Mark cleared" + "Mark returned") so a row with two actions is
                     exactly as tall as one with none. */}
-                <div className="flex w-[216px] flex-none items-center justify-end gap-2">
+                <div className="flex w-[182px] flex-none items-center justify-end gap-1.5">
                   {q.status === 'Pending' && (
                     <>
                       {/* The natural next step is the single primary action; cancelling is the
@@ -158,7 +178,7 @@ export function Cheques() {
                           disabled control rather than a deliberate destructive one — the same
                           override AccountFormModal already applies to its own delete button. */}
                       {isAdmin && (
-                        <Button variant="outlineDestructive" size="sm" className="border-solid text-meta" disabled={busy} onClick={() => run(q.id, cancelCheque)}>
+                        <Button variant="ghost" size="sm" className="px-2 text-meta font-medium text-negative-deep hover:bg-negative-bg hover:text-negative-deep" disabled={busy} onClick={() => run(q.id, cancelCheque)}>
                           {busy ? 'Working…' : 'Cancel'}
                         </Button>
                       )}
@@ -170,7 +190,7 @@ export function Cheques() {
                         <Button variant="primary" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, clearCheque)}>
                           {busy ? 'Working…' : 'Mark cleared'}
                         </Button>
-                        <Button variant="outlineDestructive" size="sm" className="border-solid text-meta" disabled={busy} onClick={() => run(q.id, returnCheque)}>
+                        <Button variant="ghost" size="sm" className="px-2 text-meta font-medium text-negative-deep hover:bg-negative-bg hover:text-negative-deep" disabled={busy} onClick={() => run(q.id, returnCheque)}>
                           {busy ? 'Working…' : 'Returned'}
                         </Button>
                       </>
@@ -187,12 +207,15 @@ export function Cheques() {
                     ))}
                 </div>
               </div>
-              {/* Indented to sit under the data rather than under the row edge, so it reads as
-                  belonging to the record above it. */}
-              <div className="mt-2 pl-[86px]">
-                <ChequeHistoryLine history={q.history} />
-              </div>
-              {errors[q.id] && <div className="mt-2 pl-[86px] text-meta font-semibold text-negative">{errors[q.id]}</div>}
+              {/* Only once the cheque has actually moved. A lone "Recorded 20 Sep" now says exactly
+                  what the Received column says, and a washed-out caption repeating a column is the
+                  kind of thing that makes a table feel noisy rather than informative. */}
+              {q.history.length > 1 && (
+                <div className="mt-1.5 pl-[152px]">
+                  <ChequeHistoryLine history={q.history} />
+                </div>
+              )}
+              {errors[q.id] && <div className="mt-1.5 pl-[152px] text-meta font-semibold text-negative">{errors[q.id]}</div>}
             </div>
           )
         })}
