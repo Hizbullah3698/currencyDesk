@@ -1,14 +1,11 @@
 import { Banknote } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { chequeRegister } from '@/lib/chequeRegister'
-import { chequeIsOverdue } from '@/lib/engine'
 import { fmt, fmtLongDate, todayISO } from '@/lib/format'
-import { statusMeta } from '@/lib/ui-helpers'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { ChequeStatusBadge, OverdueFor } from '@/components/ChequeStatusBadge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PrintHeader } from '@/components/PrintHeader'
-import { cn } from '@/lib/utils'
 
 // The cheque register — every cheque as one accounting line, grouped by the day it was received.
 //
@@ -54,24 +51,23 @@ export function ChequeRegister() {
               {day.rows.length} {day.rows.length === 1 ? 'cheque' : 'cheques'} · <b className="font-semibold text-ink">{fmt(day.total)}</b>
             </div>
           </div>
-          <div className="flex items-center gap-2.5 border-b border-divider px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
-            <div className="w-[104px] flex-none">Cheque date</div>
+          <div className="flex items-center gap-3 border-b border-divider px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
+            <div className="w-[168px] flex-none">Cheque date</div>
             <div className="w-[86px] flex-none">Cheque no.</div>
             <div className="w-[150px] flex-none">Account (Dr)</div>
             <div className="w-[150px] flex-none">Account (Cr)</div>
             <div className="min-w-0 flex-1">Description</div>
-            <div className="w-[100px] flex-none">Status</div>
+            <div className="w-[104px] flex-none">Status</div>
             <div className="w-[120px] flex-none text-right">Amount</div>
           </div>
           {day.rows.map((r) => {
-            const status = statusMeta(r.status)
-            const StatusIcon = status.icon
             const cheque = state.cheques.find((q) => q.id === r.id)
-            const overdue = !!cheque && chequeIsOverdue(cheque, today)
             return (
-              <div key={r.id} className="flex items-center gap-2.5 border-b border-divider px-[13px] py-2 text-body transition-colors duration-150 hover:bg-surface-hover">
-                <div className={cn('tabular w-[104px] flex-none whitespace-nowrap text-meta', overdue ? 'font-medium text-negative-deep' : 'text-muted-70')}>
-                  {fmtLongDate(r.chequeDate)}
+              <div key={r.id} className="flex items-center gap-3 border-b border-divider px-[13px] py-2.5 text-body transition-colors duration-150 hover:bg-surface-hover">
+                {/* Date and chip as separate elements with a real gap — see OverdueChip. */}
+                <div className="flex w-[168px] flex-none items-center gap-2">
+                  <span className="tabular whitespace-nowrap text-meta text-muted-70">{fmtLongDate(r.chequeDate)}</span>
+                  <OverdueFor cheque={cheque} today={today} />
                 </div>
                 <div className="tabular w-[86px] flex-none text-meta font-normal text-muted-70">{r.number}</div>
                 {/* Read-only, and styled as data rather than as fields: these are not choices
@@ -85,11 +81,8 @@ export function ChequeRegister() {
                 <div className="min-w-0 flex-1 truncate font-normal text-muted-70" title={r.description}>
                   {r.description}
                 </div>
-                <div className="w-[100px] flex-none">
-                  <Badge variant={status.variant}>
-                    <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
-                    {r.status}
-                  </Badge>
+                <div className="w-[104px] flex-none">
+                  <ChequeStatusBadge status={r.status} />
                 </div>
                 <div className="tabular w-[120px] flex-none text-right font-medium">{fmt(r.amount)}</div>
               </div>

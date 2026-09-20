@@ -3,12 +3,12 @@ import { Banknote, Lock, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { chequeIsOpen, chequeIsOverdue } from '@/lib/engine'
 import { fmt, fmtShortDate, todayISO } from '@/lib/format'
-import { statusMeta } from '@/lib/ui-helpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { ChequeStatusBadge, OverdueFor } from '@/components/ChequeStatusBadge'
+import { ChequeHistoryLine } from '@/components/ChequeHistoryLine'
 import { KpiCard } from '@/components/ui/kpi-card'
-import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -104,83 +104,95 @@ export function Cheques() {
       )}
 
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-2.5 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
-          <div className="min-w-[78px]">Direction</div>
-          <div className="min-w-[86px]">Cheque no.</div>
-          <div className="flex-1">Party</div>
-          <div className="min-w-[96px]">Bank</div>
-          <div className="min-w-[100px]">Status</div>
-          <div className="min-w-[110px] text-right">Amount</div>
-          <div className="min-w-[74px] text-right">Due</div>
+        {/* Fixed widths, and an ACTIONS column reserved at the end. Actions used to sit on a
+            second line under the data, so a row's height depended on how many buttons it happened
+            to offer and nothing lined up down the page. Reserving the zone here means the header
+            and every row agree on where the data stops and the controls begin. */}
+        <div className="flex items-center gap-3 border-b border-border bg-surface-sunken px-[13px] py-[7px] text-meta font-semibold uppercase tracking-wide text-muted-60">
+          <div className="w-[78px] flex-none">Direction</div>
+          <div className="w-[92px] flex-none">Cheque no.</div>
+          <div className="min-w-0 flex-1">Party</div>
+          <div className="w-[96px] flex-none">Bank</div>
+          <div className="w-[104px] flex-none">Status</div>
+          <div className="w-[112px] flex-none text-right">Amount</div>
+          <div className="w-[136px] flex-none">Due</div>
+          <div className="w-[216px] flex-none text-right">Actions</div>
         </div>
         {rows.map((q) => {
-          const status = statusMeta(q.status)
-          const StatusIcon = status.icon
           const busy = pendingId === q.id
           const overdue = chequeIsOverdue(q, today)
           return (
-            <div key={q.id} className="border-b border-divider px-[13px] py-2.5 transition-colors duration-150 hover:bg-surface-hover">
-              <div className="flex items-center gap-2.5">
-                <div className={`min-w-[78px] text-body font-medium ${q.direction === 'Inward' ? 'text-positive' : 'text-ink'}`}>{q.direction}</div>
-                <div className="tabular min-w-[86px] text-body font-normal text-muted-70">{q.number}</div>
-                <div className="flex-1 text-body font-semibold">{q.party}</div>
-                <div className="min-w-[96px] text-body font-normal text-muted-70">{q.bank}</div>
-                <div className="min-w-[100px]">
-                  <Badge variant={status.variant}>
-                    <StatusIcon size={10} strokeWidth={2.4} aria-hidden="true" />
-                    {q.status}
-                  </Badge>
+            <div key={q.id} className="border-b border-divider px-[13px] py-3 transition-colors duration-150 hover:bg-surface-hover">
+              <div className="flex items-center gap-3">
+                <div className={cn('w-[78px] flex-none text-body font-medium', q.direction === 'Inward' ? 'text-positive' : 'text-ink')}>{q.direction}</div>
+                <div className="tabular w-[92px] flex-none truncate text-body font-normal text-muted-70">{q.number}</div>
+                <div className="min-w-0 flex-1 truncate text-body font-semibold">{q.party}</div>
+                <div className="w-[96px] flex-none truncate text-body font-normal text-muted-70">{q.bank}</div>
+                <div className="w-[104px] flex-none">
+                  <ChequeStatusBadge status={q.status} />
                 </div>
-                <div className="tabular min-w-[110px] text-right text-body font-medium">{fmt(q.amount)}</div>
-                {/* Overdue is shown ON the due date rather than as another status pill: the cheque's
-                    status is still genuinely Pending or Deposited, and a second pill next to it
-                    would read as a competing state. Colour plus the word marks the date itself as
-                    the thing that has gone wrong — and the word matters, since colour alone would
-                    be the only signal for anyone who cannot distinguish it. */}
-                <div className={cn('min-w-[74px] text-right text-meta font-normal', overdue ? 'font-medium text-negative-deep' : 'text-muted-60')}>
-                  {fmtShortDate(q.due)}
-                  {overdue && <span className="ml-1 font-semibold">overdue</span>}
+                <div className="tabular w-[112px] flex-none text-right text-body font-medium">{fmt(q.amount)}</div>
+                {/* Date and chip are separate elements with a real gap, not a word tacked onto the
+                    end of the date — see OverdueChip for why this is a chip of its own rather than
+                    a second status pill. */}
+                <div className="flex w-[136px] flex-none items-center gap-2">
+                  <span className={cn('tabular text-meta', overdue ? 'font-medium text-negative-deep' : 'font-normal text-muted-60')}>{fmtShortDate(q.due)}</span>
+                  <OverdueFor cheque={q} today={today} />
                 </div>
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <div className="min-w-[200px] flex-1 text-meta font-normal text-muted-60">{q.history.join(' → ')}</div>
-                {q.status === 'Pending' && (
-                  <Button variant="secondary" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, depositCheque)}>
-                    {busy ? 'Working…' : 'Mark deposited'}
-                  </Button>
-                )}
-                {/* Cancel is offered only while Pending — once deposited the cheque is with the
-                    bank and its outcome is Cleared or Returned, not cancelled. Admin only, matching
-                    the server guard: an operator would otherwise fill in a confirmation and get a
-                    403 at the end of it. */}
-                {q.status === 'Pending' && isAdmin && (
-                  <Button variant="outlineDestructive" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, cancelCheque)}>
-                    {busy ? 'Working…' : 'Cancel cheque'}
-                  </Button>
-                )}
-                {q.status === 'Deposited' &&
-                  (isAdmin ? (
+                {/* One zone, fixed width, right-aligned, whatever the row offers. Its width holds
+                    the widest pair ("Mark cleared" + "Mark returned") so a row with two actions is
+                    exactly as tall as one with none. */}
+                <div className="flex w-[216px] flex-none items-center justify-end gap-2">
+                  {q.status === 'Pending' && (
                     <>
-                      <Button variant="primary" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, clearCheque)}>
-                        {busy ? 'Working…' : 'Mark cleared'}
+                      {/* The natural next step is the single primary action; cancelling is the
+                          exception beside it. */}
+                      <Button variant="primary" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, depositCheque)}>
+                        {busy ? 'Working…' : 'Mark deposited'}
                       </Button>
-                      <Button variant="outlineDestructive" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, returnCheque)}>
-                        {busy ? 'Working…' : 'Mark returned'}
-                      </Button>
-                    </>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="primary" size="sm" aria-disabled="true" className="cursor-not-allowed gap-1 text-meta opacity-50 hover:bg-accent-solid">
-                          <Lock size={10} strokeWidth={2.4} aria-hidden="true" />
-                          Mark cleared
+                      {/* Cancel is offered only while Pending — once deposited the cheque is with
+                          the bank and its outcome is Cleared or Returned, not cancelled. Admin
+                          only, matching the server guard: an operator would otherwise fill in a
+                          confirmation and get a 403 at the end of it.
+                          `border-solid` overrides the variant's dashed edge, which reads as a
+                          disabled control rather than a deliberate destructive one — the same
+                          override AccountFormModal already applies to its own delete button. */}
+                      {isAdmin && (
+                        <Button variant="outlineDestructive" size="sm" className="border-solid text-meta" disabled={busy} onClick={() => run(q.id, cancelCheque)}>
+                          {busy ? 'Working…' : 'Cancel'}
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Clearing and returning a cheque needs Admin.</TooltipContent>
-                    </Tooltip>
-                  ))}
+                      )}
+                    </>
+                  )}
+                  {q.status === 'Deposited' &&
+                    (isAdmin ? (
+                      <>
+                        <Button variant="primary" size="sm" className="text-meta" disabled={busy} onClick={() => run(q.id, clearCheque)}>
+                          {busy ? 'Working…' : 'Mark cleared'}
+                        </Button>
+                        <Button variant="outlineDestructive" size="sm" className="border-solid text-meta" disabled={busy} onClick={() => run(q.id, returnCheque)}>
+                          {busy ? 'Working…' : 'Returned'}
+                        </Button>
+                      </>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="primary" size="sm" aria-disabled="true" className="cursor-not-allowed gap-1.5 text-meta opacity-50 hover:bg-accent-solid">
+                            <Lock size={10} strokeWidth={2.4} aria-hidden="true" />
+                            Mark cleared
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Clearing and returning a cheque needs Admin.</TooltipContent>
+                      </Tooltip>
+                    ))}
+                </div>
               </div>
-              {errors[q.id] && <div className="mt-1.5 text-meta font-semibold text-negative">{errors[q.id]}</div>}
+              {/* Indented to sit under the data rather than under the row edge, so it reads as
+                  belonging to the record above it. */}
+              <div className="mt-2 pl-[86px]">
+                <ChequeHistoryLine history={q.history} />
+              </div>
+              {errors[q.id] && <div className="mt-2 pl-[86px] text-meta font-semibold text-negative">{errors[q.id]}</div>}
             </div>
           )
         })}
