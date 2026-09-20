@@ -206,6 +206,185 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-20 — the cheque lifecycle gains a way to undo a mistake, a real due date, and a register
+
+### Done
+
+*At a glance: three pieces of cheque work, then the release that put all of it — plus the previous
+day's accounting fixes — onto the live system. The release needed a database change first, and was
+done in that order deliberately.*
+
+**A cheque entered by mistake can now be cancelled.** Before this there was no way to remove one.
+The only route off the uncleared list was to mark it deposited and then returned — which writes a
+history saying the cheque went to the bank and bounced, two events that never happened, on a record
+the client shows customers. Cancelling is now its own outcome, and it reads honestly: *"Recorded
+20 Sep → Cancelled 20 Sep"*.
+
+Deliberately only available while the cheque is still **Pending**. Once it has been marked
+deposited it is with the bank and its outcome is cleared or returned; once cleared it has moved
+money, and undoing that is a reversal — a separate piece of work that is scoped and deliberately
+not started. Cancelling moves no money, and there is nothing to move: a cheque that has not cleared
+never touched the customer's balance in the first place. Admin only, matching clearing and
+returning. Who cancelled it and when are both recorded on the cheque.
+
+**The due date is now real rather than decorative.** It used to be set automatically to two weeks
+after entry, displayed, and read by nothing at all — a date that corresponded to no real date on
+any real cheque, which is why nothing could sensibly be built on it. The dealer now types the date
+actually written on the cheque, still defaulting to two weeks out so nothing changes for anyone who
+does not care.
+
+With a real date, the page can finally use it: an uncleared cheque past its due date is flagged, the
+summary cards count how many are overdue, and the list can be sorted by due date or filtered to show
+only the overdue ones. This needed its own date checking on the server — a due date is the one date
+on the desk that is *supposed* to be in the future, so the existing rule that refuses future dates
+would have rejected the ordinary case.
+
+**A Cheque Register**, at the client's request: every cheque as one accounting line, listed by the
+day it was received, showing which account is debited and which credited. Investigated before
+building, and two things came back that changed the shape of it:
+
+- **The debit and credit accounts are already decided by the system and never chosen by anyone.**
+  An inward cheque debits the desk's bank and credits the customer; an outward one is the mirror.
+  Both accounts were already fixed when the cheque was entered. So the register shows them, rather
+  than offering them as choices — which is what was asked for once that was confirmed.
+- **A "posting date" was asked for and dropped, on the evidence.** A cheque entry posts nothing to
+  the books; the posting happens when it clears, dated the day it cleared. A posting date captured
+  at entry would either be ignored or would contradict the rule the whole cheque model rests on.
+
+It is a **view, not a second way to enter cheques** — confirmed before building. Cheques are still
+recorded on Receive/Make Payment, which writes both the cheque and the payment behind it together.
+A second entry path would either duplicate that pair or, worse, write a cheque with no payment
+behind it: that looks correct on screen and produces wrong books, because clearing then moves a
+balance that was never raised.
+
+**One thing the register needed that did not exist:** a cheque row carries only the date it was
+keyed in, so a cheque taken on Monday and entered on Wednesday would have listed under Wednesday.
+The day it was actually received is the date of the payment it was taken against, so the register
+reads that instead.
+
+**Two rounds of visual polish** on the Cheques page and the register, at the client-facing owner's
+direction: text that was butting together given real spacing, one consistent status badge
+everywhere, actions gathered into a single column on the right so row height stops depending on how
+many buttons a row happens to offer, customer names no longer cut off mid-word, and the date the
+cheque was received promoted from a greyed-out caption to a column of its own beside the due date.
+
+**Released to production, database change first.** This is the part worth recording carefully. The
+new cancelled status needed a database change, and the instruction as first written would have put
+the new software live before that change was made. Pushing *is* the release on this setup — there
+is no separate step — so the order was inverted after flagging it: the database was changed first,
+confirmed applied three separate ways, and only then was the software released. Both halves
+deployed successfully and are serving the released version.
+
+Checked afterwards on the live system: the pages load, the register appears, no errors. One check
+could not be completed — there are no cheques on the live system at all, so there is no pending
+cheque for the cancel button to appear on. The underlying route was confirmed present and
+responding; it simply has nothing to act on yet. It will be exercised the first time the client
+records a real cheque.
+
+**Full suite green throughout: 380 tests** (118 screen, 200 server, 62 calculator), up from 357.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| A mis-entered cheque could only be removed by recording a bank trip and a bounce that never happened | Medium — false history on a record the client shows customers | **Fixed 2026-09-20** |
+| The due date was automatic, unchangeable and read by nothing — so no overdue tracking was possible | Medium — the client cannot be warned about cheques going stale | **Fixed 2026-09-20**, and overdue flagging built on top of it |
+| The release order as first written would have put new software live before the database change it needed | **High**, had it gone ahead | **Caught before release**; order inverted and the database changed first |
+| The live system has no cheques at all, so the cancel button could not be exercised there | Low — the route was confirmed present | **Open**: it will be exercised on the client's first real cheque |
+
+### Next — in priority order
+
+1. Walk a cheque through its full life on the live system once there is one to walk — the cancel
+   path is the only one never exercised against the released software.
+2. Clear the practice data from the live system, as planned.
+3. Unchanged: switching the reports over to read the accounting record remains the largest open
+   piece of work.
+
+## 2026-09-19 — a customer-to-customer transfer, and the accounting replay it forced
+
+### Done
+
+*At a glance: a new client request (move money between two customers' accounts without any cash
+changing hands), and then three accounting corrections it exposed — one of which had to be fixed
+before the new feature could safely go live.*
+
+**What the client asked for.** One customer says "take 10 lac out of my account and give it to the
+other customer". The second customer does not want it paid out; he keeps a running balance with the
+desk and wants it credited there. No money moves through any bank or cash account — one customer's
+balance goes down and the other's goes up.
+
+**Most of it already existed.** Checked before building, per the usual instruction: the accounting
+for exactly this was already possible from the admin-only Journal Entry page, which has always been
+able to post between any two accounts and has always moved both customers' balances correctly. What
+was missing was a sensible way in. So this is a purpose-built screen for something the books could
+already do, not new accounting — which is why the server needed almost no change.
+
+**Deliberately not treated as a new payment method.** It sits beside Cash/Bank/Cheque as its own
+control rather than joining them, because it is not a way of moving money — it is a different kind
+of record that replaces the money side entirely.
+
+**Transferring more than the customer has is allowed, with a clear warning.** Confirmed with the
+client. A running balance legitimately crosses from credit into debt, and refusing it would make
+the new screen less capable than the Journal Entry page it replaces. The screen says plainly what
+will happen — "this will leave them owing the desk X" — rather than silently allowing it or
+blocking it outright. Creating one is admin-only; the resulting entry is visible to everyone, since
+it discloses no profit figures.
+
+**Then the checking tool was run, and it was not clean.** Standard practice before touching the
+reporting code: run the tool that asks whether the accounting record alone reproduces every
+reported figure. It came back with two disagreements, and they turned out to be two different
+faults:
+
+- **One was caused by the new transfer feature.** A customer whose only activity is a transfer has
+  no trade and no cheque, and the balance sheet's rule for deciding whether to replay history or
+  trust the stored figure only looked at trades and cheques. So such a customer's *current* balance
+  was reported at *every* historical date — including dates before the customer existed. This would
+  have turned the checking tool red the first time anyone posted a transfer on the live system.
+- **One was older and unrelated.** A customer's opening balance carried no date, so it was applied
+  at every date, including dates before the account was created — while the accounting record
+  correctly showed nothing. Confirmed real by removing the practice data and re-running: it
+  reproduced on clean data.
+
+**Both were fixed, separately, each verified on its own** so that if a figure had moved it would be
+obvious which change caused it. The opening-balance fix turned out to be a single dated check. The
+larger one was a rewrite: a customer's history now replays as one chronological pass rather than
+three separate sums, because a hand-written entry's effect depends on the running balance at that
+moment and sums cannot express that. The result is that **manual entries and transfers now appear
+on a customer's statement**, which they never did before — the balance moved but no line explained
+why, and the closing figure was short by exactly that amount.
+
+**The checking tool reports clean before and after every change**, at all five dates, which is the
+standard this work is held to: a red run is a finding, not something to explain away.
+
+**A third fault, found by reading rather than by a tool.** Clearing a cheque for more than the
+customer owed stored a *negative* balance — the only place in the system with neither a guard nor a
+rule for handling the excess. The total was right and the split was wrong, which is the half anyone
+actually reads: "owed to us: minus 70,000" where the books mean "we owe them 70,000". Put to the
+client, who confirmed the excess should settle the debt and the remainder stay as a credit for
+later — the same rule already used elsewhere. Checked the live system first: no customer there
+carried a negative balance and no cheque had ever been recorded, so nothing historical needed
+correcting.
+
+**Also this session:** who posted an entry is now visible on the row rather than only on hover. A
+transfer bypasses the bank entirely, so its entry is the only record that the money moved and the
+only record of who authorised it — and that was reachable only by hovering the right cell on the
+right screen, and not shown at all on the Journal page.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| A transfer would have turned the accounting checking tool red the first time one was posted on the live system | **High** — would have broken the standard that a red run is a real finding | **Fixed 2026-09-19** before the feature shipped |
+| A customer's opening balance was applied at dates before the account existed | Medium — wrong figures on any historical report covering that period | **Fixed 2026-09-19**; confirmed real on clean data first |
+| Manual entries and transfers moved a customer's balance but appeared on no statement | Medium — a balance that moves with nothing explaining it | **Fixed 2026-09-19** |
+| Clearing a cheque for more than owed stored a negative balance instead of a credit | Medium — total right, split wrong, and the split is what is read | **Fixed 2026-09-19**; live system confirmed unaffected |
+| Who posted an entry was only reachable by hovering one cell on one screen | Low, but it is the only record of who authorised a transfer | **Fixed 2026-09-19** |
+
+### Next — in priority order
+
+1. Ship the above together — the transfer feature must not go live without the replay fix.
+2. Unchanged: switching the reports over to read the accounting record.
+
 ## 2026-09-19 — a release to production was stopped before it could take the desk down
 
 ### Done
