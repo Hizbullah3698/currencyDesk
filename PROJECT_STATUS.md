@@ -206,6 +206,78 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-21 — the live system cleared back to empty books, and two faults the clearing exposed
+
+### Done
+
+*At a glance: the two items left open yesterday are both closed. A cheque was walked through its
+full life on the live system, and then the live system was cleared of every practice figure. The
+clearing itself surfaced two defects — one in the clearing tool, one in a test — and both are
+fixed.*
+
+**A cheque was walked end to end on the live system.** This was the one path never exercised
+against the released software. All four outcomes were covered: one cheque cancelled, one deposited
+and returned, one deposited and cleared, and one left pending past its due date so the overdue
+flagging could be seen working. The customer's balance moved by exactly the cleared amount and by
+nothing else — 39,100 down to 36,100 — which is the correct answer: a cheque that is cancelled,
+returned or still pending must leave the balance alone, and all three did.
+
+**The live system has been cleared back to empty books.** Everything on it was practice data, keyed
+in during a demonstration to show the client that the live system worked. It is all gone. What
+remains is what should remain: the thirteen structural accounts the books are built on, both
+logins, the settings, and the currency rows the trading code needs to exist. No customers, no
+deals, no cheques, no accounting entries, and no currency held. The reference numbers are reset, so
+the client's first real transfer will be JV-001 rather than continuing from a practice number.
+
+Verified independently rather than taking the tool's word for it — every count queried directly
+afterwards. A backup of everything was taken first and kept off the machine's shared history, since
+it holds real names and balances.
+
+**The clearing tool refused to run, and it was right to refuse — for the wrong reason.** It checks
+that the database structure is untouched before committing, and that check compared against a
+number written into the code by hand. Two structural changes have shipped since it was written, so
+the number had gone stale and the check failed — announcing that the structure had changed when
+nothing about the clearing touches the structure at all. Because a failed check correctly abandons
+the whole operation, nothing was cleared and nothing was damaged; the tool behaved safely.
+
+The obvious repair was to update the number. That was not done, because it would have set the same
+failure to happen again on the next structural change. The check now reads the real figure before
+starting and confirms it is unchanged at the end, which is how the two checks either side of it
+already work. It keeps its meaning and stops expiring.
+
+**A test was found to be wrong about time, in the app's oldest trap.** The desk runs on Pakistan
+time; the machines the software runs on run on UTC, five hours behind. There is a whole piece of
+the system built for exactly this, and a test written during the due-date work quietly bypassed it,
+working out its expected date from UTC instead. The consequence: that test passed for nineteen
+hours of every day and failed for the other five. It failed on a run at half past two in the
+morning desk time, and the software was the one in the right — the test was wrong. Now corrected to
+ask the same clock the software asks.
+
+Worth recording because the failure is the good outcome here. A test that is wrong about time in a
+five-hour window is the kind of thing that gets dismissed as a fluke, re-run an hour later, passes,
+and stays broken.
+
+**Full suite green: 380 tests** (118 screen, 200 server, 62 calculator).
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The clearing tool's structure check compared against a hand-written number that had gone stale | Medium — it blocked a legitimate clearing and would have failed again on the next structural change | **Fixed 2026-09-21** by deriving the figure instead |
+| A due-date test worked out its expected date from UTC rather than the desk's clock, so it failed for five hours of each day | Low — a test fault, not a product fault; the software was correct | **Fixed 2026-09-21** |
+| The live system had no cheques, so the cancel path had never been exercised there *(carried from 2026-09-20)* | Low | **Closed** — walked end to end, all four outcomes |
+| Practice data was still on the live system *(carried from 2026-09-20)* | Low | **Closed** — cleared, and verified empty |
+
+### Next — in priority order
+
+1. **A question for the client, still unanswered:** does the desk ever take money from a customer,
+   or pay one, before any deal exists — a deposit held against future business, or an advance paid
+   out? The system currently requires an existing balance before a payment can be recorded, so a
+   customer with nothing outstanding cannot be paid or take a deposit. Whether that is correct is a
+   business decision, not a defect, and it needs the client's answer before anything is built.
+2. Unchanged, and still the largest open piece of work: switching the reports over to read the
+   accounting record.
+
 ## 2026-09-20 — the cheque lifecycle gains a way to undo a mistake, a real due date, and a register
 
 ### Done
