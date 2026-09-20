@@ -3,6 +3,7 @@ import { pool } from '../../db/pool.js'
 import { startTestServer, type TestServer } from '../testServer.js'
 import { ApiClient } from '../apiClient.js'
 import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
+import { addDays, deskToday } from '../../config/deskTime.js'
 
 // Cancelling a cheque entered by mistake, and the dealer-set due date.
 //
@@ -144,8 +145,12 @@ describe('cancelling a cheque, and the due date', () => {
     // Fourteen days out, which is what the server imposed unconditionally before the field existed.
     const id = await receiveByCheque(50_000)
     const due = (await chequeRow(id)).due_date
-    const expected = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10)
-    expect(due).toBe(expected)
+    // Derived through the DESK's calendar, not the host's. Computing this from `Date.now()` in UTC
+    // made the test pass for nineteen hours a day and fail for the other five: the desk is UTC+5,
+    // so from 19:00 UTC onward its date is already tomorrow and the server's fourteen days land a
+    // day later than a UTC-derived expectation. Caught exactly that way. This is the same hazard
+    // config/deskTime.ts exists for, and a test is not exempt from it.
+    expect(due).toBe(addDays(deskToday(), 14))
   })
 
   it('still rejects a malformed or impossible due date', async () => {
