@@ -67,6 +67,12 @@ export async function resetBusinessDataForGoLive(client: PoolClient): Promise<Re
   // that reads the same value twice and compares it to itself proves nothing.
   const usersBefore = Number((await client.query<{ n: string }>('SELECT COUNT(*) AS n FROM users')).rows[0].n)
   const sessionsBefore = Number((await client.query<{ n: string }>('SELECT COUNT(*) AS n FROM session')).rows[0].n)
+  // Same treatment, and for a reason found the hard way: this check used to compare against a
+  // hardcoded 18, so it failed the moment migrations 019 and 020 existed — on a production run,
+  // where a failed check correctly rolls the whole reset back. It was reporting "the schema
+  // changed" when nothing about the reset had touched the schema at all; the number had simply
+  // gone stale. Bumping the literal would only have deferred the same failure to migration 021.
+  const migrationsBefore = Number((await client.query<{ n: string }>('SELECT COUNT(*) AS n FROM schema_migrations')).rows[0].n)
 
   const { rows: removedAccounts } = await client.query<{ id: string; type: string; name: string }>(
     'SELECT id, type, name FROM accounts WHERE is_system = false ORDER BY type, name',
@@ -107,7 +113,7 @@ export async function resetBusinessDataForGoLive(client: PoolClient): Promise<Re
     { what: 'structural system accounts kept', expected: '13', actual: String(systemAccounts), ok: systemAccounts === 13 },
     { what: 'every core account still present', expected: String(CORE_ACCOUNT_IDS.length), actual: String(corePresent), ok: corePresent === CORE_ACCOUNT_IDS.length },
     { what: 'stock rows kept (zeroed, not deleted)', expected: '6', actual: String(stockRows), ok: stockRows === 6 },
-    { what: 'schema untouched', expected: '18 migrations', actual: `${migrations} migrations`, ok: migrations === 18 },
+    { what: 'schema untouched', expected: `${migrationsBefore} migrations`, actual: `${migrations} migrations`, ok: migrations === migrationsBefore },
     { what: 'logins untouched', expected: `${usersBefore} users`, actual: `${users} users`, ok: users === usersBefore },
     { what: 'sessions untouched', expected: `${sessionsBefore} sessions`, actual: `${sessions} sessions`, ok: sessions === sessionsBefore },
     { what: 'settings untouched', expected: '1 setting', actual: `${settings} settings`, ok: settings === 1 },

@@ -38,3 +38,8 @@ PROJECT_BRIEFING.md
 # Reconciliation harness input — a full admin-view snapshot, carries cost and margin figures.
 backend/snapshot.json
 snapshot.json
+
+# Backups taken before a destructive run against a live database (see reset:business:prod).
+# Real customer names, balances and trades — never belongs in the repository.
+backend/prod-backup-*.json
+prod-backup-*.json
