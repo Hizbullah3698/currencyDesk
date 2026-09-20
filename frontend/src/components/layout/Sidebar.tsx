@@ -44,6 +44,9 @@ const BOOKS: NavItemDef[] = [
   // same page, so the wording is consistent wherever this list is reached from.
   { to: '/transactions', label: 'All Transactions', icon: List, category: 'neutral' },
   { to: '/ledger', label: 'Customer Ledger', icon: BookOpen, category: 'customers' },
+  // Sits in BOOKS, not TRANSACTIONS: everything in that section RECORDS something, and this
+  // only reads. Cheques are still entered on Receive/Make Payment.
+  { to: '/cheque-register', label: 'Cheque Register', icon: Banknote, category: 'cheques' },
   // Renamed from the bare "Ledgers": this page is the CURRENCY stock ledger, and leaving it as
   // "Ledgers" beside the new "Customer Ledger" would have left two entries whose names suggest the
   // same thing. The route is unchanged.

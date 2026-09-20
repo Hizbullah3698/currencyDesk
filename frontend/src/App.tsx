@@ -15,6 +15,7 @@ import { Settle } from '@/pages/Settle'
 import { Stock } from '@/pages/Stock'
 import { Payments } from '@/pages/Payments'
 import { Cheques } from '@/pages/Cheques'
+import { ChequeRegister } from '@/pages/ChequeRegister'
 import { Journal } from '@/pages/Journal'
 import { Transactions } from '@/pages/Transactions'
 import { BalanceSheet } from '@/pages/BalanceSheet'
@@ -82,6 +83,7 @@ function RoutedApp() {
         <Route path="/stock" element={<Stock />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/cheques" element={<Cheques />} />
+        <Route path="/cheque-register" element={<ChequeRegister />} />
         <Route
           path="/journal"
           element={
