@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/requireAuth.js'
 import { asyncHandler } from '../middleware/asyncHandler.js'
 import { handleMutation, sendIfAppError } from '../services/transact.js'
 import { receive, pay, type SettleInput } from '../services/settlementsService.js'
-import { parseTxnDate } from './txnDate.js'
+import { parseDueDate, parseTxnDate } from './txnDate.js'
 import { parseAmount } from './parse.js'
 
 export const settlementsRouter = Router()
@@ -17,6 +17,7 @@ function parseSettleInput(body: unknown): SettleInput {
     bankId: String(b.bankId ?? ''),
     chqNo: String(b.chqNo ?? ''),
     chqBank: String(b.chqBank ?? ''),
+    chqDue: parseDueDate(b.chqDue),
     txnDate: parseTxnDate(b.txnDate),
   }
 }

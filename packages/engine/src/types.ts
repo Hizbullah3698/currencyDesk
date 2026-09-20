@@ -106,7 +106,12 @@ export interface Activity {
 }
 
 export type ChequeDirection = 'Inward' | 'Outward'
-export type ChequeStatus = 'Pending' | 'Deposited' | 'Cleared' | 'Returned'
+/**
+ * 'Cancelled' is for a cheque entered by mistake and is reachable only from 'Pending' — see
+ * migration 020. It is deliberately NOT a synonym for 'Returned': returned means the bank sent it
+ * back, cancelled means it never went there.
+ */
+export type ChequeStatus = 'Pending' | 'Deposited' | 'Cleared' | 'Returned' | 'Cancelled'
 
 export interface Cheque {
   id: string

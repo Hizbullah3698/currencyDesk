@@ -102,6 +102,33 @@ export async function clearCheque(client: PoolClient, id: string, actorId: strin
   }
 }
 
+/**
+ * Cancel a cheque that should never have been entered.
+ *
+ * PENDING ONLY. Once a cheque is Deposited it is with the bank and its outcome is Cleared or
+ * Returned; once Cleared it has moved money, and undoing that is a reversal — the corrections
+ * feature that is scoped and deferred. The guard is the same `WHERE status = '…'` the other
+ * transitions use, so a losing racer gets a clean 409 rather than a second history line.
+ *
+ * MOVES NO MONEY, and there is nothing to move: a held cheque never touched the balance in the
+ * first place (settlementsService guards its balance update with `!chequeHeld`), and the replays
+ * only count a cheque once its status is 'Cleared'. So the customer's debt simply stays where it
+ * was, which is the correct answer for a cheque that never existed.
+ *
+ * The alternative before this existed was walking a mis-entry Deposited -> Returned, which wrote a
+ * history saying it went to the bank and bounced — two events that did not happen, on a record the
+ * client shows customers. `updated_by` and the history line record who cancelled it and when.
+ */
+export async function cancelCheque(client: PoolClient, id: string, actorId: string | null): Promise<void> {
+  const historyLine = 'Cancelled ' + deskShortDate()
+  const { rowCount } = await client.query(
+    `UPDATE cheques SET status = 'Cancelled', updated_at = now(), updated_by = $2, history = array_append(history, $3)
+     WHERE id = $1 AND status = 'Pending'`,
+    [id, actorId, historyLine],
+  )
+  if (rowCount === 0) throw appError(409, 'Only a cheque that is still Pending can be cancelled.')
+}
+
 export async function returnCheque(client: PoolClient, id: string, actorId: string | null): Promise<void> {
   const historyLine = 'Returned ' + deskShortDate()
   const { rowCount } = await client.query(

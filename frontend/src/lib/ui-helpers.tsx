@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { ArrowDownToLine, ArrowUpFromLine, ArrowDownCircle, ArrowUpCircle, Banknote, SquarePen, Clock, CheckCircle2, XCircle, Landmark, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowDownCircle, ArrowDownToLine, ArrowUpCircle, ArrowUpFromLine, Ban, Banknote, CheckCircle2, Clock, Landmark, SquarePen, XCircle } from 'lucide-react'
 import type { ActivityType, ChequeStatus } from './types'
 
 export interface TypeMeta {
@@ -45,6 +45,10 @@ export const STATUS_META: Record<string, StatusMeta> = {
   Deposited: { variant: 'accent', icon: Landmark },
   Cleared: { variant: 'positive', icon: CheckCircle2 },
   Returned: { variant: 'negative', icon: XCircle },
+  // Neutral, not negative: a returned cheque is a problem someone has to chase, a cancelled one is
+  // a correction that is already finished. Styling them alike would make routine tidying-up look
+  // like a bounce on a page the client scans for trouble.
+  Cancelled: { variant: 'neutral', icon: Ban },
   Open: { variant: 'pending', icon: Clock },
   Settled: { variant: 'positive', icon: CheckCircle2 },
   Posted: { variant: 'positive', icon: CheckCircle2 },

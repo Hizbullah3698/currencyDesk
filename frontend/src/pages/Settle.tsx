@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { fmt, fmtLongDate, todayISO } from '@/lib/format'
+import { addDaysISO, fmt, fmtLongDate, todayISO } from '@/lib/format'
 import type { SettlementMethod } from '@/lib/types'
 import { BackButton } from '@/components/BackButton'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,10 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
   const [bankId, setBankId] = useState(state.accounts.find((a) => a.type === 'Bank' && !a.archived)?.id || '')
   const [chqNo, setChqNo] = useState('')
   const [chqBank, setChqBank] = useState('')
+  // Two weeks out, matching the server's own default (DUE_DAYS in chequeHelpers.ts) so the field
+  // starts where the old automatic behaviour left it, and the dealer changes it only when the
+  // cheque in their hand says something else.
+  const [chqDue, setChqDue] = useState(() => addDaysISO(todayISO(), 14))
   const [isJV, setIsJV] = useState(false)
   const [toCustomerId, setToCustomerId] = useState('')
   const [error, setError] = useState('')
@@ -160,7 +164,7 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
       setPosted({ amount: amt, remaining: Math.max(outstanding - amt, 0) })
       return setStep('done')
     }
-    const input = { customerId, txnDate, amount: amt, method, bankId, chqNo, chqBank }
+    const input = { customerId, txnDate, amount: amt, method, bankId, chqNo, chqBank, chqDue }
     const res = mode === 'receive' ? await confirmReceive(input) : await confirmPay(input)
     setSubmitting(false)
     if (!res.ok) return setError(res.error || 'Could not post this payment.')
@@ -312,6 +316,15 @@ export function Settle({ mode }: { mode: 'receive' | 'pay' }) {
                   <label className="mb-1 block text-meta font-semibold text-muted-70">Bank</label>
                   <Input value={chqBank} onChange={(e) => setChqBank(e.target.value)} placeholder="Meezan, HBL…" className="h-8 text-body" />
                 </div>
+              </div>
+              {/* The date written on the cheque. Defaulted to two weeks out — what the server used
+                  to impose unconditionally — but now overwritable, which is the whole point: a due
+                  date nobody could set corresponded to no real date on any real cheque, so nothing
+                  could sensibly be built on it. It is the one date on this screen allowed to be in
+                  the future, so it is validated by parseDueDate rather than parseTxnDate. */}
+              <div className="mt-2.5">
+                <label className="mb-1 block text-meta font-semibold text-muted-70">Due date</label>
+                <DatePicker value={chqDue} onChange={setChqDue} className="h-8 w-full justify-start border-border-input text-body" />
               </div>
               <div className="mt-2 text-meta font-normal leading-[1.45] text-muted-60">Recorded as a pending {mode === 'receive' ? 'inward' : 'outward'} cheque. The {mode === 'receive' ? 'receivable' : 'payable'} is unchanged until the cheque clears.</div>
             </div>

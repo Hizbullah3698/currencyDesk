@@ -18,6 +18,15 @@ export interface BuildChequeInput {
   bankAccountName: string
   source: string
   actorId: string | null
+  /**
+   * The date written on the cheque, 'YYYY-MM-DD', already validated by routes/txnDate.ts's
+   * `parseDueDate`. Null means the dealer left it alone and the default applies.
+   *
+   * Until this existed the due date was always entry + DUE_DAYS and nothing could change it —
+   * displayed on the Cheques page but corresponding to no real date on any real cheque, which is
+   * why nothing could sensibly be built on top of it.
+   */
+  dueDate?: string | null
 }
 
 const UNIQUE_VIOLATION = '23505'
@@ -36,7 +45,9 @@ export async function insertCheque(client: PoolClient, input: BuildChequeInput):
 
   // Both on the desk's calendar — `toISOString()` gave the UTC day, which is yesterday for the
   // first five hours of every desk day. See config/deskTime.ts.
-  const dueDateStr = addDays(deskToday(), DUE_DAYS)
+  // The dealer's date when given, otherwise the default. Same fallback shape as txnDate: an
+  // explicit value wins, and the desk's own calendar supplies the rest.
+  const dueDateStr = input.dueDate ?? addDays(deskToday(), DUE_DAYS)
   const historyLine = 'Recorded ' + deskShortDate()
   const bank = input.chqBank.trim() || input.bankAccountName
 

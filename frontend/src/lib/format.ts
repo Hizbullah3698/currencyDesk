@@ -115,6 +115,24 @@ export function settlementAccountLabel(t: { method?: string; settlementAccountId
   return acct?.name || 'account not recorded'
 }
 
+/**
+ * `n` days after a 'YYYY-MM-DD', as another 'YYYY-MM-DD'.
+ *
+ * Arithmetic done through UTC so the process timezone plays no part — the same reasoning
+ * routes/txnDate.ts gives for validating a bare date through `Date.UTC`. A local-time `setDate`
+ * would land on the wrong day whenever the span crosses a DST boundary.
+ *
+ * Mirrors `addDays` in backend/src/config/deskTime.ts, which computes the cheque due-date default
+ * server-side. Both exist because the default has to be shown in the form before the server ever
+ * sees the request.
+ */
+export function addDaysISO(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d))
+  t.setUTCDate(t.getUTCDate() + n)
+  return t.toISOString().slice(0, 10)
+}
+
 export function todayISO(): string {
   const d = new Date()
   const y = d.getFullYear()

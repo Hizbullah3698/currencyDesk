@@ -162,6 +162,9 @@ interface StoreCtx {
     bankId: string
     chqNo: string
     chqBank: string
+    /** Cheque method only: the date written on the cheque. Optional — the server defaults it to
+     *  entry + 14 days when omitted. Unlike txnDate this may be in the future, which is the point. */
+    chqDue?: string
   }) => Promise<{ ok: boolean; error?: string }>
   confirmSale: (input: {
     customerId: string
@@ -175,6 +178,9 @@ interface StoreCtx {
     bankId: string
     chqNo: string
     chqBank: string
+    /** Cheque method only: the date written on the cheque. Optional — the server defaults it to
+     *  entry + 14 days when omitted. Unlike txnDate this may be in the future, which is the point. */
+    chqDue?: string
   }) => Promise<{ ok: boolean; error?: string }>
   confirmReceive: (input: {
     customerId: string
@@ -185,6 +191,9 @@ interface StoreCtx {
     bankId: string
     chqNo: string
     chqBank: string
+    /** Cheque method only: the date written on the cheque. Optional — the server defaults it to
+     *  entry + 14 days when omitted. Unlike txnDate this may be in the future, which is the point. */
+    chqDue?: string
   }) => Promise<{ ok: boolean; error?: string }>
   confirmPay: (input: {
     customerId: string
@@ -195,6 +204,9 @@ interface StoreCtx {
     bankId: string
     chqNo: string
     chqBank: string
+    /** Cheque method only: the date written on the cheque. Optional — the server defaults it to
+     *  entry + 14 days when omitted. Unlike txnDate this may be in the future, which is the point. */
+    chqDue?: string
   }) => Promise<{ ok: boolean; error?: string }>
 
   /** `txnDate` is optional on the same terms as a trade's: omitted, the server dates the entry on
@@ -211,6 +223,8 @@ interface StoreCtx {
   depositCheque: (id: string) => Promise<string>
   clearCheque: (id: string) => Promise<string>
   returnCheque: (id: string) => Promise<string>
+  /** Voids a cheque entered by mistake. Pending only, and Admin only — see routes/cheques.ts. */
+  cancelCheque: (id: string) => Promise<string>
 
   accrueSalary: (empId: string, period: string) => Promise<string>
   accrueAllSalaries: (period: string) => Promise<string>
@@ -359,6 +373,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     depositCheque: (id) => mutateString('POST', `/api/cheques/${id}/deposit`),
     clearCheque: (id) => mutateString('POST', `/api/cheques/${id}/clear`),
     returnCheque: (id) => mutateString('POST', `/api/cheques/${id}/return`),
+    cancelCheque: (id) => mutateString('POST', `/api/cheques/${id}/cancel`),
 
     accrueSalary: (empId, period) => mutateString('POST', '/api/salary/accrue', { employeeId: empId, period }),
     accrueAllSalaries: (period) => mutateString('POST', '/api/salary/accrue-all', { period }),

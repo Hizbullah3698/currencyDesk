@@ -9,6 +9,8 @@ import {
   stockAsOf,
   marginLedger,
   chequeNoError,
+  chequeIsOpen,
+  chequeIsOverdue,
   nextChequeNumber,
   custEffects,
   customerBalanceAsOf,
@@ -239,6 +241,37 @@ describe('cheque numbering', () => {
   it('skips forward past every already-taken number, not just the seed itself', () => {
     const existing = [cheque({ number: '1001' }), cheque({ number: '1002' }), cheque({ number: '1003' })]
     expect(nextChequeNumber(existing, 1001)).toBe(1004)
+  })
+})
+
+describe('cheque open / overdue', () => {
+  const at = (status: Cheque['status'], due: string) => cheque({ status, due })
+
+  it('treats Pending and Deposited as open, and every finished state as closed', () => {
+    expect(chequeIsOpen(at('Pending', '2026-01-15'))).toBe(true)
+    expect(chequeIsOpen(at('Deposited', '2026-01-15'))).toBe(true)
+    expect(chequeIsOpen(at('Cleared', '2026-01-15'))).toBe(false)
+    expect(chequeIsOpen(at('Returned', '2026-01-15'))).toBe(false)
+    expect(chequeIsOpen(at('Cancelled', '2026-01-15')), 'cancelled is finished, like cleared and returned').toBe(false)
+  })
+
+  it('is overdue only strictly after the due date', () => {
+    const q = at('Pending', '2026-01-15')
+    expect(chequeIsOverdue(q, '2026-01-14'), 'the day before').toBe(false)
+    expect(chequeIsOverdue(q, '2026-01-15'), 'due today is not yet late').toBe(false)
+    expect(chequeIsOverdue(q, '2026-01-16'), 'the day after').toBe(true)
+  })
+
+  it('never flags a cheque whose outcome is already known', () => {
+    // A cleared cheque that happened to clear late is not something anyone needs chasing, and a
+    // cancelled one never went anywhere. Flagging either would be noise about a closed record.
+    for (const status of ['Cleared', 'Returned', 'Cancelled'] as const) {
+      expect(chequeIsOverdue(at(status, '2026-01-01'), '2026-06-01'), status).toBe(false)
+    }
+  })
+
+  it('does not flag a cheque with no due date at all', () => {
+    expect(chequeIsOverdue(cheque({ status: 'Pending', due: '' }), '2026-06-01')).toBe(false)
   })
 })
 

@@ -548,6 +548,33 @@ export function periodLabel(id: string): string {
 // Cheques
 // ---------------------------------------------------------------------------
 
+/**
+ * Is this cheque still waiting on an outcome?
+ *
+ * Pending and Deposited are the two live states; Cleared, Returned and Cancelled are all final —
+ * the cheque's story is over and it stops counting towards anything outstanding.
+ */
+export function chequeIsOpen(q: Cheque): boolean {
+  return q.status === 'Pending' || q.status === 'Deposited'
+}
+
+/**
+ * Is this cheque past its due date and still unresolved?
+ *
+ * Only an OPEN cheque can be overdue — a cleared, returned or cancelled one has had its outcome,
+ * and flagging it later because a date passed would be noise about a closed record.
+ *
+ * `due` is a plain 'YYYY-MM-DD' from Postgres (the DATE parser is overridden to hand back the
+ * literal text — see db/pool.ts), and `today` is expected in the same form. ISO dates compare
+ * correctly as strings, so this is a calendar comparison with no Date object and no timezone
+ * involved — the same reasoning routes/txnDate.ts uses for "not in the future".
+ *
+ * Strictly AFTER the due date: a cheque due today is not yet late.
+ */
+export function chequeIsOverdue(q: Cheque, today: string): boolean {
+  return chequeIsOpen(q) && !!q.due && q.due < today
+}
+
 export function chequeNoError(cheques: Cheque[], method: string, chqNo: string): string {
   if (method !== 'Cheque') return ''
   const num = (chqNo || '').trim()

@@ -27,6 +27,10 @@ export interface SettleInput {
   bankId: string
   chqNo: string
   chqBank: string
+  /** The date written on the cheque, 'YYYY-MM-DD', validated by `parseDueDate` — which unlike
+   *  `parseTxnDate` allows the future, because a cheque is normally dated forward. Null falls back
+   *  to the default of entry + 14 days. Cheque-method settlements only. */
+  chqDue: string | null
   /** 'YYYY-MM-DD', already validated by routes/txnDate.ts; null means "the desk's today". */
   txnDate: string | null
 }
@@ -74,6 +78,7 @@ export async function receive(client: PoolClient, input: SettleInput, actorId: s
       amount: input.amount,
       chqNo: input.chqNo,
       chqBank: input.chqBank,
+      dueDate: input.chqDue ?? null,
       bankAccountId: settlementAccountId!,
       bankAccountName,
       source: 'payment in',
@@ -137,6 +142,7 @@ export async function pay(client: PoolClient, input: SettleInput, actorId: strin
       amount: input.amount,
       chqNo: input.chqNo,
       chqBank: input.chqBank,
+      dueDate: input.chqDue ?? null,
       bankAccountId: settlementAccountId!,
       bankAccountName,
       source: 'payment out',
