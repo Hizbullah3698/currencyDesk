@@ -255,6 +255,16 @@ average cost was built up in that order and `openingStock()` unwinds it the same
 reporting periods cut on `activityDate()`. Backdating moves a deal between periods without
 rewriting cost history — the same document-date/posting-date split any real ledger runs.
 
+**Within one day, the statement runs oldest-first by real creation time (fixed 2026-09-21).** Every
+deal on a day carries the same noon-pinned instant, the snapshot lists activity newest-first, and the
+sort is stable — so a tie used to keep the snapshot's order: dates ran oldest-first while the deals
+*inside* a day ran newest-first, each row's running balance following the reversed order, and a
+balance crossing Dr to Cr mid-day printed the wrong side on the wrong rows. `customerLedger` now
+sorts on (calendar day, record creation time) via `statementOrder()`, for both the displayed rows and
+the opening-balance fold, matching the order `customerBalanceAsOf` and the server built the stored
+balance in. **Never the id** — a UUID carries no order. A cleared cheque has no separate entry time, so
+its clearing moment stands in. Screen, Excel and the PDF all read the same rows, so they agree.
+
 ### Balance sheet reconciliation
 
 `computeBalanceSheet()` in `frontend/src/lib/reports.ts` returns `balanced`, `openingStockEquity`

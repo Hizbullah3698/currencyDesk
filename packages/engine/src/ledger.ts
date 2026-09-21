@@ -105,6 +105,33 @@ function isoDay(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Where a record sits on the statement: the calendar day it belongs to, then the moment it was
+ * really keyed in.
+ *
+ * The day alone is not enough, and neither is the timestamp the row is dated by. A trade's date is
+ * the day the deal was struck, pinned to local NOON so no timezone slides it a day — which means
+ * every deal on one day carries the identical instant. The snapshot lists activity newest-first,
+ * and the sort below is stable, so a tie kept the snapshot's order: dates ran oldest-first while
+ * the deals inside a day ran NEWEST-first, and each row's running balance followed that reversed
+ * order. A balance that crosses from Dr to Cr partway through a day printed the wrong side on the
+ * wrong rows.
+ *
+ * The second key is the record's real creation time — the same order `customerBalanceAsOf` and the
+ * server built the stored balance in ("replays include by document date, order by createdAt").
+ * Never the id: a UUID carries no order at all. A cleared cheque has no separate entry time, so its
+ * clearing moment stands in — it is when it moved the balance. Ties beyond that keep the order
+ * given, which is why the sort must stay stable.
+ */
+interface StatementOrder {
+  day: string
+  created: number
+}
+function statementOrder(dateIso: string, createdIso: string): StatementOrder {
+  return { day: isoDay(dateIso), created: stampTime(createdIso) }
+}
+const byStatementOrder = (a: StatementOrder, b: StatementOrder) => a.day.localeCompare(b.day) || a.created - b.created
+
 export interface LedgerRange {
   /** Inclusive lower bound as a timestamp. Omit for "from the beginning". */
   fromT?: number
@@ -158,36 +185,39 @@ export function customerLedger(
   // running pair at that moment (see allocateDebit/allocateCredit) — so the moment manual entries
   // joined the statement, "sum each kind separately" stopped being able to express the answer.
   let opening = { receivable: cust.openingReceivable || 0, payable: cust.openingPayable || 0 }
-  const priorSteps: { at: number; apply: (b: typeof opening) => typeof opening }[] = []
+  const priorSteps: ({ at: number; apply: (b: typeof opening) => typeof opening } & StatementOrder)[] = []
   for (const t of mine) {
     if (!beforePeriod(activityDate(t))) continue
     const at = stampTime(activityDate(t))
-    if (t.type === 'sale') priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable + owedOn(t) }) })
-    else if (t.type === 'purchase') priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable + owedOn(t) }) })
-    else if (t.type === 'receive' && !t.chequeHeld) priorSteps.push({ at, apply: (b) => ({ ...b, receivable: b.receivable - (t.amount || 0) }) })
-    else if (t.type === 'pay' && !t.chequeHeld) priorSteps.push({ at, apply: (b) => ({ ...b, payable: b.payable - (t.amount || 0) }) })
+    const k = statementOrder(activityDate(t), t.createdAt)
+    if (t.type === 'sale') priorSteps.push({ at, ...k, apply: (b) => ({ ...b, receivable: b.receivable + owedOn(t) }) })
+    else if (t.type === 'purchase') priorSteps.push({ at, ...k, apply: (b) => ({ ...b, payable: b.payable + owedOn(t) }) })
+    else if (t.type === 'receive' && !t.chequeHeld) priorSteps.push({ at, ...k, apply: (b) => ({ ...b, receivable: b.receivable - (t.amount || 0) }) })
+    else if (t.type === 'pay' && !t.chequeHeld) priorSteps.push({ at, ...k, apply: (b) => ({ ...b, payable: b.payable - (t.amount || 0) }) })
   }
   // Allocated, not subtracted — see customerBalanceAsOf. A cheque for more than the customer owes
   // settles the debt and leaves the remainder as a credit, which is what the server now stores.
   for (const q of myCheques) {
     if (!beforePeriod(chequeDate(q))) continue
     const at = stampTime(chequeDate(q))
-    if (q.direction === 'Inward') priorSteps.push({ at, apply: (b) => allocateCredit(b, q.amount) })
-    else priorSteps.push({ at, apply: (b) => allocateDebit(b, q.amount) })
+    const k = statementOrder(chequeDate(q), chequeDate(q))
+    if (q.direction === 'Inward') priorSteps.push({ at, ...k, apply: (b) => allocateCredit(b, q.amount) })
+    else priorSteps.push({ at, ...k, apply: (b) => allocateDebit(b, q.amount) })
   }
   for (const e of myEntries) {
     if (!beforePeriod(activityDate(e))) continue
     const at = stampTime(activityDate(e))
-    if (e.debitAccount === cust.id) priorSteps.push({ at, apply: (b) => allocateDebit(b, e.amount) })
-    if (e.creditAccount === cust.id) priorSteps.push({ at, apply: (b) => allocateCredit(b, e.amount) })
+    const k = statementOrder(activityDate(e), e.createdAt)
+    if (e.debitAccount === cust.id) priorSteps.push({ at, ...k, apply: (b) => allocateDebit(b, e.amount) })
+    if (e.creditAccount === cust.id) priorSteps.push({ at, ...k, apply: (b) => allocateCredit(b, e.amount) })
   }
-  priorSteps.sort((a, b) => a.at - b.at)
+  priorSteps.sort((a, b) => byStatementOrder(a, b) || a.at - b.at)
   for (const step of priorSteps) opening = step.apply(opening)
   const openingReceivable = opening.receivable
   const openingPayable = opening.payable
 
   // --- rows in the period ---
-  interface Pending {
+  interface Pending extends StatementOrder {
     at: number
     date: string
     build: (r: { receivable: number; payable: number; units: Record<string, number> }) => LedgerRow
@@ -200,6 +230,7 @@ export function customerLedger(
     pending.push({
       at: stampTime(date),
       date,
+      ...statementOrder(date, t.createdAt),
       build: (run) => {
         let receivableDelta = 0
         let payableDelta = 0
@@ -245,6 +276,7 @@ export function customerLedger(
     pending.push({
       at: stampTime(date),
       date,
+      ...statementOrder(date, date),
       build: (run) => {
         // Deltas derived by difference from the allocation, exactly as the journal row does: on a
         // cheque that over-covers the debt both columns move and neither delta equals the cheque's
@@ -278,6 +310,7 @@ export function customerLedger(
     pending.push({
       at: stampTime(date),
       date,
+      ...statementOrder(date, e.createdAt),
       build: (run) => {
         // The allocation is applied to the RUNNING pair, so the deltas are whatever it actually
         // moved rather than a flat ±amount — on an entry that settles one column and crosses the
@@ -307,8 +340,8 @@ export function customerLedger(
 
   // Oldest first — a statement reads forward, and a running balance is meaningless in any other
   // order. (The customer detail screen lists newest-first, which is right for "what happened
-  // lately" and wrong for this.)
-  pending.sort((a, b) => a.at - b.at || a.date.localeCompare(b.date))
+  // lately" and wrong for this.) Oldest first WITHIN a day too: see `statementOrder`.
+  pending.sort((a, b) => byStatementOrder(a, b) || a.at - b.at || a.date.localeCompare(b.date))
 
   const run = { receivable: openingReceivable, payable: openingPayable, units: {} as Record<string, number> }
   const rows = pending.map((p) => p.build(run))

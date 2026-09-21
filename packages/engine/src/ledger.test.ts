@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { customerLedger } from './ledger.js'
 import { custEffects, stampTime } from './engine.js'
-import type { Account, Activity, Cheque } from './types.js'
+import type { Account, Activity, Cheque, JournalEntry } from './types.js'
 
 const AUDIT = { createdBy: 'admin', updatedBy: 'admin' }
 
@@ -197,5 +197,85 @@ describe('customerLedger — multi-currency', () => {
     expect(payRow.currency).toBeUndefined()
     expect(payRow.runningCurrencyUnits).toBeUndefined()
     expect(l.currencies.reduce((s, c) => s + c.trades, 0), 'settlement is not a trade').toBe(4)
+  })
+})
+
+// Same-day order. The snapshot lists activity newest-first and every deal on one day carries the same
+// noon-pinned instant, so the statement used to keep the snapshot's order on a tie: dates ran
+// oldest-first while the deals INSIDE a day ran newest-first, each with a running balance that
+// followed the reversed order. Fixed 2026-09-21: oldest first within a day, by real creation time.
+describe('customerLedger — order within one day', () => {
+  function je(o: Partial<JournalEntry> & Pick<JournalEntry, 'id' | 'debitAccount' | 'creditAccount' | 'amount'>): JournalEntry {
+    return {
+      ref: 'JV-1',
+      narration: 'Manual entry',
+      debitLabel: 'x',
+      creditLabel: 'y',
+      txnDate: '2026-02-05',
+      createdAt: '2026-02-05T10:00:00.000Z',
+      updatedAt: '2026-02-05T10:00:00.000Z',
+      ...AUDIT,
+      ...o,
+    } as JournalEntry
+  }
+
+  // Three deals on ONE day, keyed in A -> B -> C, handed over newest-first exactly as the snapshot
+  // does. B is a purchase big enough to carry the balance from Dr across to Cr partway through the day.
+  const A = act({ id: 'A', type: 'sale', amount: 100, rate: 10, pkrValue: 1000, txnDate: '2026-02-05', createdAt: '2026-02-05T07:00:00.000Z' })
+  const B = act({ id: 'B', type: 'purchase', amount: 300, rate: 10, pkrValue: 3000, txnDate: '2026-02-05', createdAt: '2026-02-05T09:00:00.000Z' })
+  const C = act({ id: 'C', type: 'sale', amount: 50, rate: 10, pkrValue: 500, txnDate: '2026-02-05', createdAt: '2026-02-05T11:00:00.000Z' })
+
+  it('lists three deals on one day oldest-first, with the running balance following that order', () => {
+    const l = customerLedger(cust(), [C, B, A], [], [])
+    expect(l.rows.map((r) => r.id)).toEqual(['A', 'B', 'C'])
+    // +1,000 (Dr), then -3,000 crosses to Cr, then +500 — each row's balance is the running total in THIS order.
+    expect(l.rows.map((r) => r.runningNet)).toEqual([1000, -2000, -1500])
+    expect(l.closing.net).toBe(-1500)
+    // The crossing lands on the right row: Dr after the first deal, Cr after the second.
+    expect(Math.sign(l.rows[0].runningNet)).toBe(1)
+    expect(Math.sign(l.rows[1].runningNet)).toBe(-1)
+  })
+
+  it('does not depend on the order the records are handed over in', () => {
+    const orders = [[A, B, C], [B, A, C], [C, A, B], [C, B, A]]
+    for (const input of orders) {
+      const l = customerLedger(cust(), input, [], [])
+      expect(l.rows.map((r) => r.id), input.map((r) => r.id).join('')).toEqual(['A', 'B', 'C'])
+      expect(l.rows.map((r) => r.runningNet)).toEqual([1000, -2000, -1500])
+    }
+  })
+
+  it('still lists different days oldest-first, whatever time of day each was keyed in', () => {
+    // A backdated deal keyed in LAST but struck the day before belongs above the others.
+    const backdated = act({ id: 'Z', type: 'sale', amount: 10, rate: 10, pkrValue: 100, txnDate: '2026-02-04', createdAt: '2026-02-05T12:00:00.000Z' })
+    const l = customerLedger(cust(), [backdated, C, B, A], [], [])
+    expect(l.rows.map((r) => r.id)).toEqual(['Z', 'A', 'B', 'C'])
+  })
+
+  it('puts a cheque that cleared mid-day between the deals keyed in before and after it', () => {
+    // Cleared at 09:00, between a deal keyed in at 07:30 and one keyed in at 13:00. Before this fix the
+    // cheque sorted on its real clearing time against deals pinned to local noon, so it landed before both
+    // (or after both, depending on the desk's timezone) instead of between them.
+    const early = act({ id: 'early', type: 'sale', amount: 10, rate: 10, pkrValue: 1000, txnDate: '2026-02-05', createdAt: '2026-02-05T07:30:00.000Z' })
+    const late = act({ id: 'late', type: 'sale', amount: 10, rate: 10, pkrValue: 2000, txnDate: '2026-02-05', createdAt: '2026-02-05T13:00:00.000Z' })
+    const cheque = chq({ id: 'q', direction: 'Inward', amount: 400, createdAt: '2026-02-01T10:00:00.000Z', updatedAt: '2026-02-05T09:00:00.000Z' })
+    const l = customerLedger(cust(), [late, early], [cheque], [])
+    expect(l.rows.map((r) => r.id)).toEqual(['early', 'q', 'late'])
+    expect(l.rows.map((r) => r.runningNet)).toEqual([1000, 600, 2600])
+  })
+
+  it('orders same-day entries the same way in the opening balance, where journal allocation depends on it', () => {
+    // A journal entry debiting the customer 400 is keyed in FIRST (08:00), a purchase carrying a payable of
+    // 1,000 second (09:00). In that order the debit has nothing to settle and sits as a receivable of 400,
+    // then the purchase adds the payable: 400 owed to the desk, 1,000 owed by it. If the purchase were
+    // replayed first, the debit would settle the payable instead and print 0 / 600 — the same NET, but
+    // different columns, and the columns are what an opening balance shows. The old sort pushed every
+    // activity ahead of every journal entry on a tie, so it produced the wrong pair.
+    const debit = je({ id: 'j', debitAccount: 'c1', creditAccount: 'capital', amount: 400, createdAt: '2026-02-05T08:00:00.000Z' })
+    const purchase = act({ id: 'p', type: 'purchase', amount: 100, rate: 10, pkrValue: 1000, txnDate: '2026-02-05', createdAt: '2026-02-05T09:00:00.000Z' })
+    const l = customerLedger(cust(), [purchase], [], [debit], { fromT: stampTime('2026-02-10') })
+    expect(l.opening.receivable).toBe(400)
+    expect(l.opening.payable).toBe(1000)
+    expect(l.opening.net).toBe(-600)
   })
 })
