@@ -685,12 +685,79 @@ Other rules that are structural, not stylistic:
 - The sidebar has its own fixed dark-navy palette that does not flip with theme.
 - Print visibility is per-element `print:hidden`, not in the `@media print` block.
 
+## The customer statement PDF
+
+Print opens a **generated PDF** in a new tab and Export PDF downloads the same file. It used to call
+`window.print()` on the statement page, which put a screen layout onto A4: the Balance column cut off
+("PKR 3,8"), one word per line, the closing balance alone on page 2, and the browser's own header and
+footer with `localhost` in them. The on-screen statement and the Excel export are unchanged.
+
+**Three layers, so the parts that can be wrong can be tested without a browser or a PDF:**
+
+- `lib/statementDoc.ts` builds the whole document as plain data. It reads the SAME `customerLedger`
+  rows the screen and the Excel export read, so the three cannot disagree, and **reads only stored
+  fields — never `cost` or `margin`**, so an operator's statement is built from the same fields and
+  carries nothing about profit (a test feeds admin-shaped rows with profit populated and checks no
+  figure or word of it appears).
+- `lib/statementLayout.ts` is page-break arithmetic on heights.
+- `lib/statementPdf.ts` draws it with jsPDF. It is the only file that imports jsPDF, and the button
+  `import()`s it, so the ~133 KB (gzipped) library is never in the main bundle.
+
+**Every amount is whole paisa, as an integer.** Floats from the ledger are converted once with the
+engine's `toPaisa` and never added in floating point again. `buildStatementDocument` **asserts**
+`opening + debits - credits = closing` (and that the running balance ends where the ledger does) and
+throws `StatementIntegrityError` rather than let a statement that does not foot be printed. The old
+print rounded each row to a whole rupee and summed to 4,749,857 against a closing of 4,749,856.
+Decimals are **one setting**, `STATEMENT_CONFIG.amountDecimals` in `lib/statementConfig.ts` (2 = exact
+paisa, the default; 0 = whole rupees, chosen deliberately since the columns then stop adding up) —
+never scattered formatting. The desk name there is a **placeholder** (`DESK NAME`) until branding is
+real data.
+
+**Sign convention:** positive net is Dr (the customer owes the desk), negative is Cr; a balance prints
+its side and never a minus. A payment taken by a cheque that has not cleared moves nothing, so it is
+left out of the table and listed in the "pending cheques" box, which says it does not affect the balance.
+
+**References:** a deal or payment shows `shortRef(id)` exactly as the Transactions page does (the first
+8 characters of its UUID); a journal entry its `JV-` reference; a customer's account id is the same
+8-character form. **There is no sequential human deal number** (the client's old system prints
+`DTMS6173`) — adding one is a data-model change and is a recorded follow-up.
+
+**Page-break rules** (each pinned by a test, several by a sweep over every table length): the table
+header repeats on every page; a date header is never left at the foot of a page; **the closing balance
+always shares its page with at least three rows above it** (it once landed alone on page 2); a day that
+continues over a break repeats its date band marked "continued"; each box after the table is kept
+whole. Rows are single-line — long text is cut with `...` — which is what keeps ~40 rows on page 1.
+
+**The standard PDF fonts print Windows-1252 only, and fail badly outside it.** Measured on jsPDF 4.2.1:
+Arabic and Urdu come out as a run of unrelated accented letters, an arrow as `!'`, and the line is
+letter-spaced as if broken. No library used here shapes right-to-left text either, so embedding a font
+would not fix it. `lib/pdfText.ts` therefore replaces unsupported characters with `?` **and reports
+which field and which characters**; `PdfCharacterNotice` shows that in the app BEFORE the PDF opens.
+Wording the app itself writes must never need the warning (write "to", not an arrow):
+`assertPdfSafeLiteral` checks it at module load.
+
+**Things that will look like bugs and are not:**
+
+- The first Print click after a fresh `npm install` opens a blank tab: Vite's dev server re-optimises
+  `jspdf` on first sight and reloads the page under the new tab. Once per dev-server lifetime, never in a
+  production build.
+- The build emits three extra chunks (`html2canvas`, `index.es`, `purify.es`, ~380 KB). They are jsPDF's
+  optional HTML-to-PDF dependencies, never called and never downloaded.
+- A test that searches PDF bytes for text must remember jsPDF escapes parentheses inside a string
+  (`\(continued\)`), and that a JS string `'\)'` is just `)` — use `String.raw`. A first version of one
+  test could not fail for exactly this reason and was found by breaking the code on purpose.
+- Customer statements for **operators** print whatever the operator's snapshot contains. The server
+  withholds any journal entry with an Income leg from operators, so a manual entry such as a fee charged
+  to a customer moves the stored balance but does not appear on the operator's statement, and the
+  operator's closing balance then differs from the balance every role sees. Reproduced 2026-09-21
+  (admin 10,800 = stored 10,800; operator 8,300). A decision, not yet made; recorded in PROJECT_STATUS.md.
+
 ## Testing and verification
 
-305 tests: 46 engine unit (2 files), 160 backend (23 files — 21 integration with real HTTP against
+459 tests: 80 engine unit (2 files), 203 backend (28 files — 26 integration with real HTTP against
 real Postgres, no supertest, each file booting `http.createServer(createApp())` on an ephemeral
-port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 99 frontend unit
-(10 files under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure
+port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 176 frontend unit
+(17 files under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure
 logic but never a component, and anything touching `window` must be guarded at module load or it
 breaks the suite). No CI — `npm run test` is manual.
 

@@ -1,17 +1,21 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Inbox, Printer, FileText, Sheet } from 'lucide-react'
+import { AlertTriangle, Inbox, Printer, FileText, Sheet } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { customerLedger, currencyMeta, type LedgerRow } from '@/lib/engine'
 import { fmt, fmtAmount, fmtRate, fmtLongDate, fmtShortDate, todayISO } from '@/lib/format'
-import { downloadCsv, printStatement, safeFilePart, toCsv } from '@/lib/exportFile'
+import { downloadBlob, downloadCsv, safeFilePart, toCsv } from '@/lib/exportFile'
+import { buildStatementDocument, StatementIntegrityError, type StatementDocument } from '@/lib/statementDoc'
 import { statementRange } from '@/lib/statementRange'
 import { BackButton } from '@/components/BackButton'
+import { PdfCharacterNotice } from '@/components/PdfCharacterNotice'
 import { PrintHeader } from '@/components/PrintHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
 import { EmptyState } from '@/components/ui/empty-state'
+
+type PdfMode = 'open' | 'download'
 
 const TYPE_LABEL: Record<LedgerRow['type'], string> = {
   purchase: 'Buy',
@@ -41,6 +45,10 @@ export function LedgerDetail() {
   // Full history by default, as specified. Blank means unbounded on that side.
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  // The statement PDF. `notice` holds a built document that has text the PDF font cannot print, waiting
+  // for the person to say whether to carry on; `pdfError` is a plain-words failure to show.
+  const [notice, setNotice] = useState<{ doc: StatementDocument; mode: PdfMode } | null>(null)
+  const [pdfError, setPdfError] = useState('')
 
   const ledger = useMemo(() => {
     if (!cust) return null
@@ -63,6 +71,56 @@ export function LedgerDetail() {
   const l = ledger!
   const multiCurrency = l.currencies.length > 1
   const rangeLabel = from || to ? `${from ? fmtLongDate(from) : 'Start'} — ${to ? fmtLongDate(to) : fmtLongDate(todayISO())}` : 'Full history'
+
+  /**
+   * The statement PDF: Print opens it in a new tab (the viewer prints or saves it), Export PDF downloads the
+   * SAME file. It is generated in the browser from the data already on this screen, so the server does no
+   * extra work, and jsPDF is only fetched the first time this runs.
+   */
+  function startPdf(mode: PdfMode) {
+    setPdfError('')
+    let doc: StatementDocument
+    try {
+      doc = buildStatementDocument(
+        { customer: cust!, accounts: state.accounts, activity: state.activity, cheques: state.cheques, journalEntries: state.journalEntries },
+        { from, to },
+      )
+    } catch (err) {
+      // Only ever a statement that does not add up. It is NOT printed: a customer must not be handed one.
+      setPdfError(
+        err instanceof StatementIntegrityError
+          ? `This statement does not add up, so no PDF was made. Please report it. (${err.message})`
+          : 'The statement could not be prepared.',
+      )
+      return
+    }
+    // Text the PDF font cannot print: say so, naming the field, BEFORE anything opens.
+    if (doc.warnings.length > 0) return setNotice({ doc, mode })
+    void makePdf(doc, mode)
+  }
+
+  async function makePdf(doc: StatementDocument, mode: PdfMode) {
+    setNotice(null)
+    // Open the tab NOW, inside the click's own call stack: a pop-up blocker refuses one opened after an await.
+    const tab = mode === 'open' ? window.open('', '_blank') : null
+    if (tab) tab.document.title = `${doc.title} - ${doc.customerName}`
+    try {
+      const { statementPdfBlob } = await import('@/lib/statementPdf')
+      const blob = statementPdfBlob(doc)
+      const filename = `statement-${safeFilePart(cust!.name)}-${todayISO()}.pdf`
+      if (tab) {
+        const url = URL.createObjectURL(blob)
+        tab.location.href = url
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      } else {
+        downloadBlob(filename, blob)
+        if (mode === 'open') setPdfError('Your browser blocked the new tab, so the PDF was downloaded instead.')
+      }
+    } catch {
+      tab?.close()
+      setPdfError('The PDF could not be generated.')
+    }
+  }
 
   function exportExcel() {
     // Raw table, not the formatted statement — the client asked for the data for their own
@@ -101,13 +159,15 @@ export function LedgerDetail() {
           <div className="mt-0.5 text-body text-muted-60">{rangeLabel}</div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={printStatement}>
+          {/* Print and Export PDF make ONE document. This used to call window.print() on this very page,
+              which put a screen layout onto A4 — columns cut off, a lone closing balance on page 2, the
+              browser's own header and footer with localhost in it. Now a real PDF is generated: Print
+              opens it in a new tab, Export PDF downloads it. See lib/statementDoc.ts. */}
+          <Button variant="secondary" onClick={() => startPdf('open')}>
             <Printer size={14} strokeWidth={2} aria-hidden="true" />
             Print
           </Button>
-          {/* Same action as Print by design — the browser's print dialog offers "Save as PDF" from
-              the very stylesheet that already renders this app's reports. See lib/exportFile.ts. */}
-          <Button variant="secondary" onClick={printStatement}>
+          <Button variant="secondary" onClick={() => startPdf('download')}>
             <FileText size={14} strokeWidth={2} aria-hidden="true" />
             Export PDF
           </Button>
@@ -141,6 +201,21 @@ export function LedgerDetail() {
         )}
         <div className="ml-auto text-meta font-normal text-muted-60">Print and both exports use this range.</div>
       </Card>
+
+      {pdfError && (
+        <div role="alert" className="mb-3 flex items-start gap-2 rounded-control border border-pending-border bg-pending-bg px-3 py-2 text-body text-pending-text print:hidden">
+          <AlertTriangle size={15} strokeWidth={2} aria-hidden="true" className="mt-0.5 shrink-0" />
+          <span>{pdfError}</span>
+        </div>
+      )}
+      {notice && (
+        <PdfCharacterNotice
+          warnings={notice.doc.warnings}
+          confirmLabel={notice.mode === 'open' ? 'Open PDF anyway' : 'Download PDF anyway'}
+          onConfirm={() => void makePdf(notice.doc, notice.mode)}
+          onCancel={() => setNotice(null)}
+        />
+      )}
 
       {/* Per-currency position. Shown whenever the customer has traded at all, and it is the whole
           reason a single "running balance" number would be wrong here: AED and USD are not

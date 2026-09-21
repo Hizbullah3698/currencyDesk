@@ -209,6 +209,121 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-21 — the customer statement becomes a real PDF, and same-day order is fixed
+
+### Done
+
+*At a glance: the Print button on a customer's statement now produces a proper A4 PDF instead of printing
+the screen, and a fault in the order of same-day deals that the work uncovered was fixed first, as its own
+change. **Nothing here is pushed or released** — it is committed locally, waiting on the owner. The
+statement on screen and the Excel export are unchanged.*
+
+**Why it was rebuilt.** Print and Export PDF both called the browser's print dialog on the statement page.
+On A4 that was unusable: the Balance column was cut off ("PKR 3,8"), cells wrapped one word per line, the
+closing balance landed alone on page 2, and the browser printed `localhost` addresses in the header and
+footer. The client's reference is his old system's "Statement of Account Ledger" — portrait A4, about forty
+rows on a page — and the brief was to match its structure and beat it.
+
+**First, a separate fix: deals on the same day were listed backwards.** Every deal on a day carries the
+same date, the database hands back the newest first, and the statement kept that order on a tie — so dates
+ran oldest-first but the deals *inside* a day ran newest-first, each row's running balance following the
+reversed order. A balance crossing from debit to credit partway through a day showed the wrong side on the
+wrong rows. It is now oldest-first within a day, by the moment each entry was really keyed in (never by id),
+so the screen, the Excel export and the PDF all agree. Its own commit, with five tests that were confirmed
+to fail against the old ordering. Deliberately not in the PDF work, because it changes what the on-screen
+statement shows.
+
+**The PDF.** Portrait A4, built in the browser so the server does no extra work. The library is jsPDF,
+chosen after measuring five candidates: 130 KB compressed against 200–810 KB for the others, and it is only
+downloaded the first time someone presses Print. The table is drawn by hand rather than through a helper
+plugin, because the page-break rules below needed exact control.
+
+- **Header:** desk name (a placeholder — branding comes later), "Statement of Account", customer, a short
+  account id, the period, and when it was generated.
+- **A summary box near the top:** opening balance, total debits, total credits, closing balance, each with
+  Dr or Cr, and a line stating that opening plus debits less credits equals closing. It is not only stated,
+  it is *checked*: the statement refuses to be built if the figures do not add up.
+- **Every amount to the exact paisa,** so every column adds up on paper. The old print rounded each row to
+  a whole rupee and its rows summed to 4,749,857 against a printed closing balance of 4,749,856. Showing
+  whole rupees is an open question for the client, so the number of decimals is **one setting** in one file
+  rather than formatting scattered through the code.
+- **Table:** Description, Ref, Debit, Credit, Balance, grouped under a date row, oldest first, starting
+  with the opening balance. Each row is one line — "Sale · 3,000,000,000 TMN @ 788", "Payment received ·
+  Cash", "Cheque cleared · HBL 001234", "Transfer to Bilal Traders" — and a balance shows Dr or Cr, never a
+  minus sign. The closing row also carries the column totals.
+- **Boxes after the table:** the currency position in plain words ("Sold to customer" / "Bought from
+  customer"), and the uncleared cheques with their amounts, stating that they do not affect the balance
+  until they clear.
+- **Every page:** "Page X of Y", the table header repeated, and no browser header or footer. The closing
+  balance always shares its page with at least three rows above it. A day that continues onto a new page
+  repeats its date band marked "continued" — found by looking at the first page-2 render, where the top rows
+  belonged to no date at all.
+- **Roughly 42 entries fit on page 1**, against the reference's 39.
+- **Print opens the PDF in a new tab; Export PDF downloads the same file.**
+
+**Nothing about profit, for anyone.** The statement is built only from fields the statement already reads,
+so an operator's copy is made from the same data. A test feeds a statement whose source rows carry cost
+and margin and checks that neither the figures nor the words appear anywhere in it.
+
+**Text the PDF's font cannot print.** The built-in fonts cover Western European text only. Measured: an
+Arabic or Urdu name comes out as a run of unrelated accented letters, and an arrow as garbage — silently. So
+unsupported characters are replaced with a question mark, **and the app warns before the PDF opens**,
+naming the field ("Customer name") and the characters. The person can cancel, or carry on knowing. The
+wording the app writes itself is checked so that it never needs the warning ("to", not an arrow).
+
+**How it was checked.** Worked by hand for the dev customer Dubai Tmn Buyer (5 entries: 0 + 5,749,855.69 −
+1,000,000.00 = 4,749,855.69 Dr) and for a test customer with 61 entries over six days including a debit-to-
+credit crossing, two transfers, a cleared cheque and two pending ones (0 + 1,422,242.49 − 3,014,816.16 =
+1,592,573.67 Cr). The generated pages were opened and read. In the running app, as the operator: the Print
+button opens a PDF in a new tab, Export PDF produces the same file (checked without saving it), the warning
+appears for an Arabic-named customer and Cancel opens nothing. The PDF the browser built for the 61-entry
+customer was exactly the same size (10,477 bytes) as the one built outside the browser.
+
+**Tests: 459, all passing** (176 screen, 203 server, 80 calculator), up from 396. The page-break rules are
+tested by sweeping every table length from 1 to 200 rows. Two tests were found to be weaker than intended and
+fixed by breaking the code on purpose: one read its threshold from the very setting it was guarding, and one
+searched for text with an escape that made it match something else, so it could not fail.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The statement's Print/PDF was unusable on A4 (cut-off column, one-word lines, lone closing balance, localhost in the header) | High for a document handed to customers | **Fixed** (committed locally, not pushed) |
+| Same-day deals listed newest-first inside oldest-first days, with running balances following the wrong order | Medium — wrong side printed on the wrong rows when a balance crosses in a day | **Fixed** (its own commit, not pushed) |
+| **An operator's statement can differ from the customer's real balance.** The server withholds any journal entry with an Income leg from operators, so a manual entry such as a fee charged to a customer moves the stored balance but does not appear on the operator's statement. Reproduced: a customer with a sale of 8,000 plus a 2,500 fee — admin statement 10,800, stored balance 10,800, **operator statement 8,300**, and the operator's own customer list and the top bar say 10,800 | Medium — a customer statement that does not match the balance the same screen shows | **Open — a decision, not made.** Nothing was built or changed; the PDF prints whatever the statement data contains. Options are to keep the operator's document self-consistent (recommended) or to add a neutral note, which reveals that a hidden entry exists |
+| Arabic and Urdu customer names cannot be printed by the PDF's built-in font, and no library used here would shape them correctly | Medium if any customer uses those scripts | **Mitigated** by the warning; the underlying question — do any customers use those scripts? — is **open for the client** |
+| Trades and payments have no human deal number; the only reference is the first 8 characters of an internal id, as the Transactions page shows | Low today, real for a client used to `DTMS6173` | **Open follow-up** — see Next |
+| The statement's on-screen columns crowd at ten-digit amounts | Low, cosmetic | Open follow-up (unchanged, recorded earlier today) |
+
+### Not done, deliberately
+
+- The operator filtering was **not** changed, as instructed.
+- Human deal numbers were **not** built.
+- The on-screen statement and Excel export are untouched.
+- Nothing was pushed or deployed, and production was not touched.
+
+### Still to do
+
+- **Look at the PDF once as the admin in the running app.** Everything above was checked as the operator in the
+  browser and as both roles through the server's own data; the admin path in the browser has not been pressed.
+- **Dev database:** the test customers created for this stay on the local dev database until the final check
+  is done; they are then cleared with the guarded reset tool (dry run first) and the three Dubai deals
+  rebooked. The live system is not involved.
+
+### Next — in priority order
+
+1. Decide the operator-statement question above, then act on it.
+2. **Sequential human deal numbers** (like the client's `DTMS6173`) — its own item. Trades and payments carry
+   only an internal id today, so the Ref column shows its first 8 characters. Real numbers are a data-model
+   change and were not built; the PDF will pick them up when they exist.
+3. Ask the client three things: **whether any customers use Arabic or Urdu script** (the PDF cannot print
+   them); **whether he wants whole rupees or exact paisa** on statements (a one-line change, but the columns
+   then stop adding up on paper); and the desk's real name for the header.
+4. Push the statement work when the owner is ready (two commits: the ordering fix, then the PDF).
+5. Unchanged: fix the `idleTimeout` test failures; teach `reset:business` about closed months; widen the
+   on-screen statement's columns; decide the operator's live margin estimate; the deposits-and-advances
+   question for the client; and switching the reports over to read the accounting record.
+
 ## 2026-09-21 — the desk's Iranian currency is now the Toman, and a sale's figures always sum
 
 ### Done

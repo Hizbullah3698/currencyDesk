@@ -67,6 +67,23 @@ export function printStatement(): void {
   window.print()
 }
 
+/**
+ * Saves a finished file (a PDF) under `filename`.
+ *
+ * The same object-URL-and-anchor mechanism downloadCsv uses, for a Blob that already exists rather than
+ * text that has to become one. The URL is freed on the next tick for the reason given there.
+ */
+export function downloadBlob(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
 /** Filename-safe version of a customer name, so "Khan & Sons (Lahore)" cannot produce a path. */
 export function safeFilePart(name: string): string {
   return name

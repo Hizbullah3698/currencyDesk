@@ -22,7 +22,7 @@ of record.
   struck, separately from when it was keyed in. Backdate an entry and it lands in the right
   reporting period; a future date is refused.
 - **Customer ledger** — each customer carries a running receivable/payable built from trades,
-  receipts, payments and cleared cheques. View a full statement, or the balance as of any past
+  receipts, payments and cleared cheques. View a full statement — printed as a proper A4 PDF that always adds up — or the balance as of any past
   date.
 - **Cheques** — inward and outward cheques run Pending → Deposited → Cleared/Returned. A
   customer's balance only moves when a cheque actually clears, not when it is received.
