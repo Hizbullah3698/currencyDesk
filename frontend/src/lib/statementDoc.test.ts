@@ -317,3 +317,24 @@ describe('statement document — text the font cannot print', () => {
     expect(d.warnings).toEqual([])
   })
 })
+
+describe('statement document — a row is a type and its details', () => {
+  it('splits each kind of row so the type can be drawn bold and the details grey, and the words still join to the same line', () => {
+    const transfer = je({ ref: 'JV-002', debitAccount: CUST, creditAccount: OTHER, debitLabel: customer.name, creditLabel: other.name, amount: 700 })
+    const manual = je({ ref: 'JV-009', debitAccount: CUST, creditAccount: 'capital', debitLabel: customer.name, creditLabel: 'Capital', amount: 250, narration: 'Opening adjustment', createdAt: '2026-09-15T11:00:00.000Z' })
+    const cleared = chq({ direction: 'Inward', amount: 500, status: 'Cleared', bank: 'HBL', number: '001234', updatedAt: '2026-09-16T09:00:00.000Z' })
+    const d = buildStatementDocument(src({ activity: dubai(), journalEntries: [transfer, manual], cheques: [cleared] }), { now: NOW })
+    const rows = d.groups.flatMap((g) => g.entries)
+    const by = (t: string) => rows.find((e) => e.type === t)!
+
+    expect([by('Sale').type, by('Sale').detail, by('Sale').joiner]).toEqual(['Sale', '500 AED @ 80', ' \u00b7 '])
+    expect([by('Payment received').type, by('Payment received').detail]).toEqual(['Payment received', 'Cash'])
+    expect([by('Cheque cleared').type, by('Cheque cleared').detail]).toEqual(['Cheque cleared', 'HBL 001234'])
+    expect([by('Transfer to').type, by('Transfer to').detail, by('Transfer to').joiner]).toEqual(['Transfer to', 'Bilal Traders', ' '])
+    // A narration IS the type — the words the person wrote — with nothing after it.
+    expect([by('Opening adjustment').type, by('Opening adjustment').detail]).toEqual(['Opening adjustment', ''])
+
+    // And nothing about the words changed: description is still exactly type + joiner + detail.
+    for (const e of rows) expect(e.description).toBe(e.detail ? `${e.type}${e.joiner}${e.detail}` : e.type)
+  })
+})

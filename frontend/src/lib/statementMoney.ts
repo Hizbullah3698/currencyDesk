@@ -36,11 +36,29 @@ export function formatPaisa(paisa: Paisa, decimals: AmountDecimals): string {
   return `${group(String(rupees))}.${cents}`
 }
 
+/** A balance as its digits and its side, kept apart so the side can be drawn smaller and lighter without moving the digits. */
+export interface SplitBalance {
+  /** "4,749,855.69" — the magnitude, never signed. */
+  amount: string
+  /** 'Dr' or 'Cr'; empty for nothing owed, which has no side. */
+  side: 'Dr' | 'Cr' | ''
+}
+
+/**
+ * The single rule for which side a balance is on. formatBalance and every place that draws the digits and
+ * the side separately use THIS, so they cannot disagree — including that a balance which rounds to nothing at
+ * the chosen number of decimals has no side.
+ */
+export function splitBalance(net: Paisa, decimals: AmountDecimals): SplitBalance {
+  const amount = formatPaisa(net, decimals)
+  const bare = net === 0 || /^0(\.0+)?$/.test(amount)
+  return { amount, side: bare ? '' : net > 0 ? 'Dr' : 'Cr' }
+}
+
 /** "1,234.56 Dr" / "1,234.56 Cr" — and a bare "0.00" for nothing, which has no side. */
 export function formatBalance(net: Paisa, decimals: AmountDecimals): string {
-  const text = formatPaisa(net, decimals)
-  if (net === 0 || /^0(\.0+)?$/.test(text)) return text
-  return `${text} ${net > 0 ? 'Dr' : 'Cr'}`
+  const { amount, side } = splitBalance(net, decimals)
+  return side ? `${amount} ${side}` : amount
 }
 
 /** A quantity of a currency, with the thousands separators the desk reads: 3,000,000,000. */

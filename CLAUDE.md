@@ -726,7 +726,9 @@ left out of the table and listed in the "pending cheques" box, which says it doe
 header repeats on every page; a date header is never left at the foot of a page; **the closing balance
 always shares its page with at least three rows above it** (it once landed alone on page 2); a day that
 continues over a break repeats its date band marked "continued"; each box after the table is kept
-whole. Rows are single-line — long text is cut with `...` — which is what keeps ~40 rows on page 1.
+whole. Rows are single-line — long text is cut with `...`. At the 16 pt row pitch page 1 holds about 28-34
+entries (28 under five date bands, the worst case) and a later page about 44; the layout test pins it, so a change
+to the pitch shows up as a number.
 
 **The standard PDF fonts print Windows-1252 only, and fail badly outside it.** Measured on jsPDF 4.2.1:
 Arabic and Urdu come out as a run of unrelated accented letters, an arrow as `!'`, and the line is
@@ -735,6 +737,25 @@ would not fix it. `lib/pdfText.ts` therefore replaces unsupported characters wit
 which field and which characters**; `PdfCharacterNotice` shows that in the app BEFORE the PDF opens.
 Wording the app itself writes must never need the warning (write "to", not an arrow):
 `assertPdfSafeLiteral` checks it at module load.
+
+**The look** (redesigned 2026-09-21; content and numbers untouched). One brand colour, the app's own accent
+`#2563eb` (`--color-accent-solid`, what the in-app logo is filled with — the favicon is a different indigo,
+`#3d46d0`, a known inconsistency), carries identity and hierarchy: a full-width band on page 1 (desk name left,
+"Statement of Account" right, white, with `band.logoWidth` reserved for a logo), the date headings, and the closing
+figure — the only large number. A **6% tint** (`#f2f6fe`) stripes alternate rows and the closing row, with **no lines
+between rows**. Rows are on a **16 pt pitch** (5.64 mm) at 8.7 pt. A row's *type* ("Sale", "Payment received",
+"Transfer to", a journal narration) is bold and its details grey; Ref and the small Dr/Cr are smaller and lighter,
+and the Dr/Cr sits in a fixed slot at the Balance column's edge so the **digits stay aligned** with or without one.
+**No red or green anywhere** — colour never carries meaning, so a black-and-white copy loses nothing.
+
+Every colour and dimension is in `lib/statementConfig.ts`, and `statementConfig.test.ts` holds the palette to it: white on
+the brand band and every text colour on white AND on the tint at **4.5:1 or better** (computed, not asserted from a
+comment), the tint faint but visible in grayscale (6-25 grey levels below paper), and no colour leaning red or green.
+That is why the small grey is `#646b78`, not the usual `#6b7280`: the latter is 4.46:1 on the tint, just under. Render
+with `{ grayscale: true }` to see exactly what a monochrome printer will make of it. Font stays built-in Helvetica.
+
+Two things that look like bugs and are not: the closing row's Debit and Credit totals carry no Dr/Cr (their column
+headings say it, matching the summary strip), and the desk name reads `DESK NAME` until branding is real data.
 
 **Things that will look like bugs and are not:**
 

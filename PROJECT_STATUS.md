@@ -209,6 +209,85 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-21 — the statement PDF gets a designed look
+
+### Done
+
+*At a glance: the statement PDF was redesigned for hierarchy, spacing and identity. **The content and the numbers
+did not change** — every figure, every description, every page-break rule is as before — and nothing is pushed.*
+
+**Why.** The first PDF was correct but flat: rows about 10 pt apart, a cluttered top, and a whole page of grey with
+no identity.
+
+**The brand colour, and how it was checked.** The app's own accent, **`#2563eb`** — the fill of the in-app logo —
+is used. White text on it is **5.17 : 1**, so it passes the 4.5 : 1 accessibility bar without being darkened. (The
+favicon, oddly, is a different indigo, `#3d46d0`; the logo people actually see in the app was followed. The two
+disagreeing is worth fixing on its own.) A **6% tint** of it stripes alternate rows and the closing row: printed in
+black and white it is about 9 shades of 255 darker than paper — faint but visible, which was the intent.
+
+**What it looks like now.**
+- **Top of page 1:** a full-width brand band, 20 mm tall — the desk name (still a placeholder) on the left, "Statement
+  of Account" on the right, both white, with room held at the left for a logo later. Under it the customer's name,
+  large and bold, then one grey line: *Account 1A9B1E31 · 15 Sep 2026 to 21 Sep 2026 · Generated 21 Sep 2026, 19:34.*
+- **Summary:** one horizontal strip of four — opening balance, total debits, total credits, closing balance. Closing
+  is the only large figure, in the brand colour, with Dr or Cr. The "Dr" and "Cr" after the two totals are gone, and
+  so is the formula sentence; the check that opening plus debits less credits equals closing **still runs in code**
+  and still refuses to build a statement that does not add up.
+- **Table:** rows 16 pt apart at 8.7 pt, alternate rows tinted, no lines between them. The date heading is in the
+  brand colour, bold, with a thin brand rule under it. In each row the *type* — Sale, Purchase, Payment received,
+  Transfer to, Cheque cleared, or a journal narration — is bold and the details after it are grey; the reference is
+  smaller and grey. Numbers are black and right-aligned, and in the Balance column the Dr or Cr is smaller and
+  lighter and sits in a fixed slot at the edge, so the digits line up whether or not there is one. **No red or green
+  anywhere.** The closing row is a tinted band under a brand rule, bold.
+- **Later pages:** a slim brand line, the customer's name and "continued", then the table header — no band.
+- **Footer:** a thin grey rule, the customer's name on the left, "Page X of Y" on the right.
+- **After the table:** currency position and pending cheques in the same style — small grey section labels, the same
+  row spacing and tint, no boxes.
+
+**Black and white.** A grayscale mode was added so the result could be checked rather than guessed: it renders every
+colour as its grey. The band becomes a dark grey with legible white text, the date headings and the closing figure
+stay bold and readable, and the stripes survive as a faint tint. The sample statement was checked in that mode.
+
+**The trade-off, stated plainly.** Rows 16 pt apart are easier to read and take more room. Page 1 now holds about
+**32 entries** in the test statement (28 in the worst case, five days on one page), where the first design held 42
+and the client's reference holds about 39. On the 61-entry test customer the pending-cheques section spills onto a
+third page that carries nothing else, because the currency-position section fills what was left on page 2. It obeys
+the rule that a section is never split, but it is a real cost of the airier spacing; if it matters, the fixes are a
+slightly tighter pitch or letting a short section share a page differently.
+
+**One small deviation, flagged.** The closing row of the table used to print "Dr" and "Cr" after its debit and credit
+totals. They were removed to match the summary strip and because the column headings already say which side each is.
+
+**Fixed while looking at the pages.** Two faults only visible on paper: the "Payment received · Cash" separator was
+hidden under the last letter of the bold type (the width was measured in the wrong face), and the pending-cheques
+label was printed over by its own note.
+
+**Tests: 477, all passing** (194 screen, 203 server, 80 calculator), up from 459. Tests that check layout numbers or
+how text is emitted were updated; new ones hold the design to its promises — the palette's contrast ratios (computed),
+the tint staying faint in grayscale, no colour leaning red or green, the 16 pt pitch, the 20 mm band, the removed
+elements staying removed, and the grayscale mode really producing only greys. Each was confirmed to fail when the
+thing it guards is broken on purpose (a lighter brand colour, a stronger tint, a red introduced, grayscale switched
+off).
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The favicon is indigo (`#3d46d0`) while the in-app logo is blue (`#2563eb`) | Low, cosmetic — two brand colours | **Open** — noted, not changed; the PDF follows the logo |
+| The airier row spacing costs about ten entries on page 1 and, on a long statement, can leave a short last section alone on a page | Low | **Open** — a design trade-off for the owner to accept or tune |
+
+### Not done, deliberately
+
+- No font was embedded (built-in Helvetica), as instructed — so Arabic and Urdu names still cannot be printed.
+- Nothing was pushed or deployed; production was not touched.
+- The on-screen statement and the Excel export are unchanged.
+
+### Next
+
+1. Decide whether the row spacing stays at 16 pt (see the trade-off above).
+2. Real branding: the desk's name and logo, when they exist — the band already has the room.
+3. Everything listed under the previous statement-PDF entry still stands.
+
 ## 2026-09-21 — the customer statement becomes a real PDF, and same-day order is fixed
 
 ### Done

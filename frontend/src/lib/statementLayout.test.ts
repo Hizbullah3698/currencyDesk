@@ -3,9 +3,9 @@ import { closingUnitStart, layoutStatement, type LayoutItem, type LayoutParams }
 import { STATEMENT_CONFIG as C } from './statementConfig'
 
 // The real page geometry, so these tests describe the real document. firstTop is roughly where the
-// header and summary box leave off (measured from a rendered page: ~66.5 mm).
-const FIRST_TOP = 67
-const LATER_TOP = C.margin.top + 9
+// band, customer block and summary strip leave off (band 20 + name 12 + line 6.4 + strip 5.2 + 17 + 5 = 65.6 mm).
+const FIRST_TOP = 65.6
+const LATER_TOP = 13 // below the slim brand line and the customer name
 const BOTTOM = C.page.height - C.margin.bottom
 // The promise, stated here rather than read from the config it guards: three rows always travel with the closing balance.
 const KEEP = 3
@@ -40,9 +40,10 @@ describe('statement layout — page breaks', () => {
     expect(r.tablePages).toEqual([1])
   })
 
-  it("fits about forty rows on the first page, as the client's reference does", () => {
-    // The exact largest number of entries, spread over 5 day-groups, whose whole table (opening row and
-    // closing row included) stays on page 1. The reference prints 39 rows under 4 date bands on its page.
+  it('fits the rows the airier 16 pt pitch allows: 28+ entries on page 1 under 5 date bands, 44+ on a later page', () => {
+    // The redesign trades density for legibility: rows are 5.64 mm (16 pt) apart, up from 4.4 mm, so a page
+    // holds fewer of them. Pinned so a change to the pitch or the header shows up here as a number, not as a
+    // surprise on paper. (Before the redesign page 1 held 39+ under the same 5 bands.)
     const fitsOnOnePage = (entries: number) => {
       const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }]
       for (let d = 0; d < 5; d++) {
@@ -55,7 +56,15 @@ describe('statement layout — page breaks', () => {
     }
     let most = 0
     for (let n = 1; n <= 80; n++) if (fitsOnOnePage(n)) most = n
-    expect(most, `page 1 holds ${most} entries under 5 date bands`).toBeGreaterThanOrEqual(39)
+    expect(most, `page 1 holds ${most} entries under 5 date bands`).toBeGreaterThanOrEqual(28)
+
+    // A later page: one long day, so the page opens on its repeated band. Count the entries that land on page 2.
+    const long: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }, { kind: 'date', height: C.row.date }]
+    for (let e = 0; e < 120; e++) long.push({ kind: 'entry', height: C.row.entry })
+    long.push({ kind: 'closing', height: C.row.closing })
+    const r = layoutStatement(params(long))
+    const onPage2 = long.filter((it, i) => it.kind === 'entry' && r.items[i].page === 2).length
+    expect(onPage2, `page 2 holds ${onPage2} entries`).toBeGreaterThanOrEqual(44)
   })
 
   it('repeats the table header on every page that carries rows', () => {

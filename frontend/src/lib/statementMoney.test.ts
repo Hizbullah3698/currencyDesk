@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatBalance, formatPaisa, formatRate, formatUnits, rupeesToPaisa } from './statementMoney'
+import { formatBalance, formatPaisa, formatRate, formatUnits, rupeesToPaisa, splitBalance } from './statementMoney'
 
 describe('statement money — always whole paisa underneath', () => {
   it('converts rupees to paisa on the decimal digits, so a float artefact cannot move a figure', () => {
@@ -52,5 +52,18 @@ describe('statement money — always whole paisa underneath', () => {
     expect(formatRate(80, 2)).toBe('80')
     expect(formatRate(4952.53, 2)).toBe('4,952.53')
     expect(formatRate(77.5, 2)).toBe('77.5')
+  })
+
+  it('splits a balance into its digits and its side so the side can be drawn smaller without moving the digits', () => {
+    expect(splitBalance(474_985_569, 2)).toEqual({ amount: '4,749,855.69', side: 'Dr' })
+    expect(splitBalance(-159_257_367, 2)).toEqual({ amount: '1,592,573.67', side: 'Cr' })
+    expect(splitBalance(0, 2)).toEqual({ amount: '0.00', side: '' })
+    // Rounds to nothing at whole rupees, so it has no side either.
+    expect(splitBalance(30, 0)).toEqual({ amount: '0', side: '' })
+    // formatBalance is exactly the two pieces joined: one rule, no second implementation to drift.
+    for (const n of [474_985_569, -159_257_367, 0, 30, -30]) {
+      const { amount, side } = splitBalance(n, 2)
+      expect(formatBalance(n, 2)).toBe(side ? `${amount} ${side}` : amount)
+    }
   })
 })

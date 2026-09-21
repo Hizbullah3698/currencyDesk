@@ -1,47 +1,53 @@
 import { jsPDF } from 'jspdf'
-import { STATEMENT_CONFIG, type StatementConfig } from './statementConfig'
+import { COLOR, STATEMENT_CONFIG, type RGB, type StatementConfig } from './statementConfig'
 import { layoutStatement, type LayoutItem } from './statementLayout'
-import { formatBalance, formatPaisa } from './statementMoney'
-import type { StatementDocument } from './statementDoc'
+import { formatPaisa, splitBalance } from './statementMoney'
+import type { StatementDocument, StatementEntry } from './statementDoc'
 
 // ---------------------------------------------------------------------------
 // Draws a StatementDocument onto portrait A4
 // ---------------------------------------------------------------------------
 //
-// Decides only WHERE things go. What the statement says — every figure, every description — was settled
-// in statementDoc.ts, in plain data; the arithmetic of the page breaks is in statementLayout.ts. This
-// file is the part that touches jsPDF, and it is the only one that does, so it is loaded lazily (the
-// Print button `import()`s it) and the ~130 KB library is never part of the main bundle.
+// Decides only WHERE things go and how they look. What the statement says — every figure, every
+// description — was settled in statementDoc.ts, in plain data; the arithmetic of the page breaks is in
+// statementLayout.ts; the palette and every dimension are in statementConfig.ts. This file is the part
+// that touches jsPDF, and the only one that does, so it is loaded lazily (the Print button `import()`s it)
+// and the ~130 KB library is never part of the main bundle.
+//
+// THE LOOK. One brand colour carries identity and hierarchy — the top band, the date headings, the closing
+// figure — and a 6% tint of it stripes alternate rows, with no lines between them. Everything else is ink
+// and greys. There is no red or green anywhere: colour never carries meaning, so a black-and-white copy
+// loses nothing (`grayscale: true` renders exactly that, for checking). Numbers are right-aligned and
+// black; the Dr/Cr after a balance is smaller and lighter, held in a fixed slot at the column's edge so the
+// DIGITS stay aligned whether or not a side is printed.
 //
 // Standard PDF fonts only (Helvetica). Its digits are all the same width, so a right-aligned column of
-// figures lines up decimal point over decimal point without needing a monospaced face. Text the font
-// cannot print never reaches here: statementDoc.ts has already replaced it and reported it.
+// figures lines up decimal point over decimal point without a monospaced face. Text the font cannot print
+// never reaches here: statementDoc.ts has already replaced it and reported it.
 
 export interface RenderOptions {
   config?: StatementConfig
   /** Compressed streams are smaller; uncompressed lets a test read the text straight out of the bytes. */
   compress?: boolean
+  /** Renders every colour as its grey, to see what a black-and-white printer will make of it. */
+  grayscale?: boolean
 }
 
-type RGB = [number, number, number]
-const INK: RGB = [20, 24, 31]
-const MUTED: RGB = [100, 108, 120]
-const RULE: RGB = [205, 210, 218]
-const STRONG_RULE: RGB = [60, 66, 78]
-const HEAD_FILL: RGB = [228, 232, 238]
-const DATE_FILL: RGB = [242, 244, 247]
-const BOX_FILL: RGB = [248, 249, 251]
-
-const PAD = 1.6
+const PAD = 1.8
 const ELLIPSIS = '...'
+/** Width held at the right edge of the Balance column for the small Dr/Cr, so digits align with or without one. */
+const SIDE_SLOT = 5.6
+/** Vertical centring: the visual centre of a line of text sits this fraction of its point size above the baseline. */
+const CAP = 0.3528 * 0.36
 
 export function renderStatementPdf(d: StatementDocument, opts: RenderOptions = {}): jsPDF {
   const C = opts.config ?? STATEMENT_CONFIG
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: opts.compress ?? true })
   doc.setProperties({ title: `${d.title} - ${d.customerName}`, subject: d.title, creator: d.deskName })
 
+  const PW = C.page.width
   const L = C.margin.left
-  const R = C.page.width - C.margin.right
+  const R = PW - C.margin.right
   const W = R - L
   const col = {
     desc: L,
@@ -52,31 +58,33 @@ export function renderStatementPdf(d: StatementDocument, opts: RenderOptions = {
   }
   const dec = d.decimals
 
+  // --- colour: through one function, so a grayscale proof is honest about every mark on the page ---
+  const tone = (c: RGB): RGB => {
+    if (!opts.grayscale) return c
+    const y = Math.round(0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2])
+    return [y, y, y]
+  }
+
   // --- small drawing helpers ---
-  const font = (style: 'normal' | 'bold', size: number, color: RGB = INK) => {
+  const font = (style: 'normal' | 'bold', size: number, color: RGB = COLOR.ink) => {
     doc.setFont('helvetica', style)
     doc.setFontSize(size)
-    doc.setTextColor(color[0], color[1], color[2])
+    const c = tone(color)
+    doc.setTextColor(c[0], c[1], c[2])
   }
-  const rule = (x1: number, y: number, x2: number, color: RGB = RULE, width = 0.15) => {
-    doc.setDrawColor(color[0], color[1], color[2])
+  const hrule = (x1: number, y: number, x2: number, color: RGB, width: number) => {
+    const c = tone(color)
+    doc.setDrawColor(c[0], c[1], c[2])
     doc.setLineWidth(width)
     doc.line(x1, y, x2, y)
   }
-  const vrule = (x: number, y1: number, y2: number, color: RGB = RULE, width = 0.2) => {
-    doc.setDrawColor(color[0], color[1], color[2])
-    doc.setLineWidth(width)
-    doc.line(x, y1, x, y2)
-  }
   const fill = (x: number, y: number, w: number, h: number, color: RGB) => {
-    doc.setFillColor(color[0], color[1], color[2])
+    const c = tone(color)
+    doc.setFillColor(c[0], c[1], c[2])
     doc.rect(x, y, w, h, 'F')
   }
-  const outline = (x: number, y: number, w: number, h: number, color: RGB = RULE) => {
-    doc.setDrawColor(color[0], color[1], color[2])
-    doc.setLineWidth(0.2)
-    doc.rect(x, y, w, h, 'S')
-  }
+  /** Baseline that centres a line of `size` pt vertically in a row starting at `y` with height `h`. */
+  const baseline = (y: number, h: number, size: number) => y + h / 2 + size * CAP
   /** Fits `text` into `maxW` at the CURRENT font, ending in "..." when it had to be cut. */
   const fit = (text: string, maxW: number): string => {
     if (doc.getTextWidth(text) <= maxW) return text
@@ -84,86 +92,135 @@ export function renderStatementPdf(d: StatementDocument, opts: RenderOptions = {
     while (t.length > 1 && doc.getTextWidth(t + ELLIPSIS) > maxW) t = t.slice(0, -1)
     return t.trimEnd() + ELLIPSIS
   }
-  const right = (text: string, colLeft: number, colWidth: number, y: number) => doc.text(text, colLeft + colWidth - PAD, y, { align: 'right' })
-  const money = (p: number) => (p === 0 ? '' : formatPaisa(p, dec))
-  /** "1,234.56 Dr" for a total with a known side: a zero has no side and prints bare. */
-  const sided = (p: number, side: 'Dr' | 'Cr') => (p === 0 ? formatPaisa(0, dec) : `${formatPaisa(p, dec)} ${side}`)
+  const rightOf = (text: string, colLeft: number, colWidth: number, y: number) => doc.text(text, colLeft + colWidth - PAD, y, { align: 'right' })
+  const money = (p: number) => formatPaisa(p, dec)
 
-  // ------------------------------------------------------------------ first-page header + summary
-  function drawFirstHeader(): number {
-    let y = C.margin.top
-    font('bold', C.font.sub + 1, MUTED)
-    doc.text(d.deskName, L, y + 3.5)
-    font('bold', C.font.heading + 1)
-    doc.text(d.title, L, y + 10.6)
-    rule(L, y + 13.5, R, STRONG_RULE, 0.5)
-    y += 16.5
-
-    // Customer / period block: two columns of label over value.
-    const half = W / 2
-    const pair = (label: string, value: string, x: number, yy: number, maxW: number) => {
-      font('normal', C.font.tiny, MUTED)
-      doc.text(label.toUpperCase(), x, yy)
-      font('bold', C.font.sub + 1)
-      doc.text(fit(value, maxW), x, yy + 4.4)
+  /** Digits then, after them, a small lighter side. Left-aligned at x. */
+  function digitsThenSide(x: number, y: number, amount: string, side: string, size: number, sideSize: number, bold: boolean, color: RGB, sideColor: RGB): void {
+    font(bold ? 'bold' : 'normal', size, color)
+    doc.text(amount, x, y)
+    if (side) {
+      const end = x + doc.getTextWidth(amount)
+      font('normal', sideSize, sideColor)
+      doc.text(side, end + 1.3, y)
     }
-    pair('Customer', d.customerName, L, y, half - 6)
-    pair('Period', `${d.periodFrom} to ${d.periodTo}`, L + half, y, half)
-    pair('Account ID', d.accountId, L, y + 8.6, half - 6)
-    pair('Generated', d.generatedAt, L + half, y + 8.6, half)
-    y += 17.6
+  }
 
-    // Summary box: opening + debits - credits = closing.
-    const boxH = 14
-    fill(L, y, W, boxH, BOX_FILL)
-    outline(L, y, W, boxH, STRONG_RULE)
-    const cells: [string, string][] = [
-      ['Opening balance', formatBalance(d.opening, dec)],
-      ['Total debits', sided(d.totalDebits, 'Dr')],
-      ['Total credits', sided(d.totalCredits, 'Cr')],
-      ['Closing balance', formatBalance(d.closing, dec)],
+  /** A Balance-column cell: digits right-aligned to a fixed edge, the side in a fixed slot beyond it. */
+  function balanceCell(net: number, y: number, size: number, bold: boolean) {
+    const { amount, side } = splitBalance(net, dec)
+    font(bold ? 'bold' : 'normal', size)
+    doc.text(amount, col.bal + C.columns.balance - PAD - SIDE_SLOT, y, { align: 'right' })
+    if (side) {
+      font('normal', C.font.small, COLOR.light)
+      doc.text(side, col.bal + C.columns.balance - PAD, y, { align: 'right' })
+    }
+  }
+
+  // ------------------------------------------------------------------ page-1 top: band, customer, summary strip
+  function drawFirstHeader(): number {
+    // The band. `logoWidth` is space held at its left for a logo that does not exist yet.
+    const bh = C.band.height
+    fill(0, 0, PW, bh, COLOR.brand)
+    const nameX = L + C.band.logoWidth + (C.band.logoWidth ? 4 : 0)
+    font('bold', C.font.bandName, COLOR.white)
+    doc.text(d.deskName, nameX, baseline(0, bh, C.font.bandName))
+    font('normal', C.font.bandTitle, COLOR.white)
+    doc.text(d.title, R, baseline(0, bh, C.font.bandTitle), { align: 'right' })
+
+    // Customer, large; then one grey line of the plain facts.
+    let y = bh + 12
+    font('bold', C.font.name)
+    doc.text(fit(d.customerName, W), L, y)
+    y += 6.4
+    font('normal', C.font.body, COLOR.detail)
+    doc.text(fit(`Account ${d.accountId} · ${d.periodFrom} to ${d.periodTo} · Generated ${d.generatedAt}`, W), L, y)
+
+    // The summary: one strip of four. Closing is the only large figure, in the brand colour.
+    const top = y + 5.2
+    const h = 17
+    fill(L, top, W, h, COLOR.tint)
+    const widths = [38, 38, 38, W - 114]
+    let x = L
+    const cells: { label: string; net: number; kind: 'plain' | 'sided' | 'closing' }[] = [
+      { label: 'Opening balance', net: d.opening, kind: 'sided' },
+      { label: 'Total debits', net: d.totalDebits, kind: 'plain' },
+      { label: 'Total credits', net: d.totalCredits, kind: 'plain' },
+      { label: 'Closing balance', net: d.closing, kind: 'closing' },
     ]
-    const cw = W / 4
-    cells.forEach(([label, value], i) => {
-      const x = L + i * cw
-      if (i > 0) vrule(x, y + 2, y + boxH - 2)
-      font('normal', C.font.tiny, MUTED)
-      doc.text(label.toUpperCase(), x + 3, y + 4.2)
-      font('bold', C.font.summaryValue + (i === 3 ? 0.5 : 0))
-      doc.text(value, x + 3, y + 10.4)
+    cells.forEach((cell, i) => {
+      const cx = x + 4.5
+      font('normal', C.font.label, COLOR.light)
+      doc.text(cell.label.toUpperCase(), cx, top + 5.4)
+      if (cell.kind === 'closing') {
+        const { amount, side } = splitBalance(cell.net, dec)
+        digitsThenSide(cx, top + 13.6, amount, side, C.font.closingValue, C.font.value - 1.2, true, COLOR.brand, COLOR.brand)
+      } else if (cell.kind === 'sided') {
+        const { amount, side } = splitBalance(cell.net, dec)
+        digitsThenSide(cx, top + 12.4, amount, side, C.font.value, C.font.small, true, COLOR.ink, COLOR.light)
+      } else {
+        // Totals carry no Dr/Cr: the label already says which side they are.
+        font('bold', C.font.value)
+        doc.text(money(cell.net), cx, top + 12.4)
+      }
+      x += widths[i]
     })
-    y += boxH + 3.4
-    font('normal', C.font.tiny, MUTED)
-    doc.text('Opening balance + Total debits - Total credits = Closing balance', L + W / 2, y, { align: 'center' })
-    return y + 3
+    return top + h + 5
   }
 
+  /** Later pages: a slim brand line, the customer, "continued" — no band. */
   function drawContinuationHeader(): void {
-    font('bold', C.font.sub)
-    doc.text(`${d.title} - ${d.customerName}`, L, C.margin.top + 3.5)
-    font('normal', C.font.small, MUTED)
-    doc.text(`Account ID ${d.accountId}  |  ${d.periodFrom} to ${d.periodTo}  |  continued`, R, C.margin.top + 3.5, { align: 'right' })
-    rule(L, C.margin.top + 6, R, STRONG_RULE, 0.4)
+    fill(0, 0, PW, 1.6, COLOR.brand)
+    font('bold', 10)
+    doc.text(fit(d.customerName, W - 30), L, 9.4)
+    font('normal', C.font.small + 0.6, COLOR.light)
+    doc.text('continued', R, 9.4, { align: 'right' })
   }
-  const laterTop = C.margin.top + 9
+  const laterTop = 13
 
+  /** Small uppercase grey labels with a thin rule under them. */
   function drawTableHead(y: number): void {
-    fill(L, y, W, C.row.tableHead, HEAD_FILL)
+    const ty = baseline(y, C.row.tableHead, C.font.label)
+    font('bold', C.font.label, COLOR.light)
+    doc.text('DESCRIPTION', col.desc + PAD, ty)
+    doc.text('REF', col.ref + PAD, ty)
+    rightOf('DEBIT', col.debit, C.columns.debit, ty)
+    rightOf('CREDIT', col.credit, C.columns.credit, ty)
+    doc.text('BALANCE', col.bal + C.columns.balance - PAD, ty, { align: 'right' })
+    hrule(L, y + C.row.tableHead, R, COLOR.rule, 0.2)
+  }
+
+  /** A day heading: the date in the brand colour, bold, with a thin brand rule under it. */
+  function drawDateBand(y: number, label: string): void {
+    font('bold', C.font.body + 0.3, COLOR.brand)
+    doc.text(label, col.desc + PAD, y + C.row.date - 2.7)
+    hrule(L, y + C.row.date - 0.5, R, COLOR.brand, 0.25)
+  }
+
+  /** The type in bold, then the details after it in grey — one line, cut with "..." only if it must be. */
+  function drawDescription(x: number, y: number, maxW: number, e: StatementEntry): void {
     font('bold', C.font.body)
-    const ty = y + C.row.tableHead * 0.68
-    doc.text('Description', col.desc + PAD, ty)
-    doc.text('Ref', col.ref + PAD, ty)
-    right('Debit', col.debit, C.columns.debit, ty)
-    right('Credit', col.credit, C.columns.credit, ty)
-    right('Balance', col.bal, C.columns.balance, ty)
-    rule(L, y + C.row.tableHead, R, STRONG_RULE, 0.3)
+    let type = e.type
+    if (doc.getTextWidth(type) > maxW) type = fit(type, maxW)
+    doc.text(type, x, y)
+    const rest = e.detail ? `${e.joiner}${e.detail}` : ''
+    if (!rest || type !== e.type) return
+    // Measured ONCE, in the bold face it was drawn in. Measuring again after switching to the regular face
+    // gives a narrower width, so the detail started too far left and its leading dot landed under the last
+    // letter of a long type ("Payment received").
+    const typeW = doc.getTextWidth(type)
+    // A plain-space joiner (a transfer's other customer, a journal reference) is too tight against bold type
+    // at this size, so it gets a little air; the middle-dot joiner already has spaces around the dot.
+    const air = e.joiner === ' ' ? 0.9 : 0
+    font('normal', C.font.body, COLOR.detail)
+    doc.text(fit(rest, maxW - typeW - air), x + typeW + air, y)
   }
 
   // ------------------------------------------------------------------ table items, flat and in order
   type Drawn =
     | { kind: 'opening' }
     | { kind: 'date'; label: string }
-    | { kind: 'entry'; entry: StatementDocument['groups'][number]['entries'][number] }
+    | { kind: 'entry'; entry: StatementEntry; stripe: boolean }
     | { kind: 'closing' }
   const drawn: Drawn[] = [{ kind: 'opening' }]
   const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }]
@@ -173,23 +230,24 @@ export function renderStatementPdf(d: StatementDocument, opts: RenderOptions = {
     drawn.push({ kind: 'date', label: g.label })
     items.push({ kind: 'date', height: C.row.date })
     dayOf.push(g.label)
-    for (const e of g.entries) {
-      drawn.push({ kind: 'entry', entry: e })
+    g.entries.forEach((e, n) => {
+      // Alternate rows within a day carry the tint; the first of each day is plain.
+      drawn.push({ kind: 'entry', entry: e, stripe: n % 2 === 1 })
       items.push({ kind: 'entry', height: C.row.entry })
       dayOf.push(g.label)
-    }
+    })
   }
   drawn.push({ kind: 'closing' })
-  dayOf.push('')
   items.push({ kind: 'closing', height: C.row.closing })
+  dayOf.push('')
 
-  // ------------------------------------------------------------------ boxes after the table
-  const BOX_TITLE = 6.4
-  const BOX_LINE = 4.6
-  const BOX_NOTE = 4.6
-  const positionsH = d.positions.length ? BOX_TITLE + d.positions.length * BOX_LINE + BOX_NOTE + 2 : 0
-  const chequeLines = Math.max(d.pendingCheques.length, 1)
-  const chequesH = BOX_TITLE + BOX_NOTE + (d.pendingCheques.length ? BOX_LINE : 0) + chequeLines * BOX_LINE + 2 * BOX_LINE + 2
+  // ------------------------------------------------------------------ the sections after the table
+  // Same pitch and tint as the table, small grey labels, no boxes.
+  const pitch = C.row.entry
+  const NOTE = 4.6
+  const positionsH = d.positions.length ? C.row.sectionLabel + d.positions.length * pitch + NOTE : 0
+  const chequeRows = Math.max(d.pendingCheques.length, 1)
+  const chequesH = C.row.sectionLabel + NOTE + (d.pendingCheques.length ? C.row.tableHead : 0) + chequeRows * pitch + 2 * pitch + 1.5
   const blockHeights = [positionsH, chequesH].filter((h) => h > 0)
 
   // ------------------------------------------------------------------ lay out, then draw
@@ -223,120 +281,129 @@ export function renderStatementPdf(d: StatementDocument, opts: RenderOptions = {
     goToPage(at.page)
     // A day that carries on from the page before repeats its band, marked "continued".
     const band = layout.bands.find((b) => b.itemIndex === i)
-    if (band) {
-      fill(L, band.y, W, C.row.date, DATE_FILL)
-      font('bold', C.font.body)
-      doc.text(`${dayOf[i]} (continued)`, col.desc + PAD, band.y + C.row.date * 0.7)
-    }
+    if (band) drawDateBand(band.y, `${dayOf[i]} (continued)`)
     const y = at.y
-    const base = (h: number) => y + h * 0.7
 
-    if (it.kind === 'date') {
-      fill(L, y, W, C.row.date, DATE_FILL)
-      font('bold', C.font.body)
-      doc.text(it.label, col.desc + PAD, base(C.row.date))
-      return
-    }
+    if (it.kind === 'date') return drawDateBand(y, it.label)
+
     if (it.kind === 'opening') {
-      fill(L, y, W, C.row.opening, BOX_FILL)
+      const by = baseline(y, C.row.opening, C.font.body)
       font('bold', C.font.body)
-      doc.text('Opening balance', col.desc + PAD, base(C.row.opening))
-      right(formatBalance(d.opening, dec), col.bal, C.columns.balance, base(C.row.opening))
-      rule(L, y + C.row.opening, R)
+      doc.text('Opening balance', col.desc + PAD, by)
+      balanceCell(d.opening, by, C.font.body, true)
       return
     }
+
     if (it.kind === 'entry') {
       const e = it.entry
+      if (it.stripe) fill(L, y, W, C.row.entry, COLOR.tint)
+      const by = baseline(y, C.row.entry, C.font.body)
+      drawDescription(col.desc + PAD, by, C.columns.description - PAD * 2, e)
+      font('normal', C.font.small, COLOR.light)
+      doc.text(fit(e.ref, C.columns.ref - PAD * 2), col.ref + PAD, by)
       font('normal', C.font.body)
-      doc.text(fit(e.description, C.columns.description - PAD * 2), col.desc + PAD, base(C.row.entry))
-      font('normal', C.font.small, MUTED)
-      doc.text(fit(e.ref, C.columns.ref - PAD * 2), col.ref + PAD, base(C.row.entry))
-      font('normal', C.font.body)
-      if (e.debit) right(money(e.debit), col.debit, C.columns.debit, base(C.row.entry))
-      if (e.credit) right(money(e.credit), col.credit, C.columns.credit, base(C.row.entry))
-      right(formatBalance(e.balance, dec), col.bal, C.columns.balance, base(C.row.entry))
-      rule(L, y + C.row.entry, R)
+      if (e.debit) rightOf(money(e.debit), col.debit, C.columns.debit, by)
+      if (e.credit) rightOf(money(e.credit), col.credit, C.columns.credit, by)
+      balanceCell(e.balance, by, C.font.body, false)
       return
     }
-    // closing
-    rule(L, y, R, STRONG_RULE, 0.5)
-    fill(L, y + 0.25, W, C.row.closing - 0.25, HEAD_FILL)
+
+    // closing: a tinted band under a brand rule, bold. The totals carry no Dr/Cr — their column headings say it.
+    fill(L, y, W, C.row.closing, COLOR.tint)
+    hrule(L, y, R, COLOR.brand, 0.45)
+    const by = baseline(y, C.row.closing, C.font.body + 0.4)
     font('bold', C.font.body + 0.4)
-    doc.text('Closing balance', col.desc + PAD, base(C.row.closing))
-    right(sided(d.totalDebits, 'Dr'), col.debit, C.columns.debit, base(C.row.closing))
-    right(sided(d.totalCredits, 'Cr'), col.credit, C.columns.credit, base(C.row.closing))
-    right(formatBalance(d.closing, dec), col.bal, C.columns.balance, base(C.row.closing))
-    rule(L, y + C.row.closing, R, STRONG_RULE, 0.5)
+    doc.text('Closing balance', col.desc + PAD, by)
+    rightOf(money(d.totalDebits), col.debit, C.columns.debit, by)
+    rightOf(money(d.totalCredits), col.credit, C.columns.credit, by)
+    balanceCell(d.closing, by, C.font.body + 0.4, true)
   })
 
-  // --- boxes ---
+  // --- sections ---
   let b = 0
-  const box = (h: number, draw: (top: number) => void) => {
+  const section = (draw: (top: number) => void) => {
     const at = layout.blocks[b++]
     goToPage(at.page)
-    fill(L, at.y, W, h, BOX_FILL)
-    outline(L, at.y, W, h)
     draw(at.y)
+  }
+  const label = (text: string, top: number) => {
+    font('bold', C.font.label, COLOR.light)
+    doc.text(text, L + PAD, baseline(top, C.row.sectionLabel, C.font.label))
   }
 
   if (d.positions.length) {
-    box(positionsH, (top) => {
-      font('bold', C.font.body)
-      doc.text('Currency position', L + 3, top + 4.4)
-      let y = top + BOX_TITLE
-      d.positions.forEach((p) => {
+    section((top) => {
+      label('CURRENCY POSITION', top)
+      let y = top + C.row.sectionLabel
+      d.positions.forEach((p, n) => {
+        if (n % 2 === 1) fill(L, y, W, pitch, COLOR.tint)
+        const by = baseline(y, pitch, C.font.body)
         font('bold', C.font.body)
-        doc.text(p.code, L + 3, y + 3.4)
+        doc.text(p.code, col.desc + PAD, by)
+        font('normal', C.font.body, COLOR.detail)
+        doc.text(p.sideLabel, L + 22, by)
         font('normal', C.font.body)
-        doc.text(p.sideLabel, L + 17, y + 3.4)
-        doc.text(`${p.unitsLabel} ${p.code}`, L + 92, y + 3.4, { align: 'right' })
-        font('normal', C.font.body, MUTED)
-        doc.text(`PKR ${formatPaisa(p.value, dec)}`, R - 3, y + 3.4, { align: 'right' })
-        y += BOX_LINE
+        doc.text(`${p.unitsLabel} ${p.code}`, L + 118, by, { align: 'right' })
+        doc.text(`PKR ${money(p.value)}`, R - PAD, by, { align: 'right' })
+        y += pitch
       })
-      font('normal', C.font.tiny, MUTED)
-      doc.text('Net units for each currency separately, never added across currencies. Value in PKR at the deal rates.', L + 3, y + 3)
+      font('normal', C.font.note, COLOR.light)
+      doc.text('Net units for each currency separately, never added across currencies. Value in PKR at the deal rates.', L + PAD, y + 3.2)
     })
   }
 
-  box(chequesH, (top) => {
-    font('bold', C.font.body)
-    doc.text('Pending cheques (not yet cleared)', L + 3, top + 4.4)
-    font('normal', C.font.tiny, MUTED)
-    doc.text('These do not affect the balance above until they clear.', L + 3, top + BOX_TITLE + 2.6)
-    let y = top + BOX_TITLE + BOX_NOTE
-    const cx = { dir: L + 3, num: L + 34, bank: L + 62, due: L + 112, status: L + 138, amt: R - 3 }
+  section((top) => {
+    label('PENDING CHEQUES (NOT YET CLEARED)', top)
+    let y = top + C.row.sectionLabel
+    font('normal', C.font.note, COLOR.light)
+    doc.text('These do not affect the balance above until they clear.', L + PAD, y + 2.6)
+    y += NOTE
+    const cx = { dir: L + PAD, num: L + 34, bank: L + 62, due: L + 112, status: L + 138, amt: R - PAD }
     if (d.pendingCheques.length) {
-      font('bold', C.font.small, MUTED)
-      doc.text('DIRECTION', cx.dir, y + 3)
-      doc.text('CHEQUE NO.', cx.num, y + 3)
-      doc.text('BANK', cx.bank, y + 3)
-      doc.text('DUE', cx.due, y + 3)
-      doc.text('STATUS', cx.status, y + 3)
-      doc.text('AMOUNT', cx.amt, y + 3, { align: 'right' })
-      y += BOX_LINE
+      const ty = baseline(y, C.row.tableHead, C.font.label)
+      font('bold', C.font.label, COLOR.light)
+      doc.text('DIRECTION', cx.dir, ty)
+      doc.text('CHEQUE NO.', cx.num, ty)
+      doc.text('BANK', cx.bank, ty)
+      doc.text('DUE', cx.due, ty)
+      doc.text('STATUS', cx.status, ty)
+      doc.text('AMOUNT', cx.amt, ty, { align: 'right' })
+      hrule(L, y + C.row.tableHead, R, COLOR.rule, 0.2)
+      y += C.row.tableHead
     }
     if (!d.pendingCheques.length) {
-      font('normal', C.font.body, MUTED)
-      doc.text('None.', L + 3, y + 3.4)
-      y += BOX_LINE
+      font('normal', C.font.body, COLOR.detail)
+      doc.text('None.', L + PAD, baseline(y, pitch, C.font.body))
+      y += pitch
     }
-    d.pendingCheques.forEach((q) => {
+    d.pendingCheques.forEach((q, n) => {
+      if (n % 2 === 1) fill(L, y, W, pitch, COLOR.tint)
+      const by = baseline(y, pitch, C.font.body)
       font('normal', C.font.body)
-      doc.text(q.directionLabel, cx.dir, y + 3.4)
-      doc.text(fit(q.number, 26), cx.num, y + 3.4)
-      doc.text(fit(q.bank, 46), cx.bank, y + 3.4)
-      doc.text(q.dueLabel, cx.due, y + 3.4)
-      doc.text(q.status, cx.status, y + 3.4)
-      doc.text(formatPaisa(q.amount, dec), cx.amt, y + 3.4, { align: 'right' })
-      y += BOX_LINE
+      doc.text(q.directionLabel, cx.dir, by)
+      doc.text(fit(q.number, 26), cx.num, by)
+      doc.text(fit(q.bank, 46), cx.bank, by)
+      doc.text(q.dueLabel, cx.due, by)
+      font('normal', C.font.body, COLOR.detail)
+      doc.text(q.status, cx.status, by)
+      font('normal', C.font.body)
+      doc.text(money(q.amount), cx.amt, by, { align: 'right' })
+      y += pitch
     })
-    rule(L + 3, y + 0.6, R - 3)
-    font('bold', C.font.body)
-    doc.text('Total cheques in (received)', L + 3, y + 4.6)
-    doc.text(formatPaisa(d.pendingIn, dec), R - 3, y + 4.6, { align: 'right' })
-    doc.text('Total cheques out (issued)', L + 3, y + 4.6 + BOX_LINE)
-    doc.text(formatPaisa(d.pendingOut, dec), R - 3, y + 4.6 + BOX_LINE, { align: 'right' })
+    y += 1.5
+    hrule(L, y, R, COLOR.rule, 0.2)
+    const totals: [string, number][] = [
+      ['Total cheques in (received)', d.pendingIn],
+      ['Total cheques out (issued)', d.pendingOut],
+    ]
+    totals.forEach(([text, value], n) => {
+      if (n % 2 === 1) fill(L, y, W, pitch, COLOR.tint)
+      const by = baseline(y, pitch, C.font.body)
+      font('bold', C.font.body)
+      doc.text(text, L + PAD, by)
+      doc.text(money(value), R - PAD, by, { align: 'right' })
+      y += pitch
+    })
   })
 
   goToPage(layout.pages)
@@ -346,9 +413,9 @@ export function renderStatementPdf(d: StatementDocument, opts: RenderOptions = {
   const footY = C.page.height - 8
   for (let p = 1; p <= total; p++) {
     doc.setPage(p)
-    rule(L, footY - 3.4, R, RULE)
-    font('normal', C.font.small, MUTED)
-    doc.text(`${d.customerName}  |  Generated ${d.generatedAt}`, L, footY)
+    hrule(L, footY - 3.6, R, COLOR.rule, 0.2)
+    font('normal', C.font.small, COLOR.light)
+    doc.text(d.customerName, L, footY)
     doc.text(`Page ${p} of ${total}`, R, footY, { align: 'right' })
   }
   doc.setPage(1)
@@ -364,4 +431,3 @@ export function statementPdfBlob(d: StatementDocument, opts?: RenderOptions): Bl
 export function statementPdfBytes(d: StatementDocument, opts?: RenderOptions): ArrayBuffer {
   return renderStatementPdf(d, opts).output('arraybuffer')
 }
-

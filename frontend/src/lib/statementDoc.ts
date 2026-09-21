@@ -57,7 +57,17 @@ const localISO = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two
 // --- The document ---
 
 export interface StatementEntry {
+  /**
+   * The row's words as ONE line: `type` + `joiner` + `detail`. Kept whole so anything that reads the words
+   * (a test, a text search) sees exactly what is printed.
+   */
   description: string
+  /** What kind of row it is — "Sale", "Payment received", "Transfer to", or a journal entry's narration. Drawn bold. */
+  type: string
+  /** What follows the type — "500 AED @ 80", "Cash", the other customer's name. Drawn grey. May be empty. */
+  detail: string
+  /** What sits between them: the middle dot for a deal or payment, a plain space for a transfer or reference. */
+  joiner: string
   /** The deal, payment, cheque or voucher reference, as the Transactions page shows it. */
   ref: string
   /** Paisa. 0 means "blank cell". */
@@ -168,7 +178,7 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
   const entryById = new Map(src.journalEntries.map((e) => [e.id, e]))
 
   // --- describe one ledger row: words + reference, from stored fields only ---
-  function describe(row: LedgerRow): { description: string; ref: string } {
+  function describe(row: LedgerRow): { type: string; detail: string; joiner: string; ref: string } {
     switch (row.type) {
       case 'sale':
       case 'purchase': {
@@ -177,7 +187,7 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
         const units = formatUnits(row.amount ?? 0, meta.amountDecimals)
         const rate = formatRate(row.rate ?? 0, meta.rateDecimals)
         const verb = row.type === 'sale' ? W.sale : W.purchase
-        return { description: `${verb}${W.sep}${units} ${code} @ ${rate}`, ref: shortRef(row.id) }
+        return { type: verb, detail: `${units} ${code} @ ${rate}`, joiner: W.sep, ref: shortRef(row.id) }
       }
       case 'receive':
       case 'pay': {
@@ -188,19 +198,19 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
           const acct = act.settlementAccountId ? accountById.get(act.settlementAccountId) : undefined
           how = pdfText(acct?.name ?? 'Bank', 'Bank account name', warnings)
         } else how = pdfText(how, 'Payment method', warnings)
-        return { description: how ? `${verb}${W.sep}${how}` : verb, ref: shortRef(row.id) }
+        return { type: verb, detail: how, joiner: W.sep, ref: shortRef(row.id) }
       }
       case 'cheque': {
         const q = chequeById.get(row.id)
         const number = pdfText(q?.number ?? '', `Cheque number (${shortRef(row.id)})`, warnings)
         const bank = pdfText(q?.bank ?? '', `Cheque bank (cheque ${number || shortRef(row.id)})`, warnings)
         const who = [bank, number].filter(Boolean).join(' ')
-        return { description: who ? `${W.cheque}${W.sep}${who}` : W.cheque, ref: shortRef(row.id) }
+        return { type: W.cheque, detail: who, joiner: W.sep, ref: shortRef(row.id) }
       }
       default: {
         // 'journal': a manual entry or a customer-to-customer transfer.
         const e = entryById.get(row.id)
-        if (!e) return { description: W.journal, ref: shortRef(row.id) }
+        if (!e) return { type: W.journal, detail: '', joiner: ' ', ref: shortRef(row.id) }
         const ref = pdfText(e.ref, 'Journal reference', warnings)
         const debitAcct = accountById.get(e.debitAccount)
         const creditAcct = accountById.get(e.creditAccount)
@@ -209,10 +219,11 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
           // debited leg means the money went TO the other one, and the credited leg means it came FROM them.
           const thisIsDebit = e.debitAccount === cust.id
           const other = pdfText(thisIsDebit ? e.creditLabel : e.debitLabel, `Customer name on transfer ${ref}`, warnings)
-          return { description: `${thisIsDebit ? W.transferTo : W.transferFrom} ${other}`, ref }
+          return { type: thisIsDebit ? W.transferTo : W.transferFrom, detail: other, joiner: ' ', ref }
         }
         const narration = pdfText(e.narration, `Entry narration ${ref}`, warnings)
-        return { description: narration || `${W.journal} ${ref}`, ref }
+        // A narration IS the type: it is the words the person wrote for the entry, and there is nothing to follow it.
+        return narration ? { type: narration, detail: '', joiner: ' ', ref } : { type: W.journal, detail: ref, joiner: ' ', ref }
       }
     }
   }
@@ -242,13 +253,14 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
     totalDebits += debit
     totalCredits += credit
 
-    const { description, ref } = describe(row)
+    const { type, detail, joiner, ref } = describe(row)
+    const description = detail ? `${type}${joiner}${detail}` : type
     let group = groups[groups.length - 1]
     if (!group || group.date !== row.date) {
       group = { date: row.date, label: pdfDate(row.date), entries: [] }
       groups.push(group)
     }
-    group.entries.push({ description, ref, debit, credit, balance: running })
+    group.entries.push({ description, type, detail, joiner, ref, debit, credit, balance: running })
     entryCount++
   }
 
