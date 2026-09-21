@@ -750,7 +750,11 @@ Wording the app itself writes must never need the warning (write "to", not an ar
   withholds any journal entry with an Income leg from operators, so a manual entry such as a fee charged
   to a customer moves the stored balance but does not appear on the operator's statement, and the
   operator's closing balance then differs from the balance every role sees. Reproduced 2026-09-21
-  (admin 10,800 = stored 10,800; operator 8,300). A decision, not yet made; recorded in PROJECT_STATUS.md.
+  (admin 10,800 = stored 10,800; operator 8,300). **Decided, not yet built:** an operator's statement must show the
+  customer's own leg of any entry that moves their balance, with a neutral description and no account names, pending
+  the client's confirmation — the option of keeping the operator's document self-consistent was rejected. Building it
+  means the server sending a redacted version of such an entry (a backend change to the snapshot filtering); see
+  PROJECT_STATUS.md. Until then this is a known, recorded fault, not something to "fix" inside the PDF.
 
 ## Testing and verification
 

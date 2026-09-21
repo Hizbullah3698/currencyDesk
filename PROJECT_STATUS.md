@@ -290,14 +290,42 @@ searched for text with an escape that made it match something else, so it could 
 |---|---|---|
 | The statement's Print/PDF was unusable on A4 (cut-off column, one-word lines, lone closing balance, localhost in the header) | High for a document handed to customers | **Fixed** (committed locally, not pushed) |
 | Same-day deals listed newest-first inside oldest-first days, with running balances following the wrong order | Medium — wrong side printed on the wrong rows when a balance crosses in a day | **Fixed** (its own commit, not pushed) |
-| **An operator's statement can differ from the customer's real balance.** The server withholds any journal entry with an Income leg from operators, so a manual entry such as a fee charged to a customer moves the stored balance but does not appear on the operator's statement. Reproduced: a customer with a sale of 8,000 plus a 2,500 fee — admin statement 10,800, stored balance 10,800, **operator statement 8,300**, and the operator's own customer list and the top bar say 10,800 | Medium — a customer statement that does not match the balance the same screen shows | **Open — a decision, not made.** Nothing was built or changed; the PDF prints whatever the statement data contains. Options are to keep the operator's document self-consistent (recommended) or to add a neutral note, which reveals that a hidden entry exists |
+| **An operator's statement can differ from the customer's real balance.** The server withholds any journal entry with an Income leg from operators, so a manual entry such as a fee charged to a customer moves the stored balance but does not appear on the operator's statement. Reproduced: a customer with a sale of 8,000 plus a 2,500 fee — admin statement 10,800, stored balance 10,800, **operator statement 8,300**, and the operator's own customer list and the top bar say 10,800 | Medium — a customer statement that does not match the balance the same screen shows | **Decided by the owner 2026-09-21, not built in this release.** The rule is below. Until it is built the PDF prints whatever the statement data contains, so an operator's statement can still be short by such an entry |
 | Arabic and Urdu customer names cannot be printed by the PDF's built-in font, and no library used here would shape them correctly | Medium if any customer uses those scripts | **Mitigated** by the warning; the underlying question — do any customers use those scripts? — is **open for the client** |
 | Trades and payments have no human deal number; the only reference is the first 8 characters of an internal id, as the Transactions page shows | Low today, real for a client used to `DTMS6173` | **Open follow-up** — see Next |
 | The statement's on-screen columns crowd at ten-digit amounts | Low, cosmetic | Open follow-up (unchanged, recorded earlier today) |
 
+### Decided: what an operator's statement must show
+
+Ruled by the owner on 2026-09-21, after the mismatch above was reproduced. **A statement that adds up but shows
+the wrong balance is worse than one that reveals a fee exists**, so the option of keeping the operator's
+document self-consistent — which had been the recommendation — is **rejected.**
+
+**The rule:** an operator's statement must show **the customer's own leg of any entry that moves their
+balance**, with a **neutral description and no account names.** So a fee charged to a customer appears on that
+customer's statement, in the right place, with the right amount, described in neutral words (for example
+"Adjustment") — never the Income account's name, its id, the entry's narration, or the other leg. It is
+**pending the client's confirmation**, and it is **not built in this release.**
+
+What building it will involve, so it is not underestimated:
+
+- Today the server withholds the **whole** entry from an operator's copy of the data whenever any leg is on an
+  Income account. Showing the customer's leg therefore means the server must send a **redacted** version of
+  such an entry — the customer's leg only: its date, its amount, which side it moved — and nothing that names
+  or identifies the Income account. That is a change to the backend's snapshot filtering, not to the PDF.
+- It must be tested the other way round as carefully as the omission was: a test must prove the redacted row
+  carries no Income account id or name, no narration and no reference that could identify the entry.
+- The same fix would correct the on-screen statement, which today shows the operator the same wrong closing
+  balance (8,300 against the real 10,800 in the reproduction).
+- It will need agreement on the neutral wording, and on whether the amount of the customer's leg being visible
+  is acceptable — the owner's ruling accepts that a fee's existence and its amount to the customer are shown.
+
+Until it is built, an operator's statement remains short by any such entry.
+
 ### Not done, deliberately
 
-- The operator filtering was **not** changed, as instructed.
+- The operator filtering was **not** changed, as instructed. The rule the owner then decided for it is recorded
+  under "Decided" below and is a separate piece of work.
 - Human deal numbers were **not** built.
 - The on-screen statement and Excel export are untouched.
 - Nothing was pushed or deployed, and production was not touched.
@@ -313,7 +341,9 @@ searched for text with an escape that made it match something else, so it could 
 
 ### Next — in priority order
 
-1. Decide the operator-statement question above, then act on it.
+1. **Operators must see the customer's own leg of any entry that moves their balance, with a neutral description
+   and no account names** — decided by the owner, pending the client's confirmation, **not built in this release**
+   (see "Decided" above; it is a backend change to the snapshot filtering). Confirm the wording with the client, then build it.
 2. **Sequential human deal numbers** (like the client's `DTMS6173`) — its own item. Trades and payments carry
    only an internal id today, so the Ref column shows its first 8 characters. Real numbers are a data-model
    change and were not built; the PDF will pick them up when they exist.
