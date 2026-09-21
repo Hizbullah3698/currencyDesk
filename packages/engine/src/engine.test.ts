@@ -5,6 +5,7 @@ import {
   activityDate,
   buyCalc,
   sellCalc,
+  toPaisa,
   openingStock,
   stockAsOf,
   marginLedger,
@@ -432,9 +433,11 @@ describe('buyCalc / sellCalc with an explicit currency code', () => {
     // profitable sale.
     const avgCost = 1 / 797
     const r = sellCalc(1_000_000, 787, avgCost, 'Credit', 0, 'TMN')
-    expect(r.saleValue).toBeCloseTo(1_000_000 / 787, 9)
-    expect(r.cost).toBeCloseTo(1254.705, 3)
-    expect(r.margin).toBeCloseTo(1_000_000 / 787 - 1_000_000 / 797, 9)
+    // sellCalc rounds sale value and cost to a paisa once (see 'sale rounding' below), so these are
+    // close to the raw quotients within half a paisa, not to nine decimals. Two digits = 0.005.
+    expect(r.saleValue).toBeCloseTo(1_000_000 / 787, 2)
+    expect(r.cost).toBeCloseTo(1_000_000 / 797, 2)
+    expect(r.margin).toBeCloseTo(1_000_000 / 787 - 1_000_000 / 797, 2)
     expect(r.margin).toBeGreaterThan(0)
     // The double-conversion bug this guards against would have divided avgCost as well,
     // producing a cost of ~7.97e8 rather than ~1,255.
@@ -464,7 +467,9 @@ describe("the client's real Toman figures (his own ledger)", () => {
       expect(Math.round(pkr)).toBe(c.whole)
       // buyCalc and sellCalc must agree with the bare conversion: they are what actually books it.
       expect(buyCalc(c.amount, c.rate, 'Credit', 0, 'TMN').pkrValue).toBe(pkr)
-      expect(sellCalc(c.amount, c.rate, 0, 'Credit', 0, 'TMN').saleValue).toBe(pkr)
+      // sellCalc rounds the sale value to a paisa once; buyCalc leaves the raw quotient for the
+      // database to round on insert. Same paisa either way.
+      expect(sellCalc(c.amount, c.rate, 0, 'Credit', 0, 'TMN').saleValue).toBe(toPaisa(pkr) / 100)
     })
   }
 
@@ -499,6 +504,88 @@ describe("the client's real Toman figures (his own ledger)", () => {
     // were merely left unrecognised rather than removed, a trade keyed under it would be booked
     // at its typed rate times its amount — roughly 797 times what a Toman-scale figure is worth.
     expect(CURRENCIES).not.toContain('IRR')
+  })
+})
+
+// AUDIT.md §3 #4, fixed 2026-09-21. A sale's three figures — what the customer owes, what the stock
+// cost, and the profit — used to be rounded to a paisa separately and could stop summing. The
+// client's own third ledger line reproduced it: 3,000,000,000 TMN at 788 stored 3,807,106.60 /
+// 3,794,008.34 / 13,098.25, so cost + margin was 3,807,106.59 and the voucher debited the customer
+// a paisa less than the balance moved.
+describe('sale rounding — the three figures always sum', () => {
+  const paisa = (n: number) => Math.round(n * 100)
+
+  it('rounds half away from zero on the decimal text, not in binary', () => {
+    expect(toPaisa(3807106.5989847714)).toBe(380_710_660)
+    expect(toPaisa(3764115.4328732747)).toBe(376_411_543)
+    // Ties that binary multiplication gets wrong: 1.005 * 100 is 100.49999999999999.
+    expect(toPaisa(1.005)).toBe(101)
+    expect(toPaisa(2.675)).toBe(268)
+    expect(toPaisa(0.005)).toBe(1)
+    expect(toPaisa(0.004)).toBe(0)
+    expect(toPaisa(-1.005)).toBe(-101) // away from zero, matching Postgres
+    expect(toPaisa(100)).toBe(10_000)
+    expect(toPaisa(0)).toBe(0)
+  })
+
+  it('does not snap a value just BELOW a tie onto it — the one case an early version got wrong', () => {
+    // Found by checking 200,000 values against Postgres. Re-parsing "<n>e2" into a double lost the
+    // fourth decimal at this magnitude, rounded this to .72, and Postgres stores .71. The decimal
+    // text ends ...714999996, which is below the tie.
+    expect(toPaisa(61625952.714999996)).toBe(6_162_595_271)
+  })
+
+  it("makes the client's 3,000,000,000 TMN @ 788 sale sum exactly: cost + margin == pkr_value", () => {
+    // avg cost as stock_positions holds it after his two purchases (3e9 @ 797, 5e9 @ 787), 12dp.
+    const avgCost = 0.001264669448
+    const r = sellCalc(3_000_000_000, 788, avgCost, 'Credit', 0, 'TMN')
+    expect(r.saleValue).toBe(3807106.6)
+    expect(r.cost).toBe(3794008.34)
+    // 13,098.26, where independent rounding stored 13,098.25 and lost a paisa.
+    expect(r.margin).toBe(13098.26)
+    expect(paisa(r.cost) + paisa(r.margin)).toBe(paisa(r.saleValue))
+    expect(r.outstanding).toBe(3807106.6)
+  })
+
+  it('leaves saleValue and cost exactly as they were, so only margin can move', () => {
+    // The rule rounds each of these ONCE, the same way Postgres did on insert. So the figures the
+    // customer owes and the stock cost are unchanged from before — the margin absorbs the rounding.
+    const avgCost = 0.001264669448
+    const r = sellCalc(3_000_000_000, 788, avgCost, 'Credit', 0, 'TMN')
+    expect(paisa(r.saleValue)).toBe(toPaisa(pkrValueOf('TMN', 3_000_000_000, 788)))
+    expect(paisa(r.cost)).toBe(toPaisa(3_000_000_000 * avgCost))
+  })
+
+  it('sums exactly across thousands of sales in both quote conventions', () => {
+    // Deterministic pseudo-random sweep (mulberry32), so a failure reproduces.
+    let a = 0x9e3779b9
+    const rand = () => {
+      a = (a + 0x6d2b79f5) | 0
+      let t = Math.imul(a ^ (a >>> 15), 1 | a)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+    let losses = 0
+    for (let i = 0; i < 5000; i++) {
+      const tmn = i % 2 === 0
+      const amount = tmn ? Math.round(1e6 + rand() * 5e9) : Math.round(1 + rand() * 2e6)
+      const rate = Math.round((tmn ? 300 + rand() * 700 : 60 + rand() * 35) * 100) / 100
+      const avgCost = tmn ? Number((1 / (300 + rand() * 700)).toFixed(12)) : Number((60 + rand() * 35).toFixed(6))
+      const r = sellCalc(amount, rate, avgCost, 'Credit', 0, tmn ? 'TMN' : 'AED')
+      expect(paisa(r.cost) + paisa(r.margin), `sale ${i}: ${amount} @ ${rate}`).toBe(paisa(r.saleValue))
+      if (r.margin < 0) losses++
+    }
+    // The sweep must include loss-making sales, or the negative-margin path was never exercised.
+    expect(losses).toBeGreaterThan(100)
+  })
+
+  it('keeps a loss exact too, and a breakeven sale at exactly zero', () => {
+    const loss = sellCalc(1000, 70, 78, 'Credit', 0, 'AED') // sold at 70 what cost 78
+    expect(loss.margin).toBe(-8000)
+    expect(paisa(loss.cost) + paisa(loss.margin)).toBe(paisa(loss.saleValue))
+
+    const even = sellCalc(1000, 78, 78, 'Credit', 0, 'AED')
+    expect(even.margin).toBe(0)
   })
 })
 

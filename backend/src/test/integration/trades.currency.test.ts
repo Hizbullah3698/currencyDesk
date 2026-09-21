@@ -263,7 +263,7 @@ describe('multi-currency trades (TMN divide-quote, txnDate)', () => {
     })
     expect(res.status).toBe(200)
 
-    const { rows } = await pool.query("SELECT amount, rate, pkr_value, cost, margin FROM activity WHERE type = 'sale' AND currency = 'TMN'")
+    const { rows } = await pool.query("SELECT id, amount, rate, pkr_value, cost, margin FROM activity WHERE type = 'sale' AND currency = 'TMN'")
     expect(rows).toHaveLength(1)
     expect(Number(rows[0].rate)).toBe(sellRate)
     expect(Number(rows[0].pkr_value)).toBeCloseTo(qty / sellRate, 2)
@@ -271,12 +271,28 @@ describe('multi-currency trades (TMN divide-quote, txnDate)', () => {
     expect(Number(rows[0].cost)).toBeCloseTo(qty * avgCost, 2)
     expect(Number(rows[0].margin)).toBeCloseTo(qty / sellRate - qty * avgCost, 2)
     // ~3.81 million PKR of proceeds against ~3.79 million of cost — seven-figure PKR numbers
-    // either way, not the trillions a mis-multiplied rate would produce. Each figure is asserted
-    // on its own: the stored margin is deliberately NOT compared with pkr_value minus cost, because
-    // they are rounded independently (AUDIT.md §3 #4) and that gap is separate, known work.
+    // either way, not the trillions a mis-multiplied rate would produce.
     expect(Number(rows[0].pkr_value)).toBeLessThan(10_000_000)
     expect(Number(rows[0].cost)).toBeLessThan(10_000_000)
     expect(Number(rows[0].margin)).toBeGreaterThan(0)
+
+    // THE THREE FIGURES SUM, EXACTLY — AUDIT.md §3 #4, fixed 2026-09-21. This used to be
+    // deliberately NOT asserted, because pkr_value, cost and margin were rounded independently.
+    // Compared in whole paisa, so it is an equality rather than a tolerance. NOTE this sale does
+    // not itself reproduce the old fault — the extra purchases earlier in this file shift the
+    // average cost onto a paisa that happens to sum — so this is a standing invariant, not the
+    // regression test. sale.rounding.test.ts runs the client's exact sequence and is that test.
+    const paisa = (v: unknown) => Math.round(Number(v) * 100)
+    expect(paisa(rows[0].cost) + paisa(rows[0].margin), 'cost + margin must equal pkr_value to the paisa').toBe(paisa(rows[0].pkr_value))
+
+    // And the voucher agrees with the balance that moved. The customer's receivable rose by
+    // pkr_value; the sale voucher must debit that same customer by exactly that much, or the journal
+    // and the stored balance drift apart by the paisa — which is what `npm run reconcile` caught.
+    const { rows: legs } = await pool.query(
+      'SELECT COALESCE(SUM(amount), 0)::float8 AS debited FROM journal_entries WHERE activity_id = $1 AND debit_account = $2',
+      [rows[0].id, customerId],
+    )
+    expect(paisa(legs[0].debited), 'voucher debit to the customer').toBe(paisa(rows[0].pkr_value))
 
     // A sale moves quantity only — the weighted-average cost is untouched.
     const { rows: after } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'TMN'")

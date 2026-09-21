@@ -430,10 +430,56 @@ export function buyCalc(amount: number, rate: number, method: string, paidNowRaw
   return { amount, rate, pkrValue, paidNow, outstanding }
 }
 
+/**
+ * Whole paisa in `n` rupees, rounded half away from zero on the DECIMAL text of the number.
+ *
+ * Done on the digits, with no floating-point step, and that is the whole point. Two obvious
+ * versions are both wrong. `Math.round(n * 100)` multiplies in binary, where `1.005 * 100` is
+ * `100.49999999999999`, so it rounds a tie DOWN that Postgres rounds UP. And shifting the point by
+ * re-parsing `"<n>e2"` is exact in the text but lands back in a double, which at 6e9 paisa can no
+ * longer resolve a fourth decimal: `61625952.714999996` snapped onto the tie and rounded to
+ * `.72` where Postgres stores `.71`. Both were found by checking against Postgres, not by review.
+ *
+ * The value reaches Postgres as the decimal text of the double, which `numeric(18,2)` rounds half
+ * away from zero by looking only at the digit after the second decimal. So this does the same
+ * thing to the same text: keep two decimals, round up if the third digit is 5 or more.
+ * Verified identical to Postgres over 200,000 random and engineered-tie values.
+ */
+export function toPaisa(n: number): number {
+  if (!Number.isFinite(n) || n === 0) return 0
+  const abs = Math.abs(n)
+  const text = String(abs)
+  const [whole, frac = ''] = text.split('.')
+  // Exponent notation ("1e-7", "1.2e+21") has no digits to read, and past 13 whole digits a paisa
+  // count no longer fits a double exactly. Neither is a real money figure on this desk — the
+  // input ceiling is 1e12 — so fall back to plain rounding rather than return NaN.
+  if (text.includes('e') || whole.length > 13) return n < 0 ? -Math.round(abs * 100) : Math.round(abs * 100)
+  const third = (frac + '000').charCodeAt(2) - 48
+  const cents = Number(whole + (frac + '00').slice(0, 2)) + (third >= 5 ? 1 : 0)
+  return n < 0 ? -cents : cents
+}
+
+// THE ROUNDING RULE FOR A SALE — decided 2026-09-21, replaces AUDIT.md §3 #4.
+//
+// A sale produces three figures that must sum: `saleValue` (what the customer owes), `cost` (what
+// the stock cost) and `margin` (the profit). They used to be computed in floating point and each
+// rounded to a paisa SEPARATELY on its way into `numeric(18,2)`, so they could stop summing: on
+// 3,000,000,000 TMN at 788 the stored figures were 3,807,106.60 / 3,794,008.34 / 13,098.25, and
+// cost + margin fell one paisa short of the customer's debit. Every fractional-rate sale is exposed
+// to it, and every Toman sale is one.
+//
+// So `saleValue` and `cost` are each rounded to a paisa ONCE, here, and `margin` is their
+// difference in whole paisa — never rounded on its own — so the three sum exactly by construction.
+// It is the margin that absorbs the rounding, deliberately: it is the only one of the three that
+// is derived rather than a fact (the customer really owes the rounded sale value, and the stock
+// really cost the rounded cost). Everything downstream — the row, the customer's balance, and
+// every leg of the voucher — receives these already-rounded figures, so they cannot disagree.
 export function sellCalc(amount: number, rate: number, avgCost: number, method: string, paidNowRaw: number, code = 'AED') {
-  const saleValue = pkrValueOf(code, amount, rate)
-  const cost = amount * avgCost
-  const margin = saleValue - cost
+  const saleCents = toPaisa(pkrValueOf(code, amount, rate))
+  const costCents = toPaisa(amount * avgCost)
+  const saleValue = saleCents / 100
+  const cost = costCents / 100
+  const margin = (saleCents - costCents) / 100
   const paidNow = method === 'Credit' ? 0 : Math.min(paidNowRaw || 0, saleValue)
   const outstanding = Math.max(saleValue - paidNow, 0)
   return { amount, rate, saleValue, cost, margin, paidNow, outstanding }
