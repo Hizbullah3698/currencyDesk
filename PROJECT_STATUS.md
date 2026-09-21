@@ -215,8 +215,9 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *At a glance: the Iranian currency was replaced with the one the client's dealers actually use, and
 in doing so the client's own figures exposed a one-paisa fault in how a sale is recorded, which was
-fixed before this release. **Nothing here is released yet.** The database change and the push are
-waiting on the owner's go-ahead. The checks in the running app are done and recorded below.*
+fixed before this release. **Released to the live system on 2026-09-21** — the database change at
+14:12 Pakistan time, the software straight after (commit `f0d3e4b`). The checks in the running app
+were done first, and the release itself is recorded below.*
 
 **The Iranian currency is now the Toman, not the Rial.** The desk used to trade the Iranian *rial*
 (code IRR). The client and his dealers have only ever quoted and counted in *toman*, and his previous
@@ -318,8 +319,8 @@ ignore red, and it needs fixing — it is listed as its own follow-up below.
 
 | Finding | Severity | Status |
 |---|---|---|
-| The desk's Iranian currency was the rial, but dealers and the client's own ledger count in toman — a tenfold booking error waiting to happen | High, once real trading began | **Fixed 2026-09-21** (replaced by the toman); **not yet released** |
-| A sale's amount owed, cost and profit could be one paisa apart (AUDIT.md §3 #4); reproduced by the client's own third ledger line; about one sale in ten would have drifted | Medium — small per sale, but it made the consistency test go red and the sale's accounting entry disagree with the customer's balance | **Fixed 2026-09-21** as its own change; **not yet released** |
+| The desk's Iranian currency was the rial, but dealers and the client's own ledger count in toman — a tenfold booking error waiting to happen | High, once real trading began | **Fixed 2026-09-21** (replaced by the toman); **released 2026-09-21** |
+| A sale's amount owed, cost and profit could be one paisa apart (AUDIT.md §3 #4); reproduced by the client's own third ledger line; about one sale in ten would have drifted | Medium — small per sale, but it made the consistency test go red and the sale's accounting entry disagree with the customer's balance | **Fixed 2026-09-21** as its own change; **released 2026-09-21** |
 | An early version of the fix would have moved a cost by a paisa on one value in 200,000 | Would have been Medium, had it shipped | **Caught by checking against the database before release**; rewritten |
 | `idleTimeout.test.ts` fails about one run in four to three, on old and new code alike | Medium — makes the whole suite untrustworthy | **Open — pre-existing, cause unknown** |
 | `npm run reset:business` does not clear closed months, so a closed month survives a reset and blocks trades dated in it | Low for now — the live system had none | **Open — follow-up** |
@@ -365,20 +366,50 @@ Two observations, neither changed:
   to hold to price a sale at all, and CLAUDE.md already records that profit remains approximable for
   an operator. It is noted because it sits oddly beside the server's careful omission of profit.
 
+### Released
+
+Released to the live system on 2026-09-21, database change first, on the owner's go-ahead after the
+dry-run output had been shown.
+
+- **Before touching anything**, a read-only look at the live database confirmed the conditions the
+  change itself requires: no rial deals, no accounting entries or cheques mentioning the rial, no
+  rial stock, and no toman row already there. The desk was still empty — no deals, entries, cheques,
+  customers or closed months — and 20 database changes were applied.
+- **Dry run:** the target was the live database and it listed exactly one pending change, number
+  021, and nothing else.
+- **Applied at 14:12:03 Pakistan time (09:12:03 UTC).**
+- **Confirmed three ways, before anything else happened:**
+  1. The tool reported the change applied and finished cleanly.
+  2. The result was read back from the live database: the toman stock row exists at zero and there is
+     no rial stock row; the stock account is now "Currency stock (TMN)" and is still a system
+     account, and there is no rial account; six stock rows and six stock accounts; and nothing else
+     moved — no deals, no entries, no customers, both logins intact, 13 system accounts.
+  3. Change 021 is in the list of applied changes (21 in all), and a second dry run said nothing was
+     pending.
+- **The software was pushed immediately afterwards** — commit `f0d3e4b`, which carries four commits:
+  the currency change, the rounding fix, the documentation, and the record of the checks. It was
+  chained after the three confirmations so it could not have gone out if any had failed. Both
+  hosting builds succeeded: the screen half reported success at 09:13:16 UTC and the server half at
+  09:13:39 UTC. **The new server therefore went live roughly 96 seconds after the database change.**
+  In that gap the old software ran against the renamed database; nobody could have traded in it,
+  because the desk is empty, and the order (database first) is what made the gap harmless rather than
+  a failure.
+- **The live site was checked afterwards.** The screen code it actually serves contains "TMN per 1
+  PKR" and "Toman", contains no "IRR per 1 PKR" and no "Iranian Rial", and contains the new rounding
+  code. The server answered as expected to an unauthenticated request.
+
 ### Still to do
 
-- **Release, in this order:** (1) dry-run the database change against the live system and confirm it
-  shows exactly one pending change, number 021; (2) on the owner's go-ahead, apply it; (3) confirm it
-  three ways — the tool reports it applied, the renamed stock row and account are read back, and 021
-  is in the list of applied changes; (4) push immediately afterwards, so the gap between the database
-  change and the new software is as short as possible. The database change must come first: if the
-  software went first, the first toman trade would create a stock row with no account behind it, and
-  the change would then refuse to run. The earlier planned step of clearing rial demo data on the live
-  system is not needed — it was already cleared.
+- **Look at the live site once.** Sign in and open Currency Purchase to see that the picker lists
+  the Toman last. No trade is needed, and none should be made — the desk is empty on purpose. This
+  was not done as part of the release, because the live system cannot be signed in to from here: so
+  the live server's handling of the toman is confirmed by a successful build and by the database
+  state, **not by having watched it work.** The first real toman trade will be its first test.
+- **The PDF's printed layout** has still not been looked at (see above).
 
 ### Next — in priority order
 
-1. Release in the order above (the checks in the running app are done).
+1. Have the live site looked at once, as described under "Still to do".
 2. **Fix the `idleTimeout` test failures** — its own item. Find out why a login intermittently comes
    back 401 in that file. Do not "fix" it by re-running until green; the failure predates today's
    work and a third of runs going red needs a cause, not a retry.
@@ -388,7 +419,14 @@ Two observations, neither changed:
    months as part of the reset or have it report them, before the tool is used again.
 4. Unchanged: the client still owes an answer on whether the desk ever takes a deposit or pays an
    advance before any deal exists.
-5. Unchanged, and still the largest open piece of work: switching the reports over to read the
+5. **The operator's sale form shows a live profit estimate** — its own follow-up, named by the owner.
+   Existing behaviour, not new, and documented in CLAUDE.md: it is worked out on the operator's
+   screen from the average cost that screen holds. It sits oddly beside the server omitting profit
+   for operators, so whether to hide it is a product decision.
+6. **Widen the customer statement's columns for ten-digit amounts** — its own follow-up, named by the
+   owner. The rate, rupee and balance columns sit a few pixels apart on a ten-digit row; fully
+   readable, but the client's real amounts will always be that size. Cosmetic.
+7. Unchanged, and still the largest open piece of work: switching the reports over to read the
    accounting record.
 
 ## 2026-09-21 — the live desk is empty on purpose
