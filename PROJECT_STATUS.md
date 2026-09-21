@@ -306,9 +306,10 @@ searched for text with an escape that made it match something else, so it could 
 
 - **Look at the PDF once as the admin in the running app.** Everything above was checked as the operator in the
   browser and as both roles through the server's own data; the admin path in the browser has not been pressed.
-- **Dev database:** the test customers created for this stay on the local dev database until the final check
-  is done; they are then cleared with the guarded reset tool (dry run first) and the three Dubai deals
-  rebooked. The live system is not involved.
+- **Dev database: done.** The test customers were cleared with the guarded reset tool — dry run first, on
+  the local database only — and the client's three Dubai deals rebooked (the consistency test is green at all
+  five dates afterwards). The live system was not involved. The four sample PDFs were saved before the
+  reset, to `Downloads\statement-pdf-samples`.
 
 ### Next — in priority order
 
