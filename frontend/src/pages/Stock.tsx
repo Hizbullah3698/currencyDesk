@@ -120,7 +120,7 @@ export function Stock() {
           <div>
             <div className="mb-1 text-meta font-medium uppercase tracking-wide text-muted-60">Weighted avg. cost</div>
             {/* avgCost is canonical PKR-per-unit; fmtQuote puts it back into this currency's own
-                convention so an IRR cost reads as a rate a dealer recognises, not "0.000202". The
+                convention so a TMN cost reads as a rate a dealer recognises, not "0.001255". The
                 caption under it is the number's UNIT, not an explanation — it stays visible. */}
             <div className="tabular text-body font-medium">{fmtQuote(code, pos.avgCost)}</div>
             <div className="mt-0.5 text-meta font-normal text-muted-60">{meta.rateLabel}</div>
@@ -337,7 +337,7 @@ function buildLedger(
     .map((t): LedgerRow => {
       const amt = t.amount || 0
       // unitPkr(t), NOT `amt * t.rate` — `t.rate` is in the currency's own quote convention and
-      // is not a PKR figure at all for a 'divide'-quoted currency like IRR, so multiplying by
+      // is not a PKR figure at all for a 'divide'-quoted currency like TMN, so multiplying by
       // it here would silently corrupt the running average.
       const unit = unitPkr(t)
       if (t.type === 'purchase') {

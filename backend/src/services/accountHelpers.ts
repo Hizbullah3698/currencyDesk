@@ -53,8 +53,9 @@ export async function settlementIdFor(client: PoolClient, method: string, bankId
  *
  * **Never derive this id by string concatenation.** `'currency' + code` looks obviously right and
  * is wrong for the desk's most-traded currency: AED's account is `'currency'`, seeded by migration
- * 008 back when AED was the only code, while AFN/IRR/USD/EUR/JPY got `'currencyAFN'` and friends
- * from 012 and 014. There is no `'currencyAED'`. A concatenated id therefore violates the foreign
+ * 008 back when AED was the only code, while AFN/TMN/USD/EUR/JPY got `'currencyAFN'` and friends
+ * from 012, 014 and 021 (021 renamed the Rial account, `'currencyIRR'`, to `'currencyTMN'`). There
+ * is no `'currencyAED'`. A concatenated id therefore violates the foreign
  * key on the one currency the desk trades most, and does it at write time rather than review time.
  * Resolving by `code` is the only correct route, which is why this lives here as one shared
  * function rather than inline at a call site waiting to be copy-pasted.

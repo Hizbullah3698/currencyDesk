@@ -201,7 +201,7 @@ export function Dashboard() {
                       <div>
                         <div className="text-body font-semibold">{r.code}</div>
                         {/* Avg cost is stored canonically as PKR-per-unit; fmtQuote puts it back
-                            into this currency's own convention (IRR per 1 PKR for IRR). */}
+                            into this currency's own convention (TMN per 1 PKR for TMN). */}
                         <div className="text-meta font-normal text-muted-60">@ {fmtQuote(r.code, r.avgCost)}</div>
                       </div>
                       <div className="text-right">

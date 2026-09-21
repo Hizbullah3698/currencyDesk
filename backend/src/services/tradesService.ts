@@ -14,7 +14,7 @@ export interface TradeInput {
   amount: number
   /**
    * As the dealer typed it, in `currency`'s own quote convention — PKR per 1 unit for a
-   * 'multiply' currency (AED, AFN), foreign units per 1 PKR for a 'divide' one (IRR). NOT a PKR
+   * 'multiply' currency (AED, AFN), foreign units per 1 PKR for a 'divide' one (TMN). NOT a PKR
    * figure. It is also STORED in that form (activity.rate), because engine's `unitPkr()`
    * re-derives PKR-per-unit from the stored rate plus the currency on every replay — storing an
    * already-converted value here would double-convert every report that reads it back.
@@ -43,7 +43,8 @@ async function lockStock(client: PoolClient, code: string): Promise<{ available:
   // A `SELECT ... FOR UPDATE` that matches no row locks NOTHING, so a missing row would silently
   // disable that guard rather than merely being a no-op. That used to be dismissible because AED
   // was the only traded code and migration 008 always pre-seeded it. It is no longer: migration
-  // 012 seeds AFN/IRR too, but `createAccount` will happily create a Currency Stock account for
+  // 012 seeded AFN and the Rial (which 021 renamed TMN) too, but `createAccount` will happily
+  // create a Currency Stock account for
   // any code with no stock_positions row behind it, and a future CURRENCY_LIST entry would ship
   // before its own seed migration ran. Callers already reject any code outside CURRENCIES, and
   // this insert closes the remainder — there is always a real row to lock by the time the
@@ -76,8 +77,9 @@ export async function purchase(client: PoolClient, input: TradeInput, actorId: s
   const cur = await lockStock(client, code)
   const newAvail = cur.available + amount
   // stock_positions.avg_cost is canonical PKR-per-unit, so the incoming leg has to be converted
-  // into that unit before it is weighted in. `rate` is a quote rate: for IRR it is ~4952 IRR per
-  // PKR, and multiplying by it would book the position at roughly 24 million times its true cost.
+  // into that unit before it is weighted in. `rate` is a quote rate: for TMN it is ~797 TMN per
+  // PKR, and multiplying by it would book the position at roughly 635,000 times its true cost
+  // (797 instead of 1/797).
   const unitCost = pkrPerUnit(code, rate)
   const newAvg = newAvail > 0 ? (cur.available * cur.avg_cost + amount * unitCost) / newAvail : cur.avg_cost
 

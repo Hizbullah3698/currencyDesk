@@ -5,27 +5,32 @@ import { ApiClient } from '../apiClient.js'
 import { truncateAndReseedTestDb, ensureTestUser, insertCustomer } from '../dbFixtures.js'
 import { deskToday } from '../../config/deskTime.js'
 
-// IRR is quoted the other way round from AED — the dealer types "IRR per 1 PKR" (~4,952.53) and
-// the value is DIVIDED, not multiplied (see packages/engine/src/currencies.ts). Everything here
+// TMN (the Toman) is quoted the other way round from AED — the dealer types "TMN per 1 PKR" (~797)
+// and the value is DIVIDED, not multiplied (see packages/engine/src/currencies.ts). Everything here
 // asserts the ACTUAL numbers Postgres ends up holding, because the failure mode this guards
 // against is not an error response: multiplying instead of dividing returns a perfectly happy
-// 200 while booking the position at ~24.5 million times its real cost.
-describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
+// 200 while booking the position at ~635,000 times its real cost.
+//
+// The figures are the client's own — his previous system's ledger books "SALE Dubai Tmn
+// 3,000,000,000@797" — so these tests run at the scale the desk really trades, billions of units,
+// not at a toy scale where a column width or a rounding step could hide.
+describe('multi-currency trades (TMN divide-quote, txnDate)', () => {
   let server: TestServer
   let client: ApiClient
   let customerId: string
 
-  // 1,000,000 IRR at 4,952.53 IRR per PKR.
-  //   unit cost = 1 / 4952.53      = 0.00020191699999798083 PKR per IRR
-  //   pkr value = 1e6 / 4952.53    = 201.91699999798084 -> 201.92 in activity.pkr_value (18,2)
-  const RATE_1 = 4952.53
-  const QTY_1 = 1_000_000
+  // 3,000,000,000 TMN at 797 TMN per PKR.
+  //   unit cost = 1 / 797          = 0.0012547051442910915 PKR per TMN
+  //   pkr value = 3e9 / 797        = 3,764,115.4328732747 -> 3,764,115.43 in activity.pkr_value (18,2)
+  const RATE_1 = 797
+  const QTY_1 = 3_000_000_000
   const UNIT_1 = 1 / RATE_1
 
-  // A second buy at a stronger rial: 500,000 IRR at 4,000 IRR per PKR.
-  //   unit cost = 1 / 4000 = 0.00025 PKR per IRR, pkr value = 125.00
-  const RATE_2 = 4000
-  const QTY_2 = 500_000
+  // A second buy at a stronger toman: 5,000,000,000 TMN at 787 TMN per PKR.
+  //   unit cost = 1 / 787          = 0.0012706480304955528 PKR per TMN
+  //   pkr value = 5e9 / 787        = 6,353,240.152477764 -> 6,353,240.15
+  const RATE_2 = 787
+  const QTY_2 = 5_000_000_000
   const UNIT_2 = 1 / RATE_2
 
   beforeAll(async () => {
@@ -46,7 +51,7 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
 
   const purchaseBody = (amount: number, rate: number, extra: Record<string, unknown> = {}) => ({
     customerId,
-    currency: 'IRR',
+    currency: 'TMN',
     amount,
     rate,
     method: 'Credit',
@@ -61,49 +66,56 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
     const res = await client.post('/api/trades/purchase', purchaseBody(QTY_1, RATE_1, { txnDate: '2026-08-14' }))
     expect(res.status).toBe(200)
 
-    const { rows } = await pool.query("SELECT * FROM activity WHERE type = 'purchase' AND currency = 'IRR'")
+    const { rows } = await pool.query("SELECT * FROM activity WHERE type = 'purchase' AND currency = 'TMN'")
     expect(rows).toHaveLength(1)
     const row = rows[0]
 
-    // Stored PKR value: 201.92, not 4,952,530,000.
-    expect(Number(row.pkr_value)).toBeCloseTo(201.92, 2)
-    expect(Number(row.outstanding)).toBeCloseTo(201.92, 2)
-    // The rate is stored EXACTLY as the dealer typed it, in IRR's own quote convention — engine's
+    // Stored PKR value: 3,764,115.43 — the client's ledger prints 3,764,115 — not 2,391,000,000,000.
+    expect(Number(row.pkr_value)).toBeCloseTo(3764115.43, 2)
+    expect(Math.round(Number(row.pkr_value))).toBe(3_764_115)
+    expect(Number(row.outstanding)).toBeCloseTo(3764115.43, 2)
+    // The rate is stored EXACTLY as the dealer typed it, in TMN's own quote convention — engine's
     // unitPkr() re-derives PKR-per-unit from it on every replay, so storing an already-converted
     // value here would double-convert every report that reads it back.
     expect(Number(row.rate)).toBe(RATE_1)
     expect(Number(row.amount)).toBe(QTY_1)
 
-    const { rows: stock } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'IRR'")
+    const { rows: stock } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'TMN'")
     expect(Number(stock[0].available)).toBe(QTY_1)
-    // 0.000201917, held to 12 decimals by migration 012's widened column. numeric(18,6) would
-    // have rounded this to 0.000202 (a 0.041% error that compounds on every re-weight).
+    // 0.001254705144..., held to 12 decimals by migration 012's widened column. numeric(18,6) would
+    // have rounded this to 0.001255 (a 0.023% error that compounds on every re-weight).
     expect(Number(stock[0].avg_cost)).toBeCloseTo(UNIT_1, 12)
-    // The whole position's cost basis in PKR — the number the Balance Sheet carries.
-    expect(Number(stock[0].available) * Number(stock[0].avg_cost)).toBeCloseTo(201.917, 3)
+    // The whole position's cost basis in PKR — the number the Balance Sheet carries. Two decimals
+    // of tolerance, not three: avg_cost is stored to 12 places, and at three BILLION units the
+    // last stored digit is worth ~0.0015 PKR, so a tighter bound would be asserting on the column
+    // width rather than on the arithmetic.
+    expect(Number(stock[0].available) * Number(stock[0].avg_cost)).toBeCloseTo(3764115.433, 2)
 
     // The customer is owed the PKR value, not the raw rate x amount.
     const { rows: cust } = await pool.query('SELECT payable FROM accounts WHERE id = $1', [customerId])
-    expect(Number(cust[0].payable)).toBeCloseTo(201.92, 2)
+    expect(Number(cust[0].payable)).toBeCloseTo(3764115.43, 2)
   })
 
   it('re-weights the average cost against the stored PKR-per-unit, not the typed quote rate', async () => {
     const res = await client.post('/api/trades/purchase', purchaseBody(QTY_2, RATE_2))
     expect(res.status).toBe(200)
 
-    const { rows: stock } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'IRR'")
+    const { rows: stock } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'TMN'")
     expect(Number(stock[0].available)).toBe(QTY_1 + QTY_2)
 
-    // (1,000,000 x 0.000201917 + 500,000 x 0.00025) / 1,500,000 = 326.917 / 1,500,000
-    //                                                           = 0.000217944666...
+    // (3e9 x 0.001254705 + 5e9 x 0.001270648) / 8e9 = 10,117,355.585 / 8e9
+    //                                               = 0.001264669448...
     const expectedAvg = (QTY_1 * UNIT_1 + QTY_2 * UNIT_2) / (QTY_1 + QTY_2)
-    expect(expectedAvg).toBeCloseTo(0.000217944667, 11)
+    expect(expectedAvg).toBeCloseTo(0.001264669448, 11)
     expect(Number(stock[0].avg_cost)).toBeCloseTo(expectedAvg, 11)
-    // Total cost basis = 201.917 + 125.00.
-    expect(Number(stock[0].available) * Number(stock[0].avg_cost)).toBeCloseTo(326.917, 3)
+    // Total cost basis = 3,764,115.43 + 6,353,240.15. Two decimals of tolerance for the reason
+    // given on the first purchase: eight billion units magnify the 12th stored decimal.
+    expect(Number(stock[0].available) * Number(stock[0].avg_cost)).toBeCloseTo(10117355.585, 2)
 
     const { rows } = await pool.query("SELECT pkr_value FROM activity WHERE type = 'purchase' AND rate = $1", [RATE_2])
-    expect(Number(rows[0].pkr_value)).toBeCloseTo(125.0, 2)
+    // The client's ledger prints 6,353,240; the column holds 6,353,240.15.
+    expect(Number(rows[0].pkr_value)).toBeCloseTo(6353240.15, 2)
+    expect(Math.round(Number(rows[0].pkr_value))).toBe(6_353_240)
   })
 
   it('stores and returns the supplied txnDate as a plain YYYY-MM-DD string, defaulting to today when omitted', async () => {
@@ -140,6 +152,20 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
 
     const { rows } = await pool.query("SELECT code FROM stock_positions WHERE code = 'CHF'")
     expect(rows).toHaveLength(0)
+  })
+
+  it('rejects IRR outright now that the desk trades Toman — a stale Rial code must never book', async () => {
+    // Renamed in migration 021. If IRR were merely left unrecognised, the engine would treat it as
+    // an ordinary multiply currency and book a Rial-typed trade at its typed rate times its amount.
+    // It is refused instead, and nothing is created for it.
+    const res = await client.post('/api/trades/purchase', { ...purchaseBody(1_000_000, 4952.53), currency: 'IRR' })
+    expect(res.status).toBe(400)
+    expect(res.json.error).toMatch(/Unknown currency "IRR"/)
+
+    const { rows } = await pool.query("SELECT code FROM stock_positions WHERE code = 'IRR'")
+    expect(rows).toHaveLength(0)
+    const { rows: acts } = await pool.query("SELECT 1 FROM activity WHERE upper(currency) = 'IRR'")
+    expect(acts).toHaveLength(0)
   })
 
   it('rejects a malformed, impossible, future, or pre-2000 txnDate with a clean 400', async () => {
@@ -218,15 +244,18 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
     expect(bad.json.error).toMatch(/not a real calendar date/)
   })
 
-  it('values an IRR sale by dividing the sale rate while costing it at the stored PKR-per-unit', async () => {
+  it('values a TMN sale by dividing the sale rate while costing it at the stored PKR-per-unit', async () => {
     // Expectations are derived from whatever the position actually holds at this point rather
     // than from a hard-coded figure, because the two sides of the assertion are the point: the
     // sale RATE must be divided (quote convention) while avg_cost must be multiplied (already
-    // canonical). Getting either one backwards changes the result by ~7 orders of magnitude.
-    const { rows: before } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'IRR'")
+    // canonical). Getting either one backwards changes the result by ~6 orders of magnitude.
+    //
+    // 3,000,000,000 TMN at 788 is the client's own third ledger line (DTMS6221): 3,807,106.60 PKR,
+    // which his statement prints as 3,807,107.
+    const { rows: before } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'TMN'")
     const avgCost = Number(before[0].avg_cost)
-    const qty = 500_000
-    const sellRate = 4900
+    const qty = 3_000_000_000
+    const sellRate = 788
 
     const res = await client.post('/api/trades/sale', {
       ...purchaseBody(qty, sellRate),
@@ -234,19 +263,23 @@ describe('multi-currency trades (IRR divide-quote, txnDate)', () => {
     })
     expect(res.status).toBe(200)
 
-    const { rows } = await pool.query("SELECT amount, rate, pkr_value, cost, margin FROM activity WHERE type = 'sale' AND currency = 'IRR'")
+    const { rows } = await pool.query("SELECT amount, rate, pkr_value, cost, margin FROM activity WHERE type = 'sale' AND currency = 'TMN'")
     expect(rows).toHaveLength(1)
     expect(Number(rows[0].rate)).toBe(sellRate)
     expect(Number(rows[0].pkr_value)).toBeCloseTo(qty / sellRate, 2)
+    expect(Math.round(Number(rows[0].pkr_value))).toBe(3_807_107)
     expect(Number(rows[0].cost)).toBeCloseTo(qty * avgCost, 2)
     expect(Number(rows[0].margin)).toBeCloseTo(qty / sellRate - qty * avgCost, 2)
-    // ~102.04 PKR of proceeds against ~109 PKR of cost — three-figure PKR numbers either way,
-    // not the billions a mis-multiplied rate would produce.
-    expect(Number(rows[0].pkr_value)).toBeLessThan(1000)
-    expect(Number(rows[0].cost)).toBeLessThan(1000)
+    // ~3.81 million PKR of proceeds against ~3.79 million of cost — seven-figure PKR numbers
+    // either way, not the trillions a mis-multiplied rate would produce. Each figure is asserted
+    // on its own: the stored margin is deliberately NOT compared with pkr_value minus cost, because
+    // they are rounded independently (AUDIT.md §3 #4) and that gap is separate, known work.
+    expect(Number(rows[0].pkr_value)).toBeLessThan(10_000_000)
+    expect(Number(rows[0].cost)).toBeLessThan(10_000_000)
+    expect(Number(rows[0].margin)).toBeGreaterThan(0)
 
     // A sale moves quantity only — the weighted-average cost is untouched.
-    const { rows: after } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'IRR'")
+    const { rows: after } = await pool.query("SELECT available, avg_cost FROM stock_positions WHERE code = 'TMN'")
     expect(Number(after[0].available)).toBe(Number(before[0].available) - qty)
     expect(Number(after[0].avg_cost)).toBe(avgCost)
   })

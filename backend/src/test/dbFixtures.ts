@@ -43,7 +43,7 @@ export async function truncateAndReseedTestDb(pool: Pool): Promise<void> {
     INSERT INTO accounts (id, type, name, is_system, code, notes) VALUES
       ('currencyAFN', 'Currency Stock', 'Currency stock (AFN)', true, 'AFN',
          'Quantity and weighted-average cost are derived from the currency ledger.'),
-      ('currencyIRR', 'Currency Stock', 'Currency stock (IRR)', true, 'IRR',
+      ('currencyTMN', 'Currency Stock', 'Currency stock (TMN)', true, 'TMN',
          'Quantity and weighted-average cost are derived from the currency ledger.'),
       ('currencyUSD', 'Currency Stock', 'Currency stock (USD)', true, 'USD',
          'Quantity and weighted-average cost are derived from the currency ledger.'),
@@ -52,7 +52,7 @@ export async function truncateAndReseedTestDb(pool: Pool): Promise<void> {
       ('currencyJPY', 'Currency Stock', 'Currency stock (JPY)', true, 'JPY',
          'Quantity and weighted-average cost are derived from the currency ledger.')
   `)
-  await pool.query("INSERT INTO stock_positions (code, available, avg_cost) VALUES ('AED', 0, 0), ('AFN', 0, 0), ('IRR', 0, 0), ('USD', 0, 0), ('EUR', 0, 0), ('JPY', 0, 0)")
+  await pool.query("INSERT INTO stock_positions (code, available, avg_cost) VALUES ('AED', 0, 0), ('AFN', 0, 0), ('TMN', 0, 0), ('USD', 0, 0), ('EUR', 0, 0), ('JPY', 0, 0)")
 
   // THE IN-MEMORY SETTINGS CACHE, cleared here because a TRUNCATE cannot reach it.
   //

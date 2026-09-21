@@ -35,7 +35,7 @@ export function FieldLabel({
         {hint && <InfoHint text={hint} />}
       </label>
       {/* Sans, not `.tabular`: this is a single inline hint, never a column of figures to compare
-          down the page, and the mono face is wide enough that a nine-figure IRR balance would push
+          down the page, and the mono face is wide enough that a ten-figure TMN balance would push
           the label into truncating beside it. `tabular-nums` alone still holds the digits even. */}
       {aside && <span className="flex-none text-meta font-normal tabular-nums text-muted-60">{aside}</span>}
     </div>

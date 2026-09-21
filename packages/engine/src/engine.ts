@@ -70,7 +70,7 @@ export function activityDate(t: { txnDate?: string; createdAt: string }): string
  * The PKR cost/value of one unit of the currency this movement traded, from the rate as the
  * dealer typed it. Every weighted-average-cost calculation goes through here rather than
  * reading `t.rate` directly, because `t.rate` is in the currency's own quote convention (see
- * currencies.ts) and is NOT a PKR figure for a 'divide'-quoted currency like IRR.
+ * currencies.ts) and is NOT a PKR figure for a 'divide'-quoted currency like TMN.
  */
 export function unitPkr(t: Activity): number {
   return pkrPerUnit(t.currency, t.rate || 0)

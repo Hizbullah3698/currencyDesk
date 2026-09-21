@@ -56,7 +56,8 @@ describe('txnAmountParts', () => {
   })
 
   it('respects each currency\'s own quantity precision', () => {
-    expect(txnAmountParts({ type: 'purchase', currency: 'IRR', amount: 1_000_000, pkrValue: 202 }).primary).toBe('1,000,000 IRR')
+    // The client's own first ledger line: 3,000,000,000 TMN at 797 = 3,764,115 rupees.
+    expect(txnAmountParts({ type: 'purchase', currency: 'TMN', amount: 3_000_000_000, pkrValue: 3_764_115 }).primary).toBe('3,000,000,000 TMN')
   })
 })
 

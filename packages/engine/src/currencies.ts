@@ -7,9 +7,18 @@
 //
 //   • AED is worth far MORE than a rupee (1 AED ≈ 77 PKR). A dealer naturally quotes it as
 //     "PKR per 1 AED" and MULTIPLIES: 100 AED × 77 = 7,700 PKR.
-//   • IRR is worth far LESS than a rupee (1 PKR ≈ 4,952 IRR). Quoting it as "PKR per 1 IRR"
-//     would mean typing 0.000202 into a rate box, which no dealer does. It is quoted the other
-//     way round — "IRR per 1 PKR" — and DIVIDED: 1,000,000 IRR ÷ 4,952.53 = 201.92 PKR.
+//   • TMN (the Iranian Toman) is worth far LESS than a rupee (1 PKR ≈ 500–800 TMN). Quoting it as
+//     "PKR per 1 TMN" would mean typing 0.0013 into a rate box, which no dealer does. It is quoted
+//     the other way round — "TMN per 1 PKR" — and DIVIDED: 3,000,000,000 TMN ÷ 797 = 3,764,115 PKR.
+//
+// TMN IS THE TOMAN, NOT THE RIAL. 1 Toman = 10 Rial. The desk's dealers have only ever quoted and
+// counted in Toman, and the client's own ledger books "Dubai Tmn 3,000,000,000@797" — so this
+// currency was renamed from IRR (the Rial) to TMN in migration 021 rather than kept under a code
+// whose figures are ten times the ones dealers actually type. The desk never deals in Rial. Do not
+// reintroduce IRR alongside it: two codes for one economic thing, a factor of ten apart, is exactly
+// how a 10x booking error gets made. TMN is not an ISO 4217 code (Toman has none — IRR is the
+// official Rial); it is the informal code the client's own system uses, and it collides with
+// nothing in this list.
 //
 // So `quote` is not a formatting preference, it is what the number in the rate box MEANS:
 //   'multiply' → rate is PKR per 1 unit of the foreign currency  (pkr = amount × rate)
@@ -37,10 +46,10 @@ export interface CurrencyMeta {
 
 // Ordered strongest-to-weakest against PKR, which is also the order the picker shows.
 //
-// Every code except IRR is an ordinary 'multiply' quote — worth more than a rupee, so a dealer
+// Every code except TMN is an ordinary 'multiply' quote — worth more than a rupee, so a dealer
 // says "PKR per 1 unit". Even JPY, the weakest of them at roughly 1.9 PKR, is still quoted that
 // way; the convention only inverts when a unit is worth a small fraction of a rupee and the rate
-// box would otherwise want a number like 0.0002. IRR remains the only such case.
+// box would otherwise want a number like 0.0013. TMN remains the only such case.
 export const CURRENCY_LIST: CurrencyMeta[] = [
   {
     code: 'EUR',
@@ -83,10 +92,10 @@ export const CURRENCY_LIST: CurrencyMeta[] = [
     rateDecimals: 2,
   },
   {
-    code: 'IRR',
-    name: 'Iranian Rial',
+    code: 'TMN',
+    name: 'Toman',
     quote: 'divide',
-    rateLabel: 'IRR per 1 PKR',
+    rateLabel: 'TMN per 1 PKR',
     amountDecimals: 0,
     rateDecimals: 2,
   },
@@ -132,8 +141,8 @@ export function pkrPerUnit(code: string | undefined, rate: number): number {
 
 /**
  * Inverse of `pkrPerUnit` — turns a canonical PKR-per-unit figure (e.g. a stored weighted-average
- * cost) back into the currency's own quote convention for display, so a dealer reads an IRR cost
- * as "4,948.10 IRR per PKR" rather than "0.000202".
+ * cost) back into the currency's own quote convention for display, so a dealer reads a TMN cost
+ * as "797.00 TMN per PKR" rather than "0.001255".
  */
 export function quoteRate(code: string | undefined, pkrPerUnitValue: number): number {
   if (!pkrPerUnitValue) return 0

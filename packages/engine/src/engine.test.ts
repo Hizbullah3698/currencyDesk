@@ -341,10 +341,10 @@ describe('quote conventions (pkrPerUnit / quoteRate / pkrValueOf)', () => {
     // CURRENCIES is what tradesService.ts validates an incoming trade's currency against, and what
     // migrations 012 and 014 seeded stock_positions/Currency Stock accounts for — a change here
     // without a matching migration leaves a tradeable code with no seeded row behind it.
-    expect(CURRENCIES).toEqual(['EUR', 'USD', 'AED', 'AFN', 'JPY', 'IRR'])
+    expect(CURRENCIES).toEqual(['EUR', 'USD', 'AED', 'AFN', 'JPY', 'TMN'])
   })
 
-  it('quotes every currency the normal way round except IRR', () => {
+  it('quotes every currency the normal way round except TMN', () => {
     // The multiply/divide split is the one piece of per-currency behaviour that can silently
     // corrupt a posting: getting it wrong returns a cheerful 200 while booking the position at
     // millions of times its true cost. JPY is the interesting case — at ~1.9 PKR it is the
@@ -352,7 +352,7 @@ describe('quote conventions (pkrPerUnit / quoteRate / pkrValueOf)', () => {
     for (const code of ['EUR', 'USD', 'AED', 'AFN', 'JPY']) {
       expect(currencyMeta(code).quote, `${code} should be a multiply quote`).toBe('multiply')
     }
-    expect(currencyMeta('IRR').quote).toBe('divide')
+    expect(currencyMeta('TMN').quote).toBe('divide')
   })
 
   it('opens the trade screen on AED, independently of picker order', () => {
@@ -374,13 +374,14 @@ describe('quote conventions (pkrPerUnit / quoteRate / pkrValueOf)', () => {
   })
 
   it("inverts a 'divide' currency's rate and round-trips back to the typed quote", () => {
-    // 1 PKR ~= 4,952.53 IRR, so one IRR is worth ~0.000202 PKR.
-    expect(pkrPerUnit('IRR', 4952.53)).toBeCloseTo(0.000201917, 12)
-    expect(pkrPerUnit('IRR', 4952.53)).toBe(1 / 4952.53)
+    // 1 PKR ~= 797 TMN, so one TMN is worth ~0.001255 PKR.
+    expect(pkrPerUnit('TMN', 797)).toBeCloseTo(0.001254705, 8)
+    expect(pkrPerUnit('TMN', 797)).toBe(1 / 797)
     // quoteRate is what puts a stored weighted-average cost back on a dealer's screen as a
-    // number they recognise, rather than as 0.000202.
-    expect(quoteRate('IRR', pkrPerUnit('IRR', 4952.53))).toBeCloseTo(4952.53, 9)
-    expect(quoteRate('IRR', 0.00025)).toBe(4000)
+    // number they recognise, rather than as 0.001255. It is a float round-trip (1/(1/797) is
+    // 797.0000000000001), so it is asserted as close, never as exactly equal.
+    expect(quoteRate('TMN', pkrPerUnit('TMN', 797))).toBeCloseTo(797, 9)
+    expect(quoteRate('TMN', 0.00125)).toBeCloseTo(800, 9)
   })
 
   it('treats an unknown code as a plain PKR-per-unit currency rather than throwing', () => {
@@ -389,13 +390,13 @@ describe('quote conventions (pkrPerUnit / quoteRate / pkrValueOf)', () => {
   })
 
   it('returns 0 for a zero rate on both sides instead of dividing by zero', () => {
-    expect(pkrPerUnit('IRR', 0)).toBe(0)
-    expect(quoteRate('IRR', 0)).toBe(0)
+    expect(pkrPerUnit('TMN', 0)).toBe(0)
+    expect(quoteRate('TMN', 0)).toBe(0)
   })
 
   it("values a 'divide'-quoted amount by dividing, not multiplying", () => {
-    // 1,000,000 IRR / 4,952.53 = ~201.92 PKR. Multiplying instead would book ~4.95 billion PKR.
-    expect(pkrValueOf('IRR', 1_000_000, 4952.53)).toBeCloseTo(201.917, 3)
+    // 1,000,000 TMN / 797 = ~1,254.71 PKR. Multiplying instead would book 797,000,000 PKR.
+    expect(pkrValueOf('TMN', 1_000_000, 797)).toBeCloseTo(1254.705, 3)
     expect(pkrValueOf('AED', 1000, 77)).toBe(77000)
   })
 })
@@ -416,27 +417,88 @@ describe('buyCalc / sellCalc with an explicit currency code', () => {
     expect(soldDefault.saleValue).toBe(16000)
   })
 
-  it('values an IRR purchase by dividing by the typed rate', () => {
-    const r = buyCalc(1_000_000, 4952.53, 'Credit', 0, 'IRR')
-    expect(r.pkrValue).toBeCloseTo(201.917, 3)
-    expect(r.outstanding).toBeCloseTo(201.917, 3)
+  it('values a TMN purchase by dividing by the typed rate', () => {
+    const r = buyCalc(1_000_000, 797, 'Credit', 0, 'TMN')
+    expect(r.pkrValue).toBeCloseTo(1254.705, 3)
+    expect(r.outstanding).toBeCloseTo(1254.705, 3)
     // `rate` is echoed back as the dealer typed it, never as the converted figure — the stored
     // row has to stay in quote convention for unitPkr() to re-derive it correctly on replay.
-    expect(r.rate).toBe(4952.53)
+    expect(r.rate).toBe(797)
   })
 
   it("reads sellCalc's avgCost as canonical PKR-per-unit while converting only the sale rate", () => {
-    // Bought at 4,952.53 IRR per PKR (avg cost 0.000201917 PKR per IRR), selling at 4,900 IRR
-    // per PKR — a stronger rial means more PKR per unit, so this is a profitable sale.
-    const avgCost = 1 / 4952.53
-    const r = sellCalc(1_000_000, 4900, avgCost, 'Credit', 0, 'IRR')
-    expect(r.saleValue).toBeCloseTo(1_000_000 / 4900, 9)
-    expect(r.cost).toBeCloseTo(201.917, 3)
-    expect(r.margin).toBeCloseTo(1_000_000 / 4900 - 1_000_000 / 4952.53, 9)
+    // Bought at 797 TMN per PKR (avg cost 0.001255 PKR per TMN), selling at 787 TMN per PKR — a
+    // LOWER number in a divide quote means the currency is worth more PKR per unit, so this is a
+    // profitable sale.
+    const avgCost = 1 / 797
+    const r = sellCalc(1_000_000, 787, avgCost, 'Credit', 0, 'TMN')
+    expect(r.saleValue).toBeCloseTo(1_000_000 / 787, 9)
+    expect(r.cost).toBeCloseTo(1254.705, 3)
+    expect(r.margin).toBeCloseTo(1_000_000 / 787 - 1_000_000 / 797, 9)
     expect(r.margin).toBeGreaterThan(0)
     // The double-conversion bug this guards against would have divided avgCost as well,
-    // producing a cost of ~4.95e9 rather than ~202.
-    expect(r.cost).toBeLessThan(1000)
+    // producing a cost of ~7.97e8 rather than ~1,255.
+    expect(r.cost).toBeLessThan(10_000)
+  })
+})
+
+// The client's own ledger, used as the acceptance figures. His previous system books Toman sales as
+// "SALE Dubai Tmn 3,000,000,000@797 = 3,764,115", i.e. amount in Toman, rate in Toman per 1 PKR,
+// value in rupees. These are real numbers off his real statement, not invented ones — if the engine
+// disagrees with them by even a rupee, the engine is what is wrong.
+describe("the client's real Toman figures (his own ledger)", () => {
+  // The engine does not round: pkrValue is the raw quotient. A ledger that prints whole rupees is
+  // showing that quotient rounded, so each case pins BOTH the raw value and the whole-rupee figure
+  // the client reads. Math.round, not floor — 3,807,106.6 must read 3,807,107, and a display that
+  // truncated would read 3,807,106 and disagree with his statement by a rupee.
+  const cases = [
+    { amount: 3_000_000_000, rate: 797, raw: 3764115.433, whole: 3_764_115, ref: 'DTMS6173' },
+    { amount: 5_000_000_000, rate: 787, raw: 6353240.152, whole: 6_353_240, ref: 'DTMS6197' },
+    { amount: 3_000_000_000, rate: 788, raw: 3807106.599, whole: 3_807_107, ref: 'DTMS6221' },
+  ]
+
+  for (const c of cases) {
+    it(`${c.amount.toLocaleString('en-US')} TMN @ ${c.rate} = ${c.whole.toLocaleString('en-US')} PKR (${c.ref})`, () => {
+      const pkr = pkrValueOf('TMN', c.amount, c.rate)
+      expect(pkr).toBeCloseTo(c.raw, 3)
+      expect(Math.round(pkr)).toBe(c.whole)
+      // buyCalc and sellCalc must agree with the bare conversion: they are what actually books it.
+      expect(buyCalc(c.amount, c.rate, 'Credit', 0, 'TMN').pkrValue).toBe(pkr)
+      expect(sellCalc(c.amount, c.rate, 0, 'Credit', 0, 'TMN').saleValue).toBe(pkr)
+    })
+  }
+
+  it('rounds 3,807,106.6 UP to 3,807,107 — the one figure where floor and round disagree', () => {
+    const pkr = pkrValueOf('TMN', 3_000_000_000, 788)
+    expect(pkr).toBeGreaterThan(3_807_106.5)
+    expect(pkr).toBeLessThan(3_807_106.7)
+    expect(Math.round(pkr)).toBe(3_807_107)
+    expect(Math.floor(pkr)).toBe(3_807_106) // what a truncating display would have printed
+  })
+
+  it('is a divide quote: a multiplied booking would be off by a factor of rate squared', () => {
+    // 3e9 x 797 = 2.39e12 PKR. Dividing gives 3.76e6. Off by 797^2 ~ 635,000x — the size of the
+    // error this whole rename exists to make impossible to type.
+    const right = pkrValueOf('TMN', 3_000_000_000, 797)
+    const wrong = 3_000_000_000 * 797
+    expect(right).toBeLessThan(4_000_000)
+    expect(wrong / right).toBeCloseTo(797 * 797, 0)
+  })
+
+  it('describes itself as the Toman, quoted TMN per 1 PKR, and sits last in the picker', () => {
+    const m = currencyMeta('TMN')
+    expect(m.name).toBe('Toman')
+    expect(m.quote).toBe('divide')
+    expect(m.rateLabel).toBe('TMN per 1 PKR')
+    // Weakest currency stays last — the picker orders strongest-to-weakest.
+    expect(CURRENCIES[CURRENCIES.length - 1]).toBe('TMN')
+  })
+
+  it('does not offer IRR, so a stale Rial code can never be traded by accident', () => {
+    // An unknown code falls back to a plain PKR-per-unit MULTIPLY quote (currencies.ts). If IRR
+    // were merely left unrecognised rather than removed, a trade keyed under it would be booked
+    // at its typed rate times its amount — roughly 797 times what a Toman-scale figure is worth.
+    expect(CURRENCIES).not.toContain('IRR')
   })
 })
 
@@ -468,56 +530,57 @@ describe('activityDate', () => {
   })
 })
 
-describe('weighted-average cost across a mix of AED and IRR', () => {
+describe('weighted-average cost across a mix of AED and TMN', () => {
   // One activity list holding both currencies — the per-code filter has to keep each position's
-  // cost basis entirely separate, and the IRR legs have to go through unitPkr() rather than
+  // cost basis entirely separate, and the TMN legs have to go through unitPkr() rather than
   // reading `rate` directly.
   const mixed: Activity[] = [
     activity({ id: 'a1', type: 'purchase', currency: 'AED', amount: 100, rate: 70, createdAt: '2026-01-01T00:00:00.000Z' }),
-    activity({ id: 'i1', type: 'purchase', currency: 'IRR', amount: 1_000_000, rate: 4952.53, createdAt: '2026-01-02T00:00:00.000Z' }),
+    activity({ id: 'i1', type: 'purchase', currency: 'TMN', amount: 3_000_000_000, rate: 797, createdAt: '2026-01-02T00:00:00.000Z' }),
     activity({ id: 'a2', type: 'purchase', currency: 'AED', amount: 100, rate: 80, createdAt: '2026-01-03T00:00:00.000Z' }),
-    activity({ id: 'i2', type: 'purchase', currency: 'IRR', amount: 500_000, rate: 4000, createdAt: '2026-01-04T00:00:00.000Z' }),
+    activity({ id: 'i2', type: 'purchase', currency: 'TMN', amount: 5_000_000_000, rate: 787, createdAt: '2026-01-04T00:00:00.000Z' }),
   ]
   // What the server's own running totals would be after those four postings:
   //   AED  (100*70 + 100*80) / 200            = 75
-  //   IRR  (1e6/4952.53 + 5e5/4000) / 1.5e6   = 0.000217944666...
+  //   TMN  (3e9/797 + 5e9/787) / 8e9          = 0.001264669448...
   const liveStocks = {
     AED: { available: 200, avgCost: 75 },
-    IRR: { available: 1_500_000, avgCost: (1_000_000 / 4952.53 + 500_000 / 4000) / 1_500_000 },
+    TMN: { available: 8_000_000_000, avgCost: (3_000_000_000 / 797 + 5_000_000_000 / 787) / 8_000_000_000 },
   }
 
   it('unwinds each currency back to a zero opening position independently', () => {
     expect(openingStock('AED', liveStocks, mixed).qty).toBe(0)
-    expect(openingStock('IRR', liveStocks, mixed).qty).toBe(0)
+    expect(openingStock('TMN', liveStocks, mixed).qty).toBe(0)
     expect(openingStock('AED', liveStocks, mixed).moves.map((m) => m.id)).toEqual(['a1', 'a2'])
-    expect(openingStock('IRR', liveStocks, mixed).moves.map((m) => m.id)).toEqual(['i1', 'i2'])
+    expect(openingStock('TMN', liveStocks, mixed).moves.map((m) => m.id)).toEqual(['i1', 'i2'])
   })
 
-  it('re-weights an IRR position by PKR-per-unit, not by the typed divide-quote rate', () => {
-    const asOf = stockAsOf('IRR', liveStocks, mixed, new Date('2026-01-05T00:00:00.000Z').getTime())
-    expect(asOf.available).toBe(1_500_000)
-    expect(asOf.avgCost).toBeCloseTo(0.000217944667, 11)
-    // Total PKR cost basis = quantity x average = ~326.92, i.e. the sum of the two legs
-    // (201.92 + 125.00). Multiplying by the quote rate instead would give ~7.2 billion.
-    expect(asOf.available * asOf.avgCost).toBeCloseTo(326.917, 3)
+  it('re-weights a TMN position by PKR-per-unit, not by the typed divide-quote rate', () => {
+    const asOf = stockAsOf('TMN', liveStocks, mixed, new Date('2026-01-05T00:00:00.000Z').getTime())
+    expect(asOf.available).toBe(8_000_000_000)
+    expect(asOf.avgCost).toBeCloseTo(0.001264669448, 11)
+    // Total PKR cost basis = quantity x average = ~10,117,355.59, i.e. the sum of the two legs
+    // (3,764,115.43 + 6,353,240.15). Weighting by the typed quote rate instead would put the
+    // position at a cost of roughly 800 rupees per Toman.
+    expect(asOf.available * asOf.avgCost).toBeCloseTo(10_117_355.585, 2)
   })
 
-  it('leaves the AED position untouched by the interleaved IRR movements', () => {
+  it('leaves the AED position untouched by the interleaved TMN movements', () => {
     const asOf = stockAsOf('AED', liveStocks, mixed, new Date('2026-01-05T00:00:00.000Z').getTime())
     expect(asOf.available).toBe(200)
     expect(asOf.avgCost).toBe(75)
   })
 
   it('replays each currency as of a date that falls between their movements', () => {
-    // As of Jan 2nd: AED has only its first leg (100 @ 70), IRR only its first (1e6 @ 4952.53).
+    // As of Jan 2nd: AED has only its first leg (100 @ 70), TMN only its first (3e9 @ 797).
     const midT = new Date('2026-01-02T18:00:00.000Z').getTime()
     const aed = stockAsOf('AED', liveStocks, mixed, midT)
     expect(aed.available).toBe(100)
     expect(aed.avgCost).toBe(70)
 
-    const irr = stockAsOf('IRR', liveStocks, mixed, midT)
-    expect(irr.available).toBe(1_000_000)
-    expect(irr.avgCost).toBeCloseTo(1 / 4952.53, 12)
+    const tmn = stockAsOf('TMN', liveStocks, mixed, midT)
+    expect(tmn.available).toBe(3_000_000_000)
+    expect(tmn.avgCost).toBeCloseTo(1 / 797, 12)
   })
 })
 

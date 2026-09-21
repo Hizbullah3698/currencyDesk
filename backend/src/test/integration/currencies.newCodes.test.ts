@@ -56,7 +56,7 @@ describe('USD / EUR / JPY end-to-end', () => {
   }
 
   // Realistic rates, each the ordinary "PKR per 1 unit" direction. The expected PKR value is
-  // amount × rate — if any of these were mistakenly treated as a divide-quote like IRR, the stored
+  // amount × rate — if any of these were mistakenly treated as a divide-quote like TMN, the stored
   // value would be out by many orders of magnitude rather than slightly wrong.
   const CASES = [
     { code: 'USD', amount: 1_000, rate: 282.5, pkr: 282_500 },
@@ -104,7 +104,7 @@ describe('USD / EUR / JPY end-to-end', () => {
     const { rows } = await pool.query<{ id: string; code: string }>(
       "SELECT id, code FROM accounts WHERE type = 'Currency Stock' ORDER BY code",
     )
-    expect(rows.map((r) => r.code)).toEqual(['AED', 'AFN', 'EUR', 'IRR', 'JPY', 'USD'])
+    expect(rows.map((r) => r.code)).toEqual(['AED', 'AFN', 'EUR', 'JPY', 'TMN', 'USD'])
     expect(new Set(rows.map((r) => r.id)).size).toBe(6)
   })
 

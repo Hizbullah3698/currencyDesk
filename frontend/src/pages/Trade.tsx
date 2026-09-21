@@ -246,8 +246,8 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
                   `currency` straight off the picker above — nothing about it is per-currency. */}
               {/* "Amount", not "Amount to sell": the direction is already carried by the page
                   title and the Review button, and the four characters it saves are what let the
-                  available balance sit on this line without either half truncating — an IRR
-                  position runs to nine figures. */}
+                  available balance sit on this line without either half truncating — a TMN
+                  position runs to ten figures. */}
               {/* No "Avail X" aside here for sell mode any more — the StockReadout panel above
                   says it once, more clearly, before this field is even reached. */}
               <FieldLabel htmlFor="trade-amount">Amount</FieldLabel>
@@ -266,7 +266,7 @@ export function Trade({ mode }: { mode: 'buy' | 'sell' }) {
               </div>
             </div>
             <div>
-              {/* The quote convention flips per currency (PKR per 1 AED, but IRR per 1 PKR), so it
+              {/* The quote convention flips per currency (PKR per 1 AED, but TMN per 1 PKR), so it
                   cannot simply be dropped — but it is instruction, not data, so it belongs behind
                   the icon. The average cost IS data and is worth a glance while typing a rate, so
                   it stays visible, inline on the label's line rather than as a third stacked line.

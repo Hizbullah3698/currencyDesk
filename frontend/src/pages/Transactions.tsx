@@ -44,7 +44,7 @@ interface Row {
   meta: (typeof ACTIVITY_META)[keyof typeof ACTIVITY_META]
   who: string
   detail: string
-  /** Cash/Bank/Cheque/Credit, purchase and sale rows only — pulled out of `detail` so a long IRR
+  /** Cash/Bank/Cheque/Credit, purchase and sale rows only — pulled out of `detail` so a long TMN
    *  amount + rate string never has to compete with it for the same cramped cell. No longer its
    *  own badge (that duplicated "Open" — see the STATUS pill's own comment); an open trade row
    *  now shows this word in Open's place instead. Null everywhere else: a payment's own method is
@@ -92,10 +92,10 @@ export function Transactions() {
       const status = cheque ? cheque.status : txnIsOpen(t, state.accounts) ? 'Open' : 'Settled'
       const code = t.currency || 'AED'
       const isTrade = t.type === 'sale' || t.type === 'purchase'
-      // Rates print in the traded currency's own quote convention (PKR per 1 AED, but IRR per 1
+      // Rates print in the traded currency's own quote convention (PKR per 1 AED, but TMN per 1
       // PKR) — never as a bare stored number, which is meaningless without the convention. Method
       // ("Credit", currently the only one live — see Trade.tsx) is deliberately NOT concatenated
-      // in here any more: an IRR amount already runs to nine figures, and appending "· Credit" to
+      // in here any more: a TMN amount already runs to ten figures, and appending "· Credit" to
       // that was exactly what forced the mid-word ellipsis. It's carried separately as `terms`.
       // Persisted on every Bank/Cheque payment (settlement_account_id) but not previously shown
       // anywhere — which of the desk's own accounts it moved through.
@@ -251,7 +251,7 @@ export function Transactions() {
                     <div className="truncate text-meta font-normal text-muted-60">posted by {r.by}</div>
                   </div>
                   {/* title carries the full string as a safety net — the column is now sized for
-                      the realistic worst case (a nine-figure IRR amount @ its rate), but nothing
+                      the realistic worst case (a ten-figure TMN amount @ its rate), but nothing
                       here should ever truncate without a way to still read the whole value. */}
                   <div className={cn(COL.detail, 'truncate text-body font-normal text-muted-70')} title={r.detail}>
                     {r.detail}

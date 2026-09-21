@@ -13,8 +13,8 @@ export function fmtNum(n: number, decimals = 0): string {
 /**
  * A quantity shortened to fit a chart axis tick — "12.5k", "3.4M". For axis labels and nothing
  * else: it rounds hard, so never use it where a figure is read as a number (a ledger cell, a
- * balance, anything that has to reconcile). An IRR position runs to nine figures, and a Y axis
- * printing "495,253,000" against every gridline is unreadable at 10px.
+ * balance, anything that has to reconcile). A TMN position runs to ten figures, and a Y axis
+ * printing "3,000,000,000" against every gridline is unreadable at 10px.
  */
 export function fmtCompact(n: number): string {
   const v = n || 0
@@ -48,8 +48,8 @@ export function fmtRate(n: number, code?: string): string {
 /**
  * A CANONICAL PKR-per-unit figure (a stored weighted-average cost, a replayed running average)
  * rendered in `code`'s own quote convention. This is the display half of the boundary described
- * in the engine's currencies.ts — without it an IRR average cost prints as "0.000202" rather
- * than the "4,952.53 IRR per 1 PKR" a dealer actually reads.
+ * in the engine's currencies.ts — without it a TMN average cost prints as "0.001255" rather
+ * than the "797.00 TMN per 1 PKR" a dealer actually reads.
  */
 export function fmtQuote(code: string | undefined, pkrPerUnitValue: number): string {
   return fmtRate(quoteRate(code, pkrPerUnitValue), code)

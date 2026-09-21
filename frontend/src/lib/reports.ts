@@ -176,7 +176,7 @@ export function computeBalanceSheet(
       // absorbed, so the sheet still claimed to balance. Same replay the Stock page's ledger uses.
       const { available, avgCost } = stockAsOf(code, stocks, activity, asOfT)
       const value = available * avgCost
-      // Works for ANY code — nothing here is AED-specific, so a new AFN/IRR Currency Stock
+      // Works for ANY code — nothing here is AED-specific, so a new AFN/TMN Currency Stock
       // account added server-side shows up on its own row with no change needed here. The cost
       // prints in that currency's own quote convention (avgCost itself stays canonical
       // PKR-per-unit, which is what `value` is correctly computed from).

@@ -72,7 +72,7 @@ describe('deleteAccount', () => {
   it('refuses a Currency Stock account — the case CORE_ACCOUNT_IDS did not cover', async () => {
     // Stated separately from the sweep above because this is the actual regression. Under the old
     // predicate every one of these six was deletable by an Admin, and the damage was silent.
-    for (const id of ['currency', 'currencyAFN', 'currencyIRR', 'currencyUSD', 'currencyEUR', 'currencyJPY']) {
+    for (const id of ['currency', 'currencyAFN', 'currencyTMN', 'currencyUSD', 'currencyEUR', 'currencyJPY']) {
       const err = await refusal(() => deleteAccount(client, id))
       expect(err.message, id).toMatch(/built-in account/)
     }
