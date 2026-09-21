@@ -1,5 +1,7 @@
 # Currency Desk — Codebase Audit
 
+> **Note added 2026-09-21 — IRR is now TMN.** The desk's Iranian currency was changed from the Rial (IRR) to the Toman (TMN) in migration 021; a toman is ten rials and the dealers only ever count in toman. This audit is a record of the code as it stood on 2026-09-10, so every finding below still says IRR and none has been rewritten. Read "IRR" in the findings as "the divide-quoted currency", now TMN. One finding is affected in a way worth knowing: §3 #4 (independent rounding of `cost`, `margin` and `pkr_value`) was written as latent until the first IRR or JPY sale. The client's own first Toman sale reproduced it (one paisa on 3,000,000,000 TMN at 788), and it was **fixed later the same day**, as its own change, in `sellCalc` — `cost + margin == pkr_value` now holds exactly. The finding text below is left as written. See CLAUDE.md's currency section.
+
 **Date:** 2026-09-10
 **Scope:** every tracked source file in `packages/engine/`, `backend/`, and `frontend/` (214 files, ~16,500 lines), plus the untracked `backend/src/scripts/resetAdminPassword.oneoff.ts` found on disk. Read in full, not sampled. Three claims below were verified by running code rather than by reading it, and are marked **[verified]**.
 **Status:** analysis only. Nothing was changed.

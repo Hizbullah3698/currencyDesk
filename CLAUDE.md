@@ -28,6 +28,10 @@ npm run test                    # fans out to all three workspaces
 
 # backend/  — needs local Postgres first: docker compose up -d, cp .env.example .env
 npm run migrate                 # idempotent; skips applied migrations
+npm run migrate:prod:check      # DRY RUN against production (reads .env.production): prints the target
+                                # database and which migrations are applied vs PENDING. Writes nothing.
+npm run migrate:prod            # applies pending migrations to PRODUCTION. Pushing is the release and
+                                # migrations do not run on deploy, so run this FIRST, then push.
 npm run seed:demo               # creates two local logins, prints their credentials
 npm run dev                     # Express on :3001
 npm run build && npm start      # production path
@@ -159,16 +163,49 @@ as a raw Postgres `40P01`, not a clean `appError`).
 
 ### Currency quote conventions — easy to break silently
 
-The desk trades **EUR, USD, AED, AFN, JPY, IRR** against PKR (that order is strongest-to-weakest,
+The desk trades **EUR, USD, AED, AFN, JPY, TMN** against PKR (that order is strongest-to-weakest,
 which is also the picker's order — the trade screen's starting currency is `DEFAULT_CURRENCY`, not
 the first list entry, so reordering the list cannot move the default).
 `packages/engine/src/currencies.ts` is the single
 source of truth; `CURRENCIES` derives from `CURRENCY_LIST`.
 
 They are not quoted alike. AED/AFN are worth more than a rupee and are quoted "PKR per 1 unit" and
-**multiplied**. IRR is worth far less (1 PKR ≈ 4,952 IRR) and is quoted "IRR per 1 PKR" and
-**divided** — no dealer types `0.000202` into a rate box. So `CurrencyMeta.quote` is not a display
+**multiplied**. TMN is worth far less (1 PKR ≈ 500–800 TMN) and is quoted "TMN per 1 PKR" and
+**divided** — no dealer types `0.0013` into a rate box. So `CurrencyMeta.quote` is not a display
 preference; it is what the number in the rate box *means*.
+
+**TMN is the Toman, not the Rial — and there is no IRR.** 1 Toman = 10 Rial. The client's dealers have
+only ever quoted and counted in Toman, and his own ledger books it that way (`SALE Dubai Tmn
+3,000,000,000@797` = 3,764,115 PKR), so the desk's Iranian currency was renamed from IRR to TMN in
+migration `021` rather than left under a code whose figures are ten times the ones typed. The desk
+never deals in actual Rial. **Do not add IRR back alongside it**: two codes for one economic thing, a
+factor of ten apart, is how a 10x booking error gets made. It is also actively unsafe to leave one
+lying around — an unknown code falls back to a plain *multiply* quote (below), so a stray `IRR` would
+be booked at its typed rate times its amount, roughly 635,000× too much. `CURRENCIES` therefore does
+not contain it, `tradesService` rejects it with a 400, and both are pinned by tests. TMN is not an ISO
+4217 code (Toman has none); it is the informal code the client's own system uses, and nothing in the
+list collides with it. Amounts run to **billions** of units — the client's real deals are 3–5 billion
+TMN — so `MAX_INPUT_AMOUNT` (1e12) and the `numeric(18,4)` quantity columns matter at this scale.
+
+**A sale's three figures always sum — the rounding rule (AUDIT.md §3 #4, fixed 2026-09-21).** `sellCalc()`
+is the one shared formula the server insert, the sale voucher and the trade screen's preview all use.
+It rounds `saleValue` and `cost` to a paisa **once** and derives `margin = saleValue − cost` in whole
+paisa — never rounded on its own — so `cost + margin == pkr_value` exactly, by construction, and the
+margin is what absorbs the rounding (it is the only one of the three that is derived rather than a
+fact). It was found on the client's own third ledger line (3,000,000,000 TMN @ 788): independent
+rounding stored 3,807,106.60 / 3,794,008.34 / 13,098.25, so cost + margin fell a paisa short, the
+voucher debited the customer a paisa less than the balance moved, and `npm run reconcile` reported
+that customer 0.01 off. Roughly one sale in ten drifts under the old scheme.
+
+Rounding is `toPaisa()` in the engine and it works on the **decimal digits**, half away from zero,
+because that is what Postgres does to the text of the number on insert. Two plausible versions are
+wrong: `Math.round(n * 100)` mis-rounds ties in binary (`1.005 * 100` is `100.49999999999999`), and
+re-parsing `"<n>e2"` loses the fourth decimal at large magnitudes (`61625952.714999996` rounded to
+`.72` where Postgres stores `.71`). The final version was compared with Postgres over 600,000 values:
+`saleValue` and `cost` moved zero times, only `margin` changes. Only `sellCalc` changed — `buyCalc` and
+every already-stored row are untouched. The regression test is `sale.rounding.test.ts`, which runs the
+client's exact sequence (3e9 @ 797, 5e9 @ 787, sell 3e9 @ 788) on a clean desk; a test with any extra
+purchase in front of it shifts the average cost onto a paisa that happens to sum and hides the fault.
 
 Everything downstream works in one canonical unit, **`pkrPerUnit`** (the PKR value of one unit), so
 cost, margin and valuation never need to know which convention was typed. **Only `pkrPerUnit()` on
@@ -520,7 +557,7 @@ reproducibility. Read `012`'s header before adding a fourth currency.
 - **`pg` type parsers are overridden in `db/pool.ts`**: `NUMERIC` returns a real number (default is
   a string) and `DATE` returns literal `'YYYY-MM-DD'` text (default is a `Date` that timezone-shifts
   on stringification). `activity.txn_date` and `cheques.due_date` both depend on that.
-- `stock_positions.avg_cost` is `numeric(24,12)` — `18,6` rounds an IRR unit cost enough to
+- `stock_positions.avg_cost` is `numeric(24,12)` — `18,6` rounds a TMN unit cost (~0.00125) enough to
   compound error on every re-weighting.
 - **`journal_entries.txn_date`** (migration `017`) is the journal's counterpart to
   `activity.txn_date` — the day the entry belongs to, vs. `created_at` when it was keyed in. Its own
@@ -538,6 +575,24 @@ reproducibility. Read `012`'s header before adding a fourth currency.
   that was explicitly not chosen); `cheque_id` **is** one, because cheques are a real table and a
   leg pointing at a missing one is a bug worth failing on. All three are written today — see the
   requirement 7 section.
+- **Migration `021` renamed IRR to TMN, and `012`/`014` still say IRR — on purpose.** A migration
+  records what was true the day it ran, so editing `012` to seed TMN would leave `021` nothing to
+  rename on a fresh database and make a database built before `021` differ from one built after. There
+  is no CHECK constraint or enum on any currency code (`stock_positions.code` is `text PRIMARY KEY`,
+  `activity.currency` is plain `text`; the tradeable set is enforced in `tradesService` against
+  `CURRENCIES`), so `021` is a data rename: stock row, and the `currencyIRR` account's id, code and
+  name. **It aborts if anything is denominated in, or refers to, IRR** — any activity row, journal
+  leg, other reference, or non-empty stock position — and also if a TMN row already exists. It never
+  rewrites an amount: an existing IRR figure is a *Rial* figure, and relabelling it Toman would make
+  it ten times too large, and only a person can know how a given trade was keyed. Clear the desk
+  first (`npm run reset:business`). Closed `periods` store one pooled PKR margin and no currency, so
+  they neither block it nor need rewriting. `currencyTMN` is not a core account; nothing resolves a
+  Currency Stock account by literal id (`stockAccountIdFor()` resolves by `code`).
+- **`reset:business` does not clear `periods`.** It deletes journal entries, activity, cheques and
+  non-system accounts, so a closed month survives a reset and refuses every trade dated in it — found
+  2026-09-21 on the dev database, where a stale closed `2026-09` would have blocked this month's
+  trades. Production's `periods` was empty, so the go-live desk was unaffected. Reopen it (admin, Margin
+  Ledger page) or extend the reset; it is not yet handled.
 - A Currency Stock account's `code` must be a traded currency and must not already be taken; two
   accounts sharing a code both value the same position and double-count it as an asset.
 

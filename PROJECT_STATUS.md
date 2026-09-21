@@ -107,17 +107,20 @@ desk down — see the 2026-08-31 entry in Part 3 for a case where this was caugh
 ## Money and accounting
 
 **Currencies.** The desk trades six against Pakistani Rupees: **EUR (Euro), USD (US Dollar), AED
-(UAE Dirham), AFN (Afghan Afghani), JPY (Japanese Yen) and IRR (Iranian Rial)** — listed
-strongest-to-weakest, which is the order they appear in when choosing one.
+(UAE Dirham), AFN (Afghan Afghani), JPY (Japanese Yen) and TMN (Toman, the Iranian currency as
+dealers actually count it)** — listed strongest-to-weakest, which is the order they appear in when
+choosing one.
 
 These are not quoted the same way, and the system respects that rather than forcing one format:
 
 - Five of the six are worth *more* than a rupee, so a dealer quotes them as **"rupees per 1
   unit"** — e.g. 77 PKR per 1 AED — and the system multiplies. That holds even for the yen, the
   weakest of them at roughly 1.9 rupees.
-- IRR is worth far *less* than a rupee (one rupee buys roughly 4,950 rials). Quoting it as "rupees
-  per 1 rial" would mean typing 0.0002 into a rate box, which no dealer does. It is quoted the
-  other way round — **"rials per 1 rupee"** — and the system divides.
+- TMN is worth far *less* than a rupee (one rupee buys roughly 500–800 toman). Quoting it as
+  "rupees per 1 toman" would mean typing 0.0013 into a rate box, which no dealer does. It is quoted
+  the other way round — **"toman per 1 rupee"** — and the system divides. This was the Iranian
+  *rial* (IRR) until 2026-09-21; a toman is ten rials, and the dealers have only ever counted in
+  toman, so see that day's entry for why the currency was replaced rather than relabelled.
 
 Each rate box states which format it expects, so the dealer never has to guess. Behind the scenes
 every figure is converted to one common measure, so profit and stock valuation are always
@@ -170,7 +173,7 @@ All eight points are now recorded. Each status below was checked against the act
 | # | Requirement | Status | Evidence |
 |---|---|---|---|
 | 1 | **A date on every entry** | ✅ **Done** | All four transaction screens (buy, sell, receive, pay) carry a date picker for the day the deal was struck, kept separate from when it was typed in. Reports are cut on that date. Verified live in production: a purchase recorded and correctly dated "Aug 31, 2026". Previously this worked on the two trade screens but was silently missing on the two payment screens. |
-| 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | ✅ **Done — all 6 live** | All six are live in production: AED, USD, EUR, IRR, AFN, JPY. Each has its own correct quoting convention and is carried separately on the balance sheet at its own cost, so no two currencies share a position. Verified in production after release — six stock positions, six separate stock accounts, and every currency present in the software actually being served to staff. Each new currency's arithmetic was checked against a real conversion (e.g. 1,000 USD at 282.50 storing 282,500 PKR), confirmed against the figure the database actually holds rather than the screen appearing to accept it. |
+| 2 | **Full currency list** — AED, USD, EUR, IRR, AFN, JPY | ✅ **Done — all 6 live** | All six are live in production: AED, USD, EUR, IRR, AFN, JPY. Each has its own correct quoting convention and is carried separately on the balance sheet at its own cost, so no two currencies share a position. **[2026-09-21: the Iranian currency listed here as IRR is now TMN, the Toman — see that day's entry. The delivery below is as it was when recorded.]** Verified in production after release — six stock positions, six separate stock accounts, and every currency present in the software actually being served to staff. Each new currency's arithmetic was checked against a real conversion (e.g. 1,000 USD at 282.50 storing 282,500 PKR), confirmed against the figure the database actually holds rather than the screen appearing to accept it. |
 | 3 | **Auto-logout after inactivity** | ✅ **Done** | A terminal left untouched signs itself out, defaulting to 5 minutes. Thirty seconds beforehand a warning counts down with a "Stay logged in" button, so an active user is never cut off without notice. Enforced in **two independent places**: the screen runs the countdown, and the session itself expires on the server after the same period — so a machine with the browser's scripting disabled, or someone replaying a copied session from another computer, is cut off just the same. On timeout the session is genuinely ended, not merely hidden behind a locked screen. The period is an **admin setting** on the new Settings page, from 1 minute to 8 hours, applying to everyone. Verified in production. |
 | 4 | **Ledger export** | ✅ **Done** | A Customer Ledger section opens on a searchable customer list showing name and balances only — no transaction detail at that level. Choosing a customer opens their statement: every transaction with a running balance, plus **Print**, **Export PDF** and **Export Excel**. A date range narrows all three identically, defaulting to full history. Where a customer has traded in more than one currency the running totals are kept **separate per currency**, because adding units of two different currencies produces a figure that means nothing. Verified against a real two-currency customer, not only a single-currency one. Export PDF uses the browser's print dialog rather than generating a file — see the note in Part 3. |
 | 5 | **Buy screen: choose currency, customer and date** | ✅ **Done** | All three controls are on the Buy Currency form: a customer picker, a currency picker listing every traded currency by name, and a date picker defaulting to today. Verified live in production — the 2026-08-31 purchase recorded currency AED, customer "Wazir", and date Aug 31 2026, all three chosen on the form. |
@@ -205,6 +208,198 @@ Worth noting because it represents real completed work, whether or not it maps t
 # Part 3 — Running log
 
 *Most recent first. Never delete an entry.*
+
+## 2026-09-21 — the desk's Iranian currency is now the Toman, and a sale's figures always sum
+
+### Done
+
+*At a glance: the Iranian currency was replaced with the one the client's dealers actually use, and
+in doing so the client's own figures exposed a one-paisa fault in how a sale is recorded, which was
+fixed before this release. **Nothing here is released yet.** The database change and the push are
+waiting on the owner's go-ahead, and the checks in the running app are not finished — see "Still to
+do" below.*
+
+**The Iranian currency is now the Toman, not the Rial.** The desk used to trade the Iranian *rial*
+(code IRR). The client and his dealers have only ever quoted and counted in *toman*, and his previous
+system's ledger books it that way — `SALE Dubai Tmn 3,000,000,000@797`. One toman is ten rials, so
+typing toman figures into a box that means rials is a tenfold booking error waiting for a busy
+afternoon. The desk never deals in actual rials, so this was a clean replacement rather than a
+relabel: the code is now **TMN**, shown as "Toman", and IRR is no longer a currency the software
+knows or accepts (it survives only in explanatory comments, the two older database changes, and
+the tests that check it is refused). It is quoted the same way as before ("toman per 1 rupee", divided), and it is still the
+last currency in the list.
+
+Deliberately left alone, as instructed: how weighted-average cost is worked out, the credit-only
+trade flow, and the cap on Receive Payment.
+
+**Nothing on the live system needed converting.** Checked read-only before starting: the live
+database held no rial stock, no rial deals, no accounting entries against it and no cheques — it had
+been cleared earlier the same day (see the entry below). So there was no data to convert or delete.
+
+**A new database change, number 021, does the swap — and refuses to run if it could do harm.** It
+renames the currency's stock position and its stock account. It **aborts, changing nothing,** if any
+figure anywhere is still denominated in rials, or if a toman row somehow already exists. That is
+deliberate: an existing rial figure is a rial figure, and relabelling it "toman" would silently make
+it ten times too large. Whether a given old deal was keyed in rials or in toman by mistake is
+something only a person can know, so the change never guesses. Every one of the refusal cases was
+exercised, inside a transaction that was rolled back, and the change was also confirmed to run
+cleanly on a brand-new database built from the very first migration. The two older changes that
+created the rial (012 and 014) still say "IRR" on purpose: they record what was true the day they
+ran, and editing them would make a database built before this change differ from one built after it.
+
+**The client's own three ledger lines are now the acceptance figures.** 3,000,000,000 toman at 797 is
+3,764,115 rupees; 5,000,000,000 at 787 is 6,353,240; 3,000,000,000 at 788 is 3,807,107 (it comes to
+3,807,106.60 and rounds up). The software reproduces all three, and the stored figures match his
+ledger to the paisa. Fifteen of the changed calculator tests were confirmed to fail against the old
+rial setup, so they genuinely test the change. One protection worth knowing about: if a stray "IRR"
+were merely left unrecognised rather than removed, the software would treat it as an ordinary
+currency and book a rial-typed trade roughly 635,000 times too large. So IRR is refused outright,
+and a test pins that.
+
+**A sale's three figures now always add up — a fault found only because of the client's real
+numbers.** Every sale produces three figures that must sum: what the customer owes, what the stock
+cost, and the profit. They used to be rounded to the paisa separately and could end up one paisa
+apart. The client's third ledger line reproduced it exactly: 3,807,106.60 owed, 3,794,008.34 cost,
+13,098.25 profit — which adds up to 3,807,106.59. The record of the sale then debited the customer a
+paisa less than the balance actually moved, and the consistency check (`npm run reconcile`) went red
+on that customer at all five dates. This had been logged as an open audit finding (AUDIT.md §3 #4)
+with the note "fix before the first Toman sale", and it was left alone by the currency change on
+purpose, then fixed separately as its own change once the owner decided to.
+
+The rule now: the amount owed and the cost are each rounded to the paisa **once**, and the profit is
+simply the difference, never rounded on its own. The profit is the right figure to absorb the
+rounding — it is the only one of the three that is derived rather than a fact. On the client's sale
+the amount owed and the cost did not move at all; the profit changed from 13,098.25 to 13,098.26.
+It is confined to the one shared sale calculation, so the saved record, the customer's balance and
+every line of the accounting entry receive the same already-rounded figures.
+
+Two things about how that was checked, because they are the reason to trust it. First, an early
+version of the rounding moved a cost by a paisa on one value in 200,000 when compared with what the
+database itself stores — the owner's rule was to stop if any figure other than the profit moved, so
+it was stopped, diagnosed and rewritten to round on the digits the same way the database does; the
+final version was compared with the database over 600,000 rounded values across three runs, and the
+amount owed and the cost moved **zero** times. Second, the profit differed from the old
+independently-rounded figure on about **one sale in ten** — so this was not a rare edge case; roughly
+one in ten sales would have drifted by a paisa. The new tests were confirmed to fail against the old
+rule, and my first integration test turned out to pass under both rules (extra purchases earlier in
+the same file had shifted the average cost off the fault), so the regression test lives in its own
+file that runs the client's exact sequence on a clean desk.
+
+**Checked against the consistency test, before and after.** Green before the change; red by one
+paisa after the currency change, traced to the rounding fault above (and confirmed against the
+stored rows, not just assumed); **green at all five dates after the rounding fix**, on a local
+database rebuilt with the client's three deals plus a dirham (AED) control sale. The local
+database had held rial demo deals, so it was cleared with the same guarded tool used on the live
+system before the change was applied there, and again before the rounding check.
+
+**Tests: 396, all passing** (118 screen, 203 server, 75 calculator), up from 380. A normal run from
+the repository root creates and migrates its own test database if it is missing.
+
+### A test that goes red about a third of the time — pre-existing, cause unknown
+
+The server test suite fails intermittently, always in `idleTimeout.test.ts`, and **it is not caused by
+the toman change or the rounding fix.** The symptom is a login that comes back "401 not
+authenticated" (or with no session cookie) partway through that one file; which test in it fails
+varies from run to run (four different ones so far).
+
+To find out whether today's work was involved, the tests were run on `b96470e`, the commit before any
+of it, in a separate copy of the code with its own dependencies and a freshly recreated test
+database: **1 of 3 runs failed there too**, with the same symptom. On the changed code the same
+procedure gave 1 failure in 3. Counting every full server run made on the day: **3 of 11 failed**
+(2 of 8 on the changed code, 1 of 3 on the old commit), plus 1 of 8 runs of that file on its own —
+roughly one run in four to one in three. It is not tied to a freshly built database (it failed on the
+second run of three, not the first), and it is **not** the cache problem recorded on 2026-09-03: that
+one produced a wrong stored value, not a lost login. The cause has not been found. These are small
+samples, so the rate is only approximate.
+
+It does not block this release, but a test suite that goes red a third of the time trains people to
+ignore red, and it needs fixing — it is listed as its own follow-up below.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The desk's Iranian currency was the rial, but dealers and the client's own ledger count in toman — a tenfold booking error waiting to happen | High, once real trading began | **Fixed 2026-09-21** (replaced by the toman); **not yet released** |
+| A sale's amount owed, cost and profit could be one paisa apart (AUDIT.md §3 #4); reproduced by the client's own third ledger line; about one sale in ten would have drifted | Medium — small per sale, but it made the consistency test go red and the sale's accounting entry disagree with the customer's balance | **Fixed 2026-09-21** as its own change; **not yet released** |
+| An early version of the fix would have moved a cost by a paisa on one value in 200,000 | Would have been Medium, had it shipped | **Caught by checking against the database before release**; rewritten |
+| `idleTimeout.test.ts` fails about one run in four to three, on old and new code alike | Medium — makes the whole suite untrustworthy | **Open — pre-existing, cause unknown** |
+| `npm run reset:business` does not clear closed months, so a closed month survives a reset and blocks trades dated in it | Low for now — the live system had none | **Open — follow-up** |
+
+### Still to do
+
+- **Checks in the running app.** Not done at the time of writing. Buy and sell toman locally and check
+  the rate box, the Currency Stock page, the customer statement and the PDF and Excel exports, as
+  admin and as the operator login, in both light and dark mode. One thing specifically to look at:
+  several screens were laid out for amounts up to nine digits, and the client's real amounts have ten
+  (3,000,000,000).
+- **Release, in this order:** (1) dry-run the database change against the live system and confirm it
+  shows exactly one pending change, number 021; (2) on the owner's go-ahead, apply it; (3) confirm it
+  three ways — the tool reports it applied, the renamed stock row and account are read back, and 021
+  is in the list of applied changes; (4) push immediately afterwards, so the gap between the database
+  change and the new software is as short as possible. The database change must come first: if the
+  software went first, the first toman trade would create a stock row with no account behind it, and
+  the change would then refuse to run. The earlier planned step of clearing rial demo data on the live
+  system is not needed — it was already cleared.
+
+### Next — in priority order
+
+1. Finish the checks in the running app, then release in the order above.
+2. **Fix the `idleTimeout` test failures** — its own item. Find out why a login intermittently comes
+   back 401 in that file. Do not "fix" it by re-running until green; the failure predates today's
+   work and a third of runs going red needs a cause, not a retry.
+3. **Teach `npm run reset:business` to handle closed months** — its own item, separate from the
+   above. A month closed on the Margin Ledger page survives a reset and refuses every trade dated in
+   it. Found on the local database; the live system had no closed months. Either reopen closed
+   months as part of the reset or have it report them, before the tool is used again.
+4. Unchanged: the client still owes an answer on whether the desk ever takes a deposit or pays an
+   advance before any deal exists.
+5. Unchanged, and still the largest open piece of work: switching the reports over to read the
+   accounting record.
+
+## 2026-09-21 — the live desk is empty on purpose
+
+*Read this before treating an empty live system as a fault. It is not one.*
+
+### What was cleared, and why
+
+On 2026-09-21 the live system's business data was deliberately deleted, leaving blank books. Every
+figure on it was practice data — deals and payments keyed in by the owner during a demonstration to
+show the client that the live system works — and none of it was the client's. The client has not
+started trading on it. So there was no reason to carry practice figures into the books he will
+actually run, where they would sit in every report and every balance forever.
+
+Removed: **12 deals, 11 accounting entries, 4 cheques**, and the practice customer accounts. 15
+accounts existed in total, of which the 13 structural ones — the accounts the books themselves are
+built on — were kept. Currency positions were set to zero rather than deleted, since the trading
+code needs a row to exist for each currency. Entry and cheque numbering were restarted, so the
+client's first transfer will be JV-001.
+
+Kept: both logins, all login sessions, the settings row, and the database structure (20 migrations
+at the time). Nothing about who can sign in changed.
+
+### How to recognise this state
+
+The live system shows **no customers, no deals, no cheques, no accounting entries, and no currency
+held**, with all six currencies present at zero. Every page loads and every report is blank or zero.
+That is the intended state until the client's first real entry. **Do not "fix" it by seeding data**
+— the demo logins from `seed:demo` create logins only, never trades, and nothing else should be
+added to make the screens look busy.
+
+### Safeguards used
+
+A full read-only backup was taken first and kept outside the repository, because it holds real
+names and balances; a `.gitignore` rule now stops any such backup from ever being committed. The
+tool ran a dry run first and only then the real thing, needed the database name typed back to
+confirm, and ran nine checks before committing. Afterwards every count was re-queried directly
+rather than trusting the tool's own report.
+
+### One gap this turned up in the clearing tool
+
+`reset:business` does **not** clear closed months (the `periods` table). A month closed on the
+Margin Ledger page therefore survives a reset, and a closed month refuses every trade dated inside
+it. Found on the local development database, where a stale closed September would have blocked every
+trade dated this month. **Production was checked and had no closed months**, so the live desk is
+unaffected, but the tool should be taught to handle it before it is used again.
 
 ## 2026-09-21 — the live system cleared back to empty books, and two faults the clearing exposed
 

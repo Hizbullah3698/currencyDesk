@@ -13,10 +13,10 @@ of record.
 - **Currency purchase / sale** — buy and sell foreign currency against a customer, with the rate,
   PKR value and margin worked out as you type. Stock is carried at weighted-average cost, so the
   margin on a sale reflects what that stock actually cost, not just the day's rate.
-- **Six currencies, quoted the way dealers quote them** — EUR, USD, AED, AFN, JPY and IRR against
-  PKR (strongest to weakest). The first five are worth more than a rupee, so they are quoted
-  "PKR per 1 unit" and multiplied; IRR is worth far less, so it is quoted "IRR per 1 PKR" and
-  divided, exactly as a dealer would write it. The rate box tells you which convention it wants,
+- **Six currencies, quoted the way dealers quote them** — EUR, USD, AED, AFN, JPY and TMN (the
+  Iranian Toman) against PKR (strongest to weakest). The first five are worth more than a rupee, so
+  they are quoted "PKR per 1 unit" and multiplied; TMN is worth far less, so it is quoted "TMN per
+  1 PKR" and divided, exactly as a dealer would write it — 3,000,000,000 TMN at 797 is 3,764,115 PKR. The rate box tells you which convention it wants,
   and every figure downstream is held in one canonical unit so the two can never be mixed up.
 - **Real transaction dates** — every trade and every payment records the day the deal was actually
   struck, separately from when it was keyed in. Backdate an entry and it lands in the right
