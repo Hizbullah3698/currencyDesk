@@ -216,8 +216,7 @@ Worth noting because it represents real completed work, whether or not it maps t
 *At a glance: the Iranian currency was replaced with the one the client's dealers actually use, and
 in doing so the client's own figures exposed a one-paisa fault in how a sale is recorded, which was
 fixed before this release. **Nothing here is released yet.** The database change and the push are
-waiting on the owner's go-ahead, and the checks in the running app are not finished — see "Still to
-do" below.*
+waiting on the owner's go-ahead. The checks in the running app are done and recorded below.*
 
 **The Iranian currency is now the Toman, not the Rial.** The desk used to trade the Iranian *rial*
 (code IRR). The client and his dealers have only ever quoted and counted in *toman*, and his previous
@@ -325,13 +324,49 @@ ignore red, and it needs fixing — it is listed as its own follow-up below.
 | `idleTimeout.test.ts` fails about one run in four to three, on old and new code alike | Medium — makes the whole suite untrustworthy | **Open — pre-existing, cause unknown** |
 | `npm run reset:business` does not clear closed months, so a closed month survives a reset and blocks trades dated in it | Low for now — the live system had none | **Open — follow-up** |
 
+### Checked in the running app
+
+Done on 2026-09-21 on the local system, as the admin login and as the operator login, in light and
+dark mode. Toman deals were booked through the real screens — a sale by the admin and a sale by the
+operator — not just through the server.
+
+- **The screens read correctly.** The currency picker lists six currencies with the Toman last and no
+  rial. The rate box says "toman per 1 rupee", and the sale preview and review screens show "Toman
+  (TMN)". The Transactions page shows the client's three ledger lines to the rupee. The Currency
+  Stock page, the customer statement and the Balance Sheet all show the toman position, its average
+  cost in the dealer's own convention (790.72 toman per rupee), and totals that foot.
+- **The stored figures are right.** Each sale posted through the screens stored an amount owed, a
+  cost and a profit that sum to the paisa, and an accounting entry that debits the customer exactly
+  the balance that moved. The consistency test stayed green at all five dates with all three
+  screen-booked trades included.
+- **Ten-digit amounts fit.** The screens were laid out for nine digits and the client's real amounts
+  have ten; nothing is cut off anywhere it was looked at.
+- **Excel export** checked by capturing the file the button builds, without saving it: exact-paisa
+  figures, a TMN currency column, and a closing balance that agrees with the screen. It carries no
+  cost or profit column for anyone.
+- **The operator sees no profit figures, and that was checked in what the server sends, not just
+  what the screen draws.** The operator's copy of the data and the response to the operator's own
+  sale contain no cost or profit on any deal and no accounting entry against the profit account; the
+  Income Statement shows "Admin access required"; the stock page drops its Margin and running-cost
+  columns.
+- **Not verified: the PDF.** "Export PDF" is the browser's print dialog, which was deliberately not
+  opened. The document header it prints was read ("Customer Statement — <customer> · Full history ·
+  N entries") and the table it prints is the one checked above, but the rendered print layout has
+  not been looked at.
+
+Two observations, neither changed:
+
+- **The statement's columns crowd at ten digits.** The rate, rupee and balance columns sit only a few
+  pixels apart on a ten-digit row (`788.00 PKR 3,807,107 PKR 3,847,107 Dr`). Fully readable, nothing
+  truncated, but tight, and the client's real amounts will always be this size. Widening the
+  statement's fixed width would fix it. Cosmetic.
+- **The operator's sale form shows a live profit estimate** ("Margin +PKR 1,379"). This is not new and
+  was not changed: it is worked out on the operator's screen from the average cost that screen has
+  to hold to price a sale at all, and CLAUDE.md already records that profit remains approximable for
+  an operator. It is noted because it sits oddly beside the server's careful omission of profit.
+
 ### Still to do
 
-- **Checks in the running app.** Not done at the time of writing. Buy and sell toman locally and check
-  the rate box, the Currency Stock page, the customer statement and the PDF and Excel exports, as
-  admin and as the operator login, in both light and dark mode. One thing specifically to look at:
-  several screens were laid out for amounts up to nine digits, and the client's real amounts have ten
-  (3,000,000,000).
 - **Release, in this order:** (1) dry-run the database change against the live system and confirm it
   shows exactly one pending change, number 021; (2) on the owner's go-ahead, apply it; (3) confirm it
   three ways — the tool reports it applied, the renamed stock row and account are read back, and 021
@@ -343,7 +378,7 @@ ignore red, and it needs fixing — it is listed as its own follow-up below.
 
 ### Next — in priority order
 
-1. Finish the checks in the running app, then release in the order above.
+1. Release in the order above (the checks in the running app are done).
 2. **Fix the `idleTimeout` test failures** — its own item. Find out why a login intermittently comes
    back 401 in that file. Do not "fix" it by re-running until green; the failure predates today's
    work and a third of runs going red needs a cause, not a retry.
