@@ -216,7 +216,8 @@ Worth noting because it represents real completed work, whether or not it maps t
 *At a glance: the owner supplied a one-page design reference PDF and approved it. The customer statement now
 follows it: its typeface, deep-teal balance panel, spacing, table proportions, alternating row shading,
 references beneath descriptions, totals and footer, filled with real data. **No figure changed.** Checked
-through the app's own Print flow and against the reference, page by page. Nothing is pushed.*
+through the app's own Print flow and against the reference, page by page. **Released to the live system the
+same evening** — see "Released" below.*
 
 **What now matches the reference.** The business name in deep teal at the top left, with "Statement of Account"
 and the period ("19–25 September 2026") opposite. "ACCOUNT HOLDER", the customer's name, and "Account <ref>". A
@@ -277,6 +278,23 @@ clean. The server tests were not re-run; no server code changed.
 | Three long wrapped rows kept with the closing balance could leave half a page empty | Low | **Fixed** |
 | No statement number exists in the data model; the reference shows one | Low | **Open** — only if the owner wants numbered statements (a data change) |
 | The business name, tagline, address and phone still have no settings field | Low | **Open** — unchanged |
+
+### Released
+
+On the owner's instruction, the statement work was pushed to the live system on 2026-09-25 (`190d9fa..8708887`).
+The release covered eleven commits: the three statement redesigns from today, plus the statement work from
+2026-09-21 that had been waiting on the owner (same-day ordering fix, the first real PDF). Checked before and
+after:
+
+- **No database change was needed.** None of the eleven commits touches the server or adds a migration, so no
+  production migration had to run first.
+- **Both production builds succeeded.** The website (`currency-desk`) and the server (`currency-desk-backend-jf1x`)
+  both built from commit `8708887` and were reported READY by Vercel.
+- **The live site serves the new code**, read from `currency-desk.vercel.app` itself rather than assumed. It has the
+  new "Include currency trading summary" checkbox, and the statement PDF code contains the "Account activity" table
+  and the embedded Inter font, with none of the reference's sample text.
+- The Notion workspace was updated: a Running Log entry for this work and release, and three follow-ups under
+  Decisions & Follow-ups (a statement number, business details for printed documents, a test print).
 
 ### Next
 
