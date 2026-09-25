@@ -2,12 +2,14 @@
 // Text the PDF's built-in font can actually print
 // ---------------------------------------------------------------------------
 //
-// jsPDF's standard fonts (Helvetica, Courier, Times) encode text as Windows-1252. Anything outside
-// that is not "missing" — it is printed as the WRONG glyphs. Measured on jsPDF 4.2.1: Arabic and Urdu
-// names come out as a run of unrelated accented letters, an arrow ("→") comes out as `!'`, and the
-// whole line is letter-spaced as if it were broken. A statement that silently prints a customer's
-// name as gibberish is worse than one that refuses, so unsupported characters are replaced with `?`
-// and — the part that matters — REPORTED, so the app can tell the person before the PDF opens.
+// The statement's embedded font (statementFont.ts) is subset to EXACTLY the Windows-1252 repertoire
+// below, so this rule is what it can print. The rule predates it: jsPDF's standard fonts (Helvetica,
+// Courier, Times) encode text as Windows-1252, and anything outside that was printed as the WRONG
+// glyphs — measured on jsPDF 4.2.1, Arabic and Urdu names came out as a run of unrelated accented
+// letters, an arrow ("→") as `!'`, the whole line letter-spaced as if broken. Change the rule and the
+// font subset together, or not at all. A statement that silently prints a customer's name as gibberish
+// is worse than one that refuses, so unsupported characters are replaced with `?` and — the part that
+// matters — REPORTED, so the app can tell the person before the PDF opens.
 //
 // No library used here shapes right-to-left scripts either, so embedding a font would not fix Arabic
 // or Urdu; this is a limit to warn about, not to paper over.

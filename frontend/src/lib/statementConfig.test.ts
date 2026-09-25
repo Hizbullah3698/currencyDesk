@@ -21,50 +21,54 @@ describe('statement config', () => {
   it('has column widths that add up to the printable width', () => {
     const printable = C.page.width - C.margin.left - C.margin.right
     const cols = C.columns
-    expect(cols.description + cols.ref + cols.debit + cols.credit + cols.balance).toBeCloseTo(printable, 6)
+    expect(cols.date + cols.particulars + cols.voucher + cols.debit + cols.credit + cols.balance).toBeCloseTo(printable, 6)
   })
 
   it('shows exact paisa by default: whole rupees is a deliberate choice for the client, not the default', () => {
     expect(C.amountDecimals).toBe(2)
   })
 
-  it('uses a placeholder desk name until branding is real data', () => {
-    expect(C.deskName).toBe('DESK NAME')
+  it('uses a placeholder business name, and no invented address or phone, until branding is real data', () => {
+    expect(C.business.name).toBe('DESK NAME')
+    expect(C.business.addressLines).toEqual([])
+    expect(C.business.phone).toBe('')
   })
 
-  it('sets a table row on a 16 pt pitch and its text between 8.5 and 9 pt', () => {
-    expect(C.row.entry / 0.3528, 'row pitch in pt').toBeGreaterThan(15.7)
-    expect(C.row.entry / 0.3528).toBeLessThan(16.3)
-    expect(C.font.body).toBeGreaterThanOrEqual(8.5)
-    expect(C.font.body).toBeLessThanOrEqual(9)
+  it('states the account currency the data model keeps balances in', () => {
+    expect(C.accountCurrency).toEqual({ code: 'PKR', name: 'Pakistani Rupee' })
   })
 
-  it('has a top band about 20 mm tall, with room reserved for a logo that does not exist yet', () => {
-    expect(C.band.height).toBe(20)
-    expect(C.band.logoWidth).toBe(0)
+  it('sets transaction text at 10-11 pt with a second line no smaller than 8.5 pt, on A4 portrait', () => {
+    expect(C.font.body).toBeGreaterThanOrEqual(10)
+    expect(C.font.body).toBeLessThanOrEqual(11)
+    expect(C.font.detail).toBeGreaterThanOrEqual(8.5)
+    expect(C.font.date).toBeGreaterThanOrEqual(8.5)
+    expect(C.minFigureSize).toBeGreaterThanOrEqual(6.5)
+    expect([C.page.width, C.page.height]).toEqual([210, 297])
   })
 })
 
 describe('statement palette', () => {
-  it('is the app\'s own brand colour', () => {
-    // --color-accent-solid in index.css, which the in-app logo is filled with.
-    expect(PALETTE.brand).toBe('#2563eb')
+  it('uses a restrained navy as its one accent, dark enough to read as text at any size', () => {
+    expect(PALETTE.brand).toBe('#1e3a5f')
+    expect(contrast(COLOR.brand, COLOR.white)).toBeGreaterThanOrEqual(7)
   })
 
-  it('has white text on the brand band at 4.5:1 or better (WCAG AA)', () => {
-    expect(contrast(COLOR.white, COLOR.brand)).toBeGreaterThanOrEqual(4.5)
-  })
-
-  it('has every text colour readable on both plain white and the tinted stripe', () => {
+  it('has every text colour readable on both plain white and the shaded rows', () => {
     for (const [name, c] of [['brand', COLOR.brand], ['ink', COLOR.ink], ['detail', COLOR.detail], ['light', COLOR.light]] as const) {
       expect(contrast(c, COLOR.white), `${name} on white`).toBeGreaterThanOrEqual(4.5)
       expect(contrast(c, COLOR.tint), `${name} on the tint`).toBeGreaterThanOrEqual(4.5)
     }
   })
 
-  it('makes the lighter grey lighter than the detail grey, and both lighter than ink — a hierarchy, not one grey', () => {
+  it('makes the label grey lighter than the detail grey, and both lighter than ink — a hierarchy, not one grey', () => {
     expect(grey(COLOR.ink)).toBeLessThan(grey(COLOR.detail))
     expect(grey(COLOR.detail)).toBeLessThan(grey(COLOR.light))
+  })
+
+  it('keeps hairlines visible in black and white without competing with the text', () => {
+    expect(grey(COLOR.rule)).toBeLessThan(235)
+    expect(grey(COLOR.rule)).toBeGreaterThan(grey(COLOR.light) + 60)
   })
 
   it('has a tint of about 6% of the brand over white', () => {
@@ -72,9 +76,9 @@ describe('statement palette', () => {
     expect(COLOR.tint).toEqual(mixed)
   })
 
-  it('keeps the stripe visible but faint in black and white: a few percent darker than paper, not more', () => {
+  it('keeps the shading visible but faint in black and white: a few percent darker than paper, not more', () => {
     const drop = grey(COLOR.white) - grey(COLOR.tint) // grey levels out of 255
-    expect(drop, `stripe is ${drop}/255 darker than white in grayscale`).toBeGreaterThanOrEqual(6)
+    expect(drop, `shading is ${drop}/255 darker than white in grayscale`).toBeGreaterThanOrEqual(6)
     expect(drop).toBeLessThanOrEqual(25)
   })
 

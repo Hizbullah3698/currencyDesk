@@ -1,188 +1,162 @@
 import { describe, it, expect } from 'vitest'
-import { closingUnitStart, layoutStatement, type LayoutItem, type LayoutParams } from './statementLayout'
+import { closingUnitStart, layoutLedger, layoutSections, type LedgerItem, type LedgerLayoutParams, type SectionItem } from './statementLayout'
 import { STATEMENT_CONFIG as C } from './statementConfig'
 
-// The real page geometry, so these tests describe the real document. firstTop is roughly where the
-// band, customer block and summary strip leave off (band 20 + name 12 + line 6.4 + strip 5.2 + 17 + 5 = 65.6 mm).
-const FIRST_TOP = 65.6
-const LATER_TOP = 13 // below the slim brand line and the customer name
+// Plain numbers in the region of the real page: the page-1 header ends about 84 mm down, later pages about 23 mm.
+const FIRST_TOP = 84
+const LATER_TOP = 23
 const BOTTOM = C.page.height - C.margin.bottom
+const CONT = C.row.continuity
+const HEAD = C.row.tableHead
 // The promise, stated here rather than read from the config it guards: three rows always travel with the closing balance.
 const KEEP = 3
+const ONE = 7.1 // a one-line row
+const TWO = 10.9 // a two-line row
 
-/** opening, then `days` date headers each followed by `perDay` entries, then closing. */
-function table(days: number, perDay: number): LayoutItem[] {
-  const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }]
-  for (let d = 0; d < days; d++) {
-    items.push({ kind: 'date', height: C.row.date })
-    for (let e = 0; e < perDay; e++) items.push({ kind: 'entry', height: C.row.entry })
-  }
-  items.push({ kind: 'closing', height: C.row.closing })
+/** opening, `n` entries (alternating one- and two-line, or the heights given), totals, closing. */
+function ledger(n: number, height?: (i: number) => number): LedgerItem[] {
+  const items: LedgerItem[] = [{ kind: 'opening', height: ONE }]
+  for (let i = 0; i < n; i++) items.push({ kind: 'entry', height: height ? height(i) : i % 2 ? ONE : TWO })
+  items.push({ kind: 'totals', height: C.row.totals })
+  items.push({ kind: 'closing', height: 11 })
   return items
 }
 
-const params = (items: LayoutItem[], blockHeights: number[] = []): LayoutParams => ({
+const params = (items: LedgerItem[]): LedgerLayoutParams => ({
   items,
-  blockHeights,
   firstTop: FIRST_TOP,
   laterTop: LATER_TOP,
   bottom: BOTTOM,
-  tableHead: C.row.tableHead,
+  tableHead: HEAD,
+  continuity: CONT,
   keepWithClosing: KEEP,
-  blockGap: 5,
-  bandHeight: C.row.date,
 })
 
-describe('statement layout — page breaks', () => {
-  it('puts a short statement on one page', () => {
-    const r = layoutStatement(params(table(2, 3), [30, 40]))
-    expect(r.pages).toBe(1)
+describe('statement layout — the ledger', () => {
+  it('puts a short statement on one page with no continuity rows', () => {
+    const r = layoutLedger(params(ledger(5)))
+    expect(r.endPage).toBe(1)
     expect(r.tablePages).toEqual([1])
+    expect(r.carried).toEqual([])
+    expect(r.brought).toEqual([])
   })
 
-  it('fits the rows the airier 16 pt pitch allows: 28+ entries on page 1 under 5 date bands, 44+ on a later page', () => {
-    // The redesign trades density for legibility: rows are 5.64 mm (16 pt) apart, up from 4.4 mm, so a page
-    // holds fewer of them. Pinned so a change to the pitch or the header shows up here as a number, not as a
-    // surprise on paper. (Before the redesign page 1 held 39+ under the same 5 bands.)
-    const fitsOnOnePage = (entries: number) => {
-      const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }]
-      for (let d = 0; d < 5; d++) {
-        items.push({ kind: 'date', height: C.row.date })
-        const inThisDay = Math.floor(entries / 5) + (d < entries % 5 ? 1 : 0)
-        for (let e = 0; e < inThisDay; e++) items.push({ kind: 'entry', height: C.row.entry })
-      }
-      items.push({ kind: 'closing', height: C.row.closing })
-      return layoutStatement(params(items)).pages === 1
+  it('never lets a row, or a carried-forward row, run past the bottom margin', () => {
+    for (const n of [10, 30, 60, 120, 200]) {
+      const items = ledger(n)
+      const r = layoutLedger(params(items))
+      items.forEach((it, i) => expect(r.items[i].y + it.height, `n=${n} item ${i}`).toBeLessThanOrEqual(BOTTOM + 1e-9))
+      for (const c of r.carried) expect(c.y + CONT, `n=${n} carried on page ${c.page}`).toBeLessThanOrEqual(BOTTOM + 1e-9)
     }
-    let most = 0
-    for (let n = 1; n <= 80; n++) if (fitsOnOnePage(n)) most = n
-    expect(most, `page 1 holds ${most} entries under 5 date bands`).toBeGreaterThanOrEqual(28)
+  })
 
-    // A later page: one long day, so the page opens on its repeated band. Count the entries that land on page 2.
-    const long: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }, { kind: 'date', height: C.row.date }]
-    for (let e = 0; e < 120; e++) long.push({ kind: 'entry', height: C.row.entry })
-    long.push({ kind: 'closing', height: C.row.closing })
-    const r = layoutStatement(params(long))
-    const onPage2 = long.filter((it, i) => it.kind === 'entry' && r.items[i].page === 2).length
-    expect(onPage2, `page 2 holds ${onPage2} entries`).toBeGreaterThanOrEqual(44)
+  it('ends every page it leaves with "carried forward" and starts the next with "brought forward", after the same row', () => {
+    const items = ledger(120)
+    const r = layoutLedger(params(items))
+    expect(r.endPage).toBeGreaterThan(2)
+    expect(r.carried.length).toBe(r.endPage - 1)
+    expect(r.brought.length).toBe(r.endPage - 1)
+    r.carried.forEach((c, k) => {
+      const b = r.brought[k]
+      expect(b.page).toBe(c.page + 1)
+      // Both stand for the balance after the SAME item — the last one on the page being left.
+      expect(b.afterItem).toBe(c.afterItem)
+      expect(r.items[c.afterItem].page).toBe(c.page)
+      expect(r.items[c.afterItem + 1].page).toBe(b.page)
+      // Carried sits directly under that last row; brought sits directly under the repeated table header.
+      expect(c.y).toBeCloseTo(r.items[c.afterItem].y + items[c.afterItem].height, 6)
+      expect(b.y).toBeCloseTo(LATER_TOP + HEAD, 6)
+      expect(r.items[c.afterItem + 1].y).toBeCloseTo(b.y + CONT, 6)
+    })
   })
 
   it('repeats the table header on every page that carries rows', () => {
-    const r = layoutStatement(params(table(6, 20)))
-    const pagesWithRows = [...new Set(r.items.map((p) => p.page))]
-    expect(r.pages).toBeGreaterThan(1)
-    expect(r.tablePages).toEqual(pagesWithRows.sort((a, b) => a - b))
+    const r = layoutLedger(params(ledger(150)))
+    const pagesWithRows = [...new Set(r.items.map((p) => p.page))].sort((a, b) => a - b)
+    expect(r.tablePages).toEqual(pagesWithRows)
   })
 
-  it('starts each later page at the top margin plus the header, not where the last one ended', () => {
-    const r = layoutStatement(params(table(6, 20)))
-    const items = table(6, 20)
-    const idx = r.items.findIndex((p) => p.page === 2)
-    // A page that opens on an entry starts one date band lower (the repeated band); one that opens on a
-    // date header starts right under the table header.
-    const expected = LATER_TOP + C.row.tableHead + (items[idx].kind === 'entry' ? C.row.date : 0)
-    expect(r.items[idx].y).toBeCloseTo(expected, 6)
+  it('never splits a row: every row sits wholly on one page, whatever mix of heights', () => {
+    const items = ledger(90, (i) => [ONE, TWO, 14.7, ONE, 18.5][i % 5])
+    const r = layoutLedger(params(items))
+    items.forEach((it, i) => {
+      const top = r.items[i].page === 1 ? FIRST_TOP + HEAD : LATER_TOP + HEAD
+      expect(r.items[i].y).toBeGreaterThanOrEqual(top - 1e-9)
+      expect(r.items[i].y + it.height).toBeLessThanOrEqual(BOTTOM + 1e-9)
+    })
   })
 
-  it('never leaves a date header at the bottom of a page with its entries on the next', () => {
-    for (let per = 1; per <= 9; per++) {
-      const items = table(14, per)
-      const r = layoutStatement(params(items))
+  it('NEVER leaves the closing balance alone: totals and closing share a page with the last three entries, at every length', () => {
+    for (let n = 0; n <= 160; n++) {
+      const items = ledger(n)
+      const r = layoutLedger(params(items))
+      const closing = items.length - 1
+      const totals = closing - 1
+      const page = r.items[closing].page
+      expect(r.items[totals].page, `n=${n}: totals and closing apart`).toBe(page)
+      const entriesWithIt = items.filter((it, i) => it.kind === 'entry' && r.items[i].page === page).length
+      expect(entriesWithIt, `n=${n}: closing on page ${page} with ${entriesWithIt} entries`).toBeGreaterThanOrEqual(Math.min(KEEP, n))
+    }
+  })
+
+  it('keeps the opening row with the first entry', () => {
+    const r = layoutLedger(params(ledger(40)))
+    expect(r.items[0].page).toBe(r.items[1].page)
+  })
+
+  it('finds the closing unit: the last N entries, or everything after the opening row when there are fewer', () => {
+    const items = ledger(10)
+    expect(closingUnitStart(items, 3)).toBe(items.length - 2 - 3)
+    expect(closingUnitStart(ledger(2), 3)).toBe(1)
+    expect(closingUnitStart(ledger(0), 3)).toBe(1)
+  })
+})
+
+describe('statement layout — the sections after the ledger', () => {
+  const section = (s: number, rows: number, withTotals = false): SectionItem[] => [
+    { section: s, height: 24, keepWithNext: true },
+    ...Array.from({ length: rows }, (_, i) => ({ section: s, height: ONE, keepWithNext: withTotals && i === rows - 1 })),
+    ...(withTotals ? [{ section: s, height: 7.4, keepWithNext: true }, { section: s, height: 7.4 }] : []),
+  ]
+  const run = (items: SectionItem[], startY: number, startPage = 3) =>
+    layoutSections({ items, repeatHeights: [HEAD, HEAD], startPage, startY, laterTop: LATER_TOP, bottom: BOTTOM, gap: 8 })
+
+  it('follows the ledger on the same page when there is room, instead of forcing a new page', () => {
+    const r = run([...section(0, 2), ...section(1, 2, true)], 150)
+    expect(r.pages).toBe(3)
+    expect(r.items[0]).toEqual({ page: 3, y: 158 })
+  })
+
+  it('never orphans a heading: it moves with its first row', () => {
+    for (let startY = 200; startY < BOTTOM; startY += 0.5) {
+      const items = [...section(0, 3), ...section(1, 2, true)]
+      const r = run(items, startY)
       items.forEach((it, i) => {
-        if (it.kind !== 'date') return
-        expect(r.items[i].page, `date row ${i} (per=${per}) must share a page with the row below it`).toBe(r.items[i + 1].page)
+        if (it.keepWithNext) expect(r.items[i + 1].page, `startY=${startY} item ${i}`).toBe(r.items[i].page)
       })
     }
   })
 
-  it('never lets an item run past the bottom margin', () => {
-    const items = table(10, 13)
-    const r = layoutStatement(params(items, [45, 60]))
+  it('keeps a section\'s last row with its totals, and both totals together', () => {
+    const items = section(0, 4, true)
+    for (let startY = 200; startY < BOTTOM; startY += 0.5) {
+      const r = run(items, startY)
+      const last = items.length - 1
+      expect(r.items[last].page).toBe(r.items[last - 1].page)
+      expect(r.items[last - 1].page).toBe(r.items[last - 2].page)
+    }
+  })
+
+  it('repeats the column heads when a long section runs onto a new page, and stays inside the margins', () => {
+    const items = section(0, 60, true)
+    const r = run(items, 200)
+    expect(r.pages).toBeGreaterThan(3)
+    expect(r.repeats.length).toBe(r.pages - 3)
+    for (const rep of r.repeats) {
+      expect(rep.y).toBeCloseTo(LATER_TOP, 6)
+      const first = r.items.findIndex((p) => p.page === rep.page)
+      expect(r.items[first].y).toBeCloseTo(LATER_TOP + HEAD, 6)
+    }
     items.forEach((it, i) => expect(r.items[i].y + it.height).toBeLessThanOrEqual(BOTTOM + 1e-9))
-    const heights = [45, 60]
-    r.blocks.forEach((b, i) => expect(b.y + heights[i]).toBeLessThanOrEqual(BOTTOM + 1e-9))
-  })
-
-  it('NEVER leaves the closing balance alone: it shares its page with the rows before it, at every table length', () => {
-    // The fault that started this: "the closing balance lands alone on page 2". Sweep every length so a
-    // boundary that happens to work for one size cannot hide one that does not.
-    for (let n = 1; n <= 200; n++) {
-      const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }, { kind: 'date', height: C.row.date }]
-      for (let e = 0; e < n; e++) items.push({ kind: 'entry', height: C.row.entry })
-      items.push({ kind: 'closing', height: C.row.closing })
-      const r = layoutStatement(params(items))
-      const closingIdx = items.length - 1
-      const closingPage = r.items[closingIdx].page
-      const entriesWithIt = items.filter((it, i) => it.kind === 'entry' && r.items[i].page === closingPage).length
-      expect(entriesWithIt, `n=${n}: closing on page ${closingPage} with only ${entriesWithIt} entries`).toBeGreaterThanOrEqual(Math.min(KEEP, n))
-    }
-  })
-
-  it('moves the closing unit as a whole when it does not fit, rather than splitting it', () => {
-    // Fill page 1 until only the closing row itself would still fit.
-    const capacity = (BOTTOM - (FIRST_TOP + C.row.tableHead) - C.row.opening - C.row.date - C.row.closing) / C.row.entry
-    const n = Math.floor(capacity)
-    const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }, { kind: 'date', height: C.row.date }]
-    for (let e = 0; e < n; e++) items.push({ kind: 'entry', height: C.row.entry })
-    items.push({ kind: 'closing', height: C.row.closing })
-    const r = layoutStatement(params(items))
-    const closingIdx = items.length - 1
-    // The closing row and the entries kept with it are all on the same page...
-    for (let k = 0; k <= KEEP; k++) expect(r.items[closingIdx - k].page).toBe(r.items[closingIdx].page)
-    // ...which means the closing row is NOT the only thing on a page.
-    const onItsPage = r.items.filter((p) => p.page === r.items[closingIdx].page).length
-    expect(onItsPage).toBeGreaterThan(1)
-  })
-
-  it('keeps each box whole, moving a box that does not fit to a fresh page', () => {
-    const items = table(1, 3)
-    // Boxes tall enough that the second cannot follow the first on the same page.
-    const r = layoutStatement(params(items, [120, 150]))
-    expect(r.blocks[0].page).toBe(1)
-    expect(r.blocks[1].page).toBe(2)
-    expect(r.blocks[1].y).toBeCloseTo(LATER_TOP, 6)
-    expect(r.pages).toBe(2)
-  })
-
-  it('finds the closing unit: the last N entries and the date header above them', () => {
-    const items = table(3, 4)
-    const start = closingUnitStart(items, 3)
-    expect(items[start].kind).toBe('entry')
-    // Last 3 entries of the last day: one entry above them belongs to the same day, so the date header is not pulled in.
-    const closingIdx = items.length - 1
-    expect(closingIdx - start).toBe(3)
-
-    // When the unit starts exactly at the first entry of a day, that day's header comes with it.
-    const items2 = table(2, 3)
-    const start2 = closingUnitStart(items2, 3)
-    expect(items2[start2].kind).toBe('date')
-  })
-
-  it('repeats the date band of a day that carries on over a page break, marked continued', () => {
-    // One long day: it must break mid-day, so the second page opens on an entry that belongs to it.
-    const items: LayoutItem[] = [{ kind: 'opening', height: C.row.opening }, { kind: 'date', height: C.row.date }]
-    for (let e = 0; e < 70; e++) items.push({ kind: 'entry', height: C.row.entry })
-    items.push({ kind: 'closing', height: C.row.closing })
-    const r = layoutStatement(params(items))
-    expect(r.pages).toBeGreaterThan(1)
-    expect(r.bands.length).toBe(r.pages - 1)
-    for (const b of r.bands) {
-      // The band sits at the top of its page, and the entry it stands for starts directly beneath it.
-      expect(b.y).toBeCloseTo(LATER_TOP + C.row.tableHead, 6)
-      expect(r.items[b.itemIndex].page).toBe(b.page)
-      expect(r.items[b.itemIndex].y).toBeCloseTo(b.y + C.row.date, 6)
-    }
-  })
-
-  it('does not add a band when a page opens on a date header — that header IS the band', () => {
-    const r = layoutStatement(params(table(14, 6)))
-    const items = table(14, 6)
-    for (const b of r.bands) expect(items[b.itemIndex].kind).toBe('entry')
-    // Every page that opens on a date header has no band drawn above it.
-    const firstOnPage = (page: number) => r.items.findIndex((p) => p.page === page)
-    for (let pg = 2; pg <= r.pages; pg++) {
-      const idx = firstOnPage(pg)
-      if (idx >= 0 && items[idx].kind === 'date') expect(r.bands.some((b) => b.page === pg)).toBe(false)
-    }
   })
 })
