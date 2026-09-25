@@ -21,10 +21,10 @@ describe('statement config', () => {
   it('has column widths that add up to the printable width', () => {
     const printable = C.page.width - C.margin.left - C.margin.right
     const cols = C.columns
-    expect(cols.date + cols.particulars + cols.reference + cols.debit + cols.credit + cols.balance).toBeCloseTo(printable, 6)
+    expect(cols.date + cols.particulars + cols.debit + cols.credit + cols.balance).toBeCloseTo(printable, 6)
   })
 
-  it('keeps a clear gap between the particulars text and the Reference column', () => {
+  it('keeps a clear gap between the description text and the Debit column', () => {
     expect(C.particularsGap).toBeGreaterThanOrEqual(2)
   })
 
@@ -34,6 +34,7 @@ describe('statement config', () => {
 
   it('names the business "Currency Desk" — two words, never run together — and invents no address or phone', () => {
     expect(C.business.name).toBe('Currency Desk')
+    expect(C.business.tagline).toBe('')
     expect(C.business.addressLines).toEqual([])
     expect(C.business.phone).toBe('')
   })
@@ -46,10 +47,10 @@ describe('statement config', () => {
     expect(C.font.body).toBeGreaterThanOrEqual(10)
     expect(C.font.body).toBeLessThanOrEqual(11)
     expect(C.font.secondary).toBeGreaterThanOrEqual(9)
-    expect(C.font.balance).toBeGreaterThanOrEqual(18)
-    expect(C.font.balance).toBeLessThanOrEqual(22)
+    expect(C.font.balance).toBeGreaterThanOrEqual(20)
+    expect(C.font.balance).toBeLessThanOrEqual(26)
     expect(C.font.business).toBeGreaterThanOrEqual(16)
-    expect(C.font.business).toBeLessThanOrEqual(20)
+    expect(C.font.business).toBeLessThanOrEqual(22)
     expect(C.font.footer).toBeGreaterThanOrEqual(8)
     expect(C.minFigureSize).toBeGreaterThanOrEqual(6.5)
     expect([C.page.width, C.page.height]).toEqual([210, 297])
@@ -59,10 +60,22 @@ describe('statement config', () => {
 })
 
 describe('statement palette', () => {
-  it("uses the app's own blue as its one accent, readable as text on white", () => {
-    // --color-accent-solid in index.css, which the in-app logo is filled with.
-    expect(PALETTE.brand).toBe('#2563eb')
-    expect(contrast(COLOR.brand, COLOR.white)).toBeGreaterThanOrEqual(4.5)
+  it("uses the approved design's deep teal as its one accent, readable as text on white", () => {
+    expect(PALETTE.brand).toBe('#183e46')
+    expect(contrast(COLOR.brand, COLOR.white)).toBeGreaterThanOrEqual(7)
+  })
+
+  it('keeps every word on the teal balance panel readable, the quieter text included', () => {
+    expect(contrast(COLOR.onBrand, COLOR.brand)).toBeGreaterThanOrEqual(7)
+    expect(contrast(COLOR.onBrandMuted, COLOR.brand)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('shades alternate rows more faintly than table heads, and both stay visible in black and white', () => {
+    expect(grey(COLOR.zebra)).toBeGreaterThan(grey(COLOR.tint))
+    expect(grey(COLOR.white) - grey(COLOR.zebra)).toBeGreaterThanOrEqual(3)
+    for (const [name, c] of [['ink', COLOR.ink], ['detail', COLOR.detail], ['light', COLOR.light], ['brand', COLOR.brand]] as const) {
+      expect(contrast(c, COLOR.zebra), `${name} on alternate rows`).toBeGreaterThanOrEqual(4.5)
+    }
   })
 
   it('has every text colour readable on both plain white and the shaded rows', () => {
@@ -72,9 +85,9 @@ describe('statement palette', () => {
     }
   })
 
-  it('makes the label grey lighter than the detail grey, and both lighter than ink — a hierarchy, not one grey', () => {
-    expect(grey(COLOR.ink)).toBeLessThan(grey(COLOR.detail))
-    expect(grey(COLOR.detail)).toBeLessThan(grey(COLOR.light))
+  it('keeps both greys well clear of ink — a hierarchy, not one grey', () => {
+    expect(grey(COLOR.ink)).toBeLessThan(grey(COLOR.detail) - 40)
+    expect(grey(COLOR.ink)).toBeLessThan(grey(COLOR.light) - 40)
   })
 
   it('keeps hairlines visible in black and white without competing with the text', () => {
@@ -82,9 +95,9 @@ describe('statement palette', () => {
     expect(grey(COLOR.rule)).toBeGreaterThan(grey(COLOR.light) + 60)
   })
 
-  it('keeps the table-heading grey neutral: no colour cast', () => {
+  it('keeps the table-heading wash nearly neutral: at most a faint cool cast', () => {
     const [r, g, b] = COLOR.tint
-    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(4)
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(8)
   })
 
   it('keeps the shading visible but faint in black and white: a few percent darker than paper, not more', () => {
@@ -93,7 +106,7 @@ describe('statement palette', () => {
     expect(drop).toBeLessThanOrEqual(25)
   })
 
-  it('uses no red and no green anywhere: every colour is neutral or blue-leaning', () => {
+  it('uses no red and no green anywhere: every colour is neutral or blue/teal-leaning', () => {
     // Colour is identity and hierarchy, never meaning — so a black-and-white copy loses nothing.
     for (const [name, [r, g, b]] of Object.entries(COLOR)) {
       expect(b, `${name} must not lean red`).toBeGreaterThanOrEqual(r)

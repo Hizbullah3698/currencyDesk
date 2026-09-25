@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Account, Activity, Cheque, JournalEntry } from './engine'
-import { balanceLabel, buildStatementDocument, openingNote, pdfDate, rateInWords, StatementIntegrityError, type StatementSource } from './statementDoc'
+import { balanceLabel, buildStatementDocument, openingNote, rangeTitle, shortDate, pdfDate, rateInWords, StatementIntegrityError, type StatementSource } from './statementDoc'
 import { formatBalance, formatPaisa } from './statementMoney'
 import { shortRef } from './format'
 import { dubaiOneTransactionSource, referenceStatementSource, REFERENCE_OPTIONS } from './statementReference.fixture'
@@ -223,7 +223,7 @@ describe('statement document — the one-transaction baseline', () => {
     expect(formatBalance(d.closing, 2)).toBe('3,807,106.60 Dr')
     expect(d.closingLabel).toBe('You owe')
     expect(words(d.entries[0].particulars)).toBe('You bought TMN 3,000,000,000')
-    expect(d.entries[0].detail).toBe('Toman · Rate: 788 TMN = 1 PKR')
+    expect(d.entries[0].detail).toBe('788 TMN = 1 PKR')
   })
 })
 
@@ -295,11 +295,11 @@ describe('statement document — wording and references', () => {
   it("describes deals from the business's side, with the rate's units spelled out in each direction", () => {
     const d = buildStatementDocument(src({ activity: dubai() }), { now: NOW })
     expect(d.entries.map((e) => [words(e.particulars), e.detail])).toEqual([
-      ['You bought AED 500', 'Rate: 1 AED = 80 PKR'],
-      ['You bought TMN 3,000,000,000', 'Toman · Rate: 788 TMN = 1 PKR'],
-      ['Payment received \u2014 Cash', ''],
-      ['You bought TMN 1,000,000,000', 'Toman · Rate: 788 TMN = 1 PKR'],
-      ['You bought TMN 500,000,000', 'Toman · Rate: 789 TMN = 1 PKR'],
+      ['You bought AED 500', '1 AED = 80 PKR'],
+      ['You bought TMN 3,000,000,000', '788 TMN = 1 PKR'],
+      ['Payment received', 'Cash'],
+      ['You bought TMN 1,000,000,000', '788 TMN = 1 PKR'],
+      ['You bought TMN 500,000,000', '789 TMN = 1 PKR'],
     ])
   })
 
@@ -310,13 +310,13 @@ describe('statement document — wording and references', () => {
 
   it('says what a rate means without converting it: PKR per unit when multiplied, units per PKR when divided', () => {
     // AED 20 @ 79 is 1,580.00 (multiplied); TMN 150,000,000 @ 788 is 190,355.33 (divided). The words follow the maths.
-    expect(rateInWords('AED', 79)).toBe('Rate: 1 AED = 79 PKR')
-    expect(rateInWords('TMN', 788)).toBe('Rate: 788 TMN = 1 PKR')
-    expect(rateInWords('USD', 282.5)).toBe('Rate: 1 USD = 282.5 PKR')
+    expect(rateInWords('AED', 79)).toBe('1 AED = 79 PKR')
+    expect(rateInWords('TMN', 788)).toBe('788 TMN = 1 PKR')
+    expect(rateInWords('USD', 282.5)).toBe('1 USD = 282.5 PKR')
     // Not forced to two places, and never rounded away when a rate carries decimals.
-    expect(rateInWords('AED', 76.25)).toBe('Rate: 1 AED = 76.25 PKR')
+    expect(rateInWords('AED', 76.25)).toBe('1 AED = 76.25 PKR')
     // A code the app does not know is priced as a multiply quote (currencies.ts), so it is described as one.
-    expect(rateInWords('XYZ', 3)).toBe('Rate: 1 XYZ = 3 PKR')
+    expect(rateInWords('XYZ', 3)).toBe('1 XYZ = 3 PKR')
   })
 
   it('describes purchases, cash and bank payments both ways, and names the bank account a bank payment went through', () => {
@@ -328,10 +328,10 @@ describe('statement document — wording and references', () => {
     ]
     const d = buildStatementDocument(src({ activity }), { now: NOW })
     expect(d.entries.map((e) => [words(e.particulars), e.detail])).toEqual([
-      ['You sold AED 500', 'Rate: 1 AED = 80 PKR'],
-      ['Payment sent to you \u2014 Cash', ''],
-      ['Payment received \u2014 Bank', 'Via Meezan Bank - Current'],
-      ['Payment sent to you \u2014 Bank', ''],
+      ['You sold AED 500', '1 AED = 80 PKR'],
+      ['Payment sent to you', 'Cash'],
+      ['Payment received', 'Bank transfer · Meezan Bank - Current'],
+      ['Payment sent to you', 'Bank transfer'],
     ])
   })
 
@@ -339,7 +339,7 @@ describe('statement document — wording and references', () => {
     const s = act({ type: 'sale', currency: 'AED', amount: 100, rate: 80, pkrValue: 8000, paidNow: 3000, method: 'Cash', txnDate: '2026-09-15' })
     const d = buildStatementDocument(src({ activity: [s] }), { now: NOW })
     expect(d.entries[0].debit).toBe(500_000)
-    expect(d.entries[0].detail).toBe('Rate: 1 AED = 80 PKR · Deal value 8,000.00, 3,000.00 paid at the time')
+    expect(d.entries[0].detail).toBe('1 AED = 80 PKR · Deal value 8,000.00, 3,000.00 paid at the time')
   })
 
   it('references a deal or payment exactly as the Transactions page does', () => {
@@ -386,9 +386,28 @@ describe('statement document — wording and references', () => {
     ])
   })
 
+  it('titles the period saying each part once, as the design does', () => {
+    expect(rangeTitle('2026-09-19', '2026-09-25')).toBe('19\u201325 September 2026')
+    expect(rangeTitle('2026-08-28', '2026-09-03')).toBe('28 August \u2013 3 September 2026')
+    expect(rangeTitle('2025-12-28', '2026-01-03')).toBe('28 December 2025 \u2013 3 January 2026')
+    expect(rangeTitle('2026-09-19', '2026-09-19')).toBe('19 September 2026')
+    expect(shortDate('2026-09-05')).toBe('5 Sep')
+  })
+
+  it('prints the year on every row when a statement crosses a year, so no date is ambiguous', () => {
+    const acrossYears = [
+      act({ type: 'sale', amount: 1, rate: 10, pkrValue: 100, txnDate: '2025-12-30', createdAt: '2025-12-30T07:00:00.000Z' }),
+      act({ type: 'sale', amount: 1, rate: 10, pkrValue: 100, txnDate: '2026-01-02', createdAt: '2026-01-02T07:00:00.000Z' }),
+    ]
+    const d = buildStatementDocument(src({ activity: acrossYears }), { from: '2025-12-15', to: '2026-01-15', now: NOW })
+    expect(d.entries.map((e) => e.dateLabel)).toEqual(['30 Dec 2025', '2 Jan 2026'])
+    expect([d.openingDateLabel, d.closingDateLabel]).toEqual(['15 Dec 2025', '15 Jan 2026'])
+    expect(d.periodTitle).toBe('15 December 2025 \u2013 15 January 2026')
+  })
+
   it('prints the date on every row', () => {
     const d = buildStatementDocument(src({ activity: dubai() }), { now: NOW })
-    expect(d.entries.map((e) => e.dateLabel)).toEqual(['18 Sep 2026', '19 Sep 2026', '20 Sep 2026', '21 Sep 2026', '21 Sep 2026'])
+    expect(d.entries.map((e) => e.dateLabel)).toEqual(['18 Sep', '19 Sep', '20 Sep', '21 Sep', '21 Sep'])
   })
 
   it('formats dates unambiguously', () => {
@@ -398,10 +417,10 @@ describe('statement document — wording and references', () => {
 
   it('names the business from its configuration and leaves out contact details that do not exist', () => {
     const d = buildStatementDocument(src(), { now: NOW })
-    expect(d.business).toEqual({ name: 'Currency Desk', contactLine: '' })
+    expect(d.business).toEqual({ name: 'Currency Desk', tagline: '', contactLine: '' })
     expect(d.accountCurrency).toEqual({ code: 'PKR', name: 'Pakistani Rupee' })
     const branded = buildStatementDocument(src(), { now: NOW, business: { name: 'Al-Noor Exchange', addressLines: ['Shop 4, Main Bazaar', ''], phone: '+92 300 0000000' } })
-    expect(branded.business).toEqual({ name: 'Al-Noor Exchange', contactLine: 'Shop 4, Main Bazaar · Tel. +92 300 0000000' })
+    expect(branded.business).toEqual({ name: 'Al-Noor Exchange', tagline: '', contactLine: 'Shop 4, Main Bazaar · Tel. +92 300 0000000' })
   })
 })
 

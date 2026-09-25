@@ -16,8 +16,8 @@
 //      under every row that could be the last on its page, so it always fits. These rows are
 //      PRESENTATION ONLY: the layout says where they go and after which item; the renderer prints the
 //      running balance the document model already computed. They are not entries and touch no total.
-//   4. THE CLOSING BALANCE IS NEVER ALONE. The last `keepWithClosing` entries, the period-totals row and
-//      the closing row are placed as ONE unit: if they do not all fit in what is left of the page, the
+//   4. THE CLOSING BALANCE IS NEVER ALONE. The last `keepWithClosing` entries (or fewer, once they are
+//      `keepWithClosingHeight` tall), the period-totals row and the closing row are placed as ONE unit: if they do not all fit in what is left of the page, the
 //      whole unit moves to the next page together.
 //   5. The opening row is kept with the row beneath it.
 //
@@ -55,6 +55,8 @@ export interface LedgerLayoutParams {
   continuity: number
   /** Entries kept together with the totals and closing rows. */
   keepWithClosing: number
+  /** ...or fewer entries, once they are at least this tall, mm. */
+  keepWithClosingHeight?: number
 }
 
 /** A continuity row: on `page` at `y`, showing the running balance after item `afterItem`. */
@@ -77,12 +79,21 @@ export interface LedgerLayout {
   endY: number
 }
 
-/** Index where the closing unit starts: the last N entries (or everything after the opening row, if fewer). */
-export function closingUnitStart(items: LedgerItem[], keep: number): number {
+/**
+ * Index where the closing unit starts: the last `keep` entries — or fewer, once the entries gathered are at
+ * least `minHeight` tall (three long wrapped rows would otherwise drag half a page onto the next one) — or
+ * everything after the opening row, if there are fewer entries than that.
+ */
+export function closingUnitStart(items: LedgerItem[], keep: number, minHeight = Infinity): number {
   let seen = 0
+  let height = 0
   for (let i = items.length - 1; i >= 0; i--) {
     if (items[i].kind === 'opening') return i + 1
-    if (items[i].kind === 'entry' && ++seen >= keep) return i
+    if (items[i].kind === 'entry') {
+      seen++
+      height += items[i].height
+      if (seen >= keep || height >= minHeight) return i
+    }
   }
   return 0
 }
@@ -100,7 +111,7 @@ export function layoutLedger(p: LedgerLayoutParams): LedgerLayout {
   const brought: Continuity[] = []
   const tablePages = [1]
 
-  const unitStart = closingUnitStart(items, p.keepWithClosing)
+  const unitStart = closingUnitStart(items, p.keepWithClosing, p.keepWithClosingHeight)
   const unitHeight = items.slice(unitStart).reduce((s, it) => s + it.height, 0)
 
   for (let i = 0; i < items.length; i++) {
@@ -176,6 +187,12 @@ export function layoutSections(p: SectionLayoutParams): SectionLayout {
     // The item and everything chained to it by keepWithNext.
     let need = it.height
     for (let k = i; items[k]?.keepWithNext && items[k + 1]; k++) need += items[k + 1].height
+    // A section short enough to fit on one page is kept WHOLE: a two-cheque list is not split one row per page.
+    if (firstOfSection) {
+      let whole = 0
+      for (let k = i; k < items.length && items[k].section === it.section; k++) whole += items[k].height
+      if (whole <= p.bottom - p.laterTop) need = Math.max(need, whole)
+    }
 
     if (y + need > p.bottom + 1e-9 && y > pageStart + 1e-9) {
       page++

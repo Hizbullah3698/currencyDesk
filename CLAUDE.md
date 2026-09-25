@@ -719,27 +719,33 @@ owe us · Cr = we owe you"), next to the one statement of currency ("All amounts
 otherwise."). The customer's side also sets the verbs: the desk SELLING to them is **"You bought"**, the desk
 BUYING from them is **"You sold"**. Never write "Overdue" or "Payment due" — there is no due-date or terms data.
 
-**Wording is short and says only what the record supports.** Deals: "You bought TMN 3,000,000,000" with a
-second line "Rate: 788 TMN = 1 PKR" (divided quote) or "Rate: 1 AED = 79 PKR" (multiplied) from
-`rateInWords()` — it describes the stored rate and converts nothing. The currency's name is shown only where
-the code alone is unclear (`NAME_HELPS`: TMN → "Toman"). The code and amount are joined by a no-break space so
-a wrap never separates them. A deal part-paid at the counter says so. Payments: "Payment received — Cash",
-"Payment sent to you — Bank" (+ "Via <bank account>"). Cleared cheques: "Cheque received — cleared". A transfer
-names the other customer exactly as recorded. **A manual journal entry keeps its own narration** — never
-relabelled "Service charge" or "Discount credited", because the record does not say which it is. Rows with no
-second line are one line tall.
+**Wording is short and says only what the record supports.** Each row is a description, then — on the line
+beneath, smaller — its reference and whatever else identifies it, as the approved design lays it out. Deals:
+"You bought TMN 3,000,000,000" over "A3F39CC7 · 788 TMN = 1 PKR" (divided quote) or "… · 1 AED = 79 PKR"
+(multiplied), from `rateInWords()` — it describes the stored rate and converts nothing. The code and amount are
+joined by a no-break space so a wrap never separates them. A deal part-paid at the counter says so. Payments:
+"Payment received" / "Payment sent to you" over "<ref> · Cash" or "<ref> · Bank transfer · <bank account>".
+Cleared cheques: "Cheque received — cleared". A transfer names the other customer exactly as recorded. **A
+manual journal entry keeps its own narration** — never relabelled "Service charge" or "Discount credited" —
+with its JV number beneath. Row dates are "19 Sep" when the whole statement sits in one calendar year and carry
+the year otherwise; the period heading says each part once ("19–25 September 2026", `rangeTitle()`).
 
 **References:** a deal or payment shows `shortRef(id)` exactly as the Transactions page does; a manual
 journal entry its `JV-` number; the customer's "Account ref." is the same 8-character form. Voucher legs' own
 JV numbers are deliberately not surfaced (see `postVoucher`). There is no sequential human deal number.
 
-**Structure:** business header (name in the app's blue `#2563eb`, "Statement of Account", a contact line only
-if configured); customer name + account ref, statement period right-aligned; the summary area; the ledger —
-Date | Particulars | Reference | Debit | Credit | Balance — with an opening row, "Period totals" and a compact
-"Closing balance" row (figure + Dr/Cr, no sentence); "Uncleared cheques" only when there are any; the footer
-("Currency Desk · Statement of Account · Generated <time>" and "Page X of Y"). An unused Debit/Credit cell shows
-a light en dash **centred** in the cell — right-aligned it sat against the next figure and read as a minus
-sign; zero totals and balances print "0.00", never a dash.
+**Structure — the approved design** (`# CurrencyDesk Statement Design….pdf`, a one-page sample; none of its
+data is used, and its "Sample data · Design reference" footer and statement number are not reproduced — there
+is no statement number in the data model): business name in deep teal with "Statement of Account" and the
+period opposite; "ACCOUNT HOLDER", the customer, "Account <ref>"; a deep-teal rounded panel — "CLOSING BALANCE ·
+<date>", then "You owe" / "We owe you" / "Account settled", "PKR", the amount at 24 pt, and the opening balance
+opposite; "Account activity" with "All amounts in PKR"; the table Date | Transaction / Reference | Debit | Credit
+| Balance with alternate rows shaded (the first transaction shaded), an em dash in an unused Debit/Credit cell,
+a bold opening row, "Period totals", and a shaded closing row in teal; "Dr = you owe us · Cr = we owe you" under
+the table; "Uncleared cheques" only when there are any; the footer ("<business> · <customer> · Account <ref>" and
+"Generated <time> · Page X of Y"). Zero totals print "0.00", never a dash. The Date column sizes itself to the
+widest date printed (never narrower than `columns.date`), taking the room from the description, never from the
+amounts, so 8-digit PKR figures and bold totals stay at full size on one line.
 
 **Currency trading summary is OFF by default** — `includeCurrencySummary` in `StatementOptions`, driven by the
 "Include currency trading summary" checkbox on the Ledger page (PDF only). When on: Currency | Bought from you
@@ -754,29 +760,38 @@ above." — true: `customerLedger` counts only Cleared cheques, and a held-chequ
 **Page rules** (each pinned by a test): the table header repeats on every ledger page; a row is never split;
 a page the ledger leaves ends with "Balance carried forward" and the next starts with "Balance brought
 forward" (shaded, in the quieter grey, same figure — presentation only, in no total, never on a one-page
-statement); the last three entries, period totals and closing row travel together; section headings stay
-with their first row; later pages carry a compact header with the customer, account ref and period.
+statement); the last three entries — or fewer, once they are `keepWithClosingHeight` (45 mm) tall, so three
+long wrapped rows do not strand half a page — travel with the period totals and closing row; a section that
+fits on one page is kept whole, and a longer one keeps its heading with its first row and repeats its column
+heads; later pages carry a compact header with the customer, account ref and period.
 
 **Text never clips or crowds.** Descriptive text wraps and the row grows; a figure too wide for its column is
-set slightly smaller, down to `minFigureSize` (ordinary statements never shrink one). Particulars stop
-`particularsGap` (3 mm) short of the Reference column; Dr/Cr has its own slot after the digits.
-`statementPdf.test.ts`'s `crowded()` fails if any two pieces of text on one line are under 1.5 mm apart, or
-an empty-cell dash is under 6 mm from its neighbour — the guard for words running together.
+set slightly smaller, down to `minFigureSize` (ordinary statements, and the client's real multi-billion TMN
+deals, never shrink one). Descriptions stop `particularsGap` short of the Debit column; Dr/Cr has its own slot a
+clear gap after the digits. `statementPdf.test.ts`'s `crowded()` fails if any two pieces of text on one line are
+under 1.5 mm apart, or an empty-cell dash is under 4.5 mm from its neighbour — the guard for words running
+together and for a dash reading as a minus sign.
 
-**The look:** A4 portrait, 12 mm margins, 10 pt transaction text, 9 pt secondary, 20 pt closing figure, 18 pt
-business name. Dark ink on white, one blue accent (business name, section titles, header rule), a very light
-grey for table heads and the summary. No red or green; every direction is written, so black-and-white loses
-nothing (`{ grayscale: true }` renders the proof). Every colour and dimension is in `lib/statementConfig.ts`,
-and `statementConfig.test.ts` holds text colours to 4.5:1 or better.
+**The look:** A4 portrait, 13 mm margins, 10.5 pt transaction text, 9 pt reference line, 24 pt closing figure,
+20 pt business name. Deep teal `#183e46` (business name, panel, closing row), near-black ink, cool greys, a
+blue-grey wash for table heads and the closing row, a fainter one for alternate rows. No red or green; every
+direction is written, so black-and-white loses nothing (`{ grayscale: true }` renders the proof). Every colour and
+dimension is in `lib/statementConfig.ts`, and `statementConfig.test.ts` holds every text colour to 4.5:1 or
+better on white, on the shaded rows, and on the teal panel.
 
 **Business identity** is `STATEMENT_CONFIG.business`: name **"Currency Desk"** (two words, as the app's own
-masthead), address and phone empty so no contact line prints. There is no settings field for it; when branding
+masthead), tagline, address and phone empty so nothing is invented (the design reference's "Currency Exchange"
+tagline is sample data). There is no settings field for it; when branding
 becomes real data it replaces that block. There is no logo in the PDF.
 
-**The font is embedded Noto Sans (Regular + SemiBold, SIL OFL 1.1 — `lib/fonts/OFL.txt`), subset to exactly
-Windows-1252** — the repertoire `lib/pdfText.ts` allows, so that rule still holds as written: characters
-outside it (Arabic, Urdu, arrows) are replaced with `?` **and reported** before the PDF opens. Its digits are
-tabular by default. Wording the app writes is checked by `assertPdfSafeLiteral` at module load.
+**The font is embedded Inter (Regular + SemiBold, SIL OFL 1.1 — `lib/fonts/OFL.txt`), the design's face, subset
+to exactly Windows-1252** — the repertoire `lib/pdfText.ts` allows, so that rule still holds as written:
+characters outside it (Arabic, Urdu, arrows) are replaced with `?` **and reported** before the PDF opens (the one
+cp1252 character Inter lacks, the invisible soft hyphen, is dropped by pdfText). **Only the digits were made
+tabular**: the cmap maps 0-9 to Inter's `zero.tf`…`nine.tf`. A general feature-freezer was tried first and also
+widened the hyphen ("JV - 022") and narrowed the space, pushing words together — `statementPdf.test.ts` measures
+both, so do not "simplify" the rebuild back to it. See `lib/statementFont.ts` for the recipe. Wording the app
+writes is checked by `assertPdfSafeLiteral` at module load.
 
 **Testing it:** the embedded font writes glyph ids, so the bytes cannot be searched for text.
 `renderStatementPdf(d, { trace })` records every string drawn with page, position, width and size; the tests
@@ -798,9 +813,9 @@ read that. `statementReference.fixture.ts` holds two rebuilt datasets: the multi
 
 ## Testing and verification
 
-513 tests: 80 engine unit (2 files), 203 backend (28 files — 26 integration with real HTTP against
+525 tests: 80 engine unit (2 files), 203 backend (28 files — 26 integration with real HTTP against
 real Postgres, no supertest, each file booting `http.createServer(createApp())` on an ephemeral
-port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 230 frontend unit
+port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 242 frontend unit
 (17 files under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure
 logic but never a component, and anything touching `window` must be guarded at module load or it
 breaks the suite). No CI — `npm run test` is manual.

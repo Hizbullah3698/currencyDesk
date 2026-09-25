@@ -24,36 +24,42 @@ export type RGB = [number, number, number]
 const rgb = (hex: string): RGB => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as RGB
 
 /**
- * THE PALETTE. A restrained printable-document look: dark ink on white, ONE blue accent for the business
- * name, section titles and the thin rule under the header, and a very light grey for table headings and the
- * summary area. Every text-on-background pair is at least 4.5:1 (WCAG AA) — statementConfig.test.ts computes
- * and holds them to it, so a later tweak cannot quietly make the small print unreadable.
- *
- * The blue is the app's own accent, `--color-accent-solid` in index.css — what the in-app logo is filled with —
- * so the statement and the app agree. It is 5.17:1 on white.
+ * THE PALETTE — taken from the approved design reference. Deep teal for the business name, the closing-balance
+ * panel and the closing row's text; near-black ink; cool greys for labels and the second line of a row; a
+ * blue-grey wash for table heads and the closing row; a fainter one for alternate rows. Every text-on-background
+ * pair used is at least 4.5:1 (WCAG AA) — statementConfig.test.ts computes and holds them to it.
  *
  * Nothing on the page is red or green, and no meaning is carried by colour alone: a balance's direction is
  * always written ("You owe", "We owe you", "Dr", "Cr"), so a black-and-white copy loses nothing.
  */
 export const PALETTE = {
-  /** Blue: the business name, section titles and the header rule. Never carries meaning. */
-  brand: '#2563eb',
-  /** Very light grey: table headings, the summary area, continuity rows. */
-  tint: '#f4f5f7',
+  /** Deep teal: business name, the balance panel, closing-row text. */
+  brand: '#183e46',
+  /** Text on the teal panel. */
+  onBrand: '#ffffff',
+  /** Quieter text on the teal panel: its label, "PKR", the opening balance's label. */
+  onBrandMuted: '#b3c7cb',
+  /** Table heads and the closing row. */
+  tint: '#edf1f4',
+  /** Alternate transaction rows. */
+  zebra: '#f7f9fa',
   /** Figures and primary text. */
-  ink: '#111827',
-  /** The second line of a row (rate, bank, cheque number) and other supporting text. */
-  detail: '#4b5563',
-  /** Labels, references and notes — lighter than the detail line, still AA on the tint. */
-  light: '#5b6472',
-  /** Hairlines between rows and under headings. */
-  rule: '#d3d8de',
+  ink: '#1c2329',
+  /** The second line of a row (reference, rate, method) and supporting text. */
+  detail: '#5d6873',
+  /** Small labels ("ACCOUNT HOLDER"), notes, the footer, the Dr/Cr after a balance. */
+  light: '#5f6a75',
+  /** Hairlines between rows and under the header. */
+  rule: '#dfe4e8',
   white: '#ffffff',
 } as const
 
 export const COLOR = {
   brand: rgb(PALETTE.brand),
+  onBrand: rgb(PALETTE.onBrand),
+  onBrandMuted: rgb(PALETTE.onBrandMuted),
   tint: rgb(PALETTE.tint),
+  zebra: rgb(PALETTE.zebra),
   ink: rgb(PALETTE.ink),
   detail: rgb(PALETTE.detail),
   light: rgb(PALETTE.light),
@@ -71,6 +77,8 @@ export const STATEMENT_CONFIG = {
    */
   business: {
     name: 'Currency Desk',
+    /** A short line under the name. Empty until the business states one — nothing is invented. */
+    tagline: '',
     addressLines: [] as readonly string[],
     phone: '',
   },
@@ -83,39 +91,52 @@ export const STATEMENT_CONFIG = {
   amountDecimals: 2 as AmountDecimals,
 
   page: { width: 210, height: 297 },
-  margin: { left: 12, right: 12, top: 12, bottom: 16 },
+  margin: { left: 13, right: 13, top: 13, bottom: 17 },
 
-  // Column widths add up to the printable width (210 - 12 - 12 = 186).
-  columns: { date: 22, particulars: 61, reference: 21, debit: 26, credit: 26, balance: 30 },
+  // Column widths add up to the printable width (210 - 13 - 13 = 184), in the design reference's proportions.
+  // The reference sits UNDER the description, so there is no Reference column. `date` is the narrowest the
+  // Date column may be: it widens to fit the longest date actually printed ("30 Dec 2025" on a statement that
+  // crosses a year), taking the room from the description, never from the amounts — so 8-digit PKR figures
+  // and bold totals stay at full size on one line.
+  columns: { date: 19, particulars: 64, debit: 31, credit: 32, balance: 38 },
   /** Horizontal padding inside a cell. */
-  cellPad: 1.5,
-  /** Extra clear space kept between the end of the particulars text and the Reference column. */
-  particularsGap: 3,
+  cellPad: 3,
+  /** Extra clear space kept between the end of the particulars text and the Debit column. */
+  particularsGap: 2,
 
-  // Type sizes, pt. Transaction text is 10 pt; secondary lines 9 pt; the main balance 20 pt.
+  // Type sizes, pt.
   font: {
-    business: 18,
-    title: 16,
+    business: 20,
+    tagline: 10,
+    title: 17,
+    period: 10,
+    label: 8,
     customer: 16,
-    body: 10,
-    secondary: 9,
-    reference: 9,
-    side: 8.5,
-    tableHead: 9,
-    label: 9,
+    account: 10,
+    panelLabel: 8,
+    panelDirection: 12,
+    panelCurrency: 16,
+    balance: 24,
+    panelOpeningLabel: 9.5,
+    panelOpeningValue: 11,
+    section: 12.5,
     note: 9,
-    section: 12,
-    direction: 12,
-    balance: 20,
-    footer: 8.5,
+    tableHead: 9,
+    body: 10.5,
+    secondary: 9,
+    footer: 8,
   },
+  /** Letter spacing for the small upper-case labels, mm. The design tracks them; body text is never tracked. */
+  labelTracking: 0.25,
 
   /** Line pitch as a multiple of the type size. */
   leading: 1.22,
-  /** Space above and below the text of a table row, mm. */
-  rowPad: 1.4,
+  /** Space above and below the text of a table row, mm. Generous, as in the design. */
+  rowPad: 3.4,
   /** Fixed heights, mm. */
-  row: { tableHead: 7.4, continuity: 7, totals: 7.4, closing: 8, sectionHead: 7.5 },
+  row: { tableHead: 10, continuity: 9, totals: 11, closing: 11, sectionHead: 9 },
+  /** The closing-balance panel: height, inner padding and corner radius, mm. */
+  panel: { height: 28, pad: 6.5, radius: 1.8 },
 
   /**
    * How many entry rows must sit on the same page as the totals and closing balance. A closing balance that
@@ -123,6 +144,8 @@ export const STATEMENT_CONFIG = {
    * document was built to remove.
    */
   keepWithClosing: 3,
+  /** ...or fewer, once the rows kept are this tall (mm): three long wrapped rows need not all travel. */
+  keepWithClosingHeight: 45,
   /** The smallest a figure may be shrunk to fit its column before it would be clipped. */
   minFigureSize: 6.5,
 } as const

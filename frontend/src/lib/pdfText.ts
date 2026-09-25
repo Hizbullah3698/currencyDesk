@@ -43,7 +43,8 @@ export interface TextWarning {
  * point so an emoji or a character outside the BMP is ONE replacement, not two.
  */
 export function pdfText(input: string | null | undefined, field: string, warnings: TextWarning[]): string {
-  const tidy = (input ?? '').replace(/\s+/g, ' ').trim()
+  // A soft hyphen (U+00AD) is invisible by definition and the embedded font has no glyph for it: dropped.
+  const tidy = (input ?? '').replace(/­/g, '').replace(/\s+/g, ' ').trim()
   let out = ''
   const bad: string[] = []
   for (const ch of tidy) {

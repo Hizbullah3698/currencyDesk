@@ -99,6 +99,18 @@ describe('statement layout — the ledger', () => {
     }
   })
 
+  it('lets fewer, taller rows satisfy the keep-with-closing rule, so long wrapped rows do not strand half a page', () => {
+    const items = ledger(6, (i) => (i < 3 ? ONE : 40))
+    // Three 40 mm rows at the end: two of them already exceed 45 mm, so the unit starts at the second-last entry.
+    expect(closingUnitStart(items, 3, 45)).toBe(items.length - 2 - 2)
+    // Short rows: the count is reached first, exactly as before.
+    expect(closingUnitStart(ledger(10), 3, 45)).toBe(closingUnitStart(ledger(10), 3))
+    const r = layoutLedger({ ...params(items), keepWithClosingHeight: 45 })
+    const closing = items.length - 1
+    const tall = items.filter((it, i) => it.kind === 'entry' && r.items[i].page === r.items[closing].page)
+    expect(tall.reduce((s, it) => s + it.height, 0)).toBeGreaterThanOrEqual(45)
+  })
+
   it('keeps the opening row with the first entry', () => {
     const r = layoutLedger(params(ledger(40)))
     expect(r.items[0].page).toBe(r.items[1].page)

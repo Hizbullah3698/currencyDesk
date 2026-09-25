@@ -44,8 +44,6 @@ const W = {
   nbsp: assertPdfSafeLiteral(' '),
   paymentReceived: assertPdfSafeLiteral('Payment received'),
   paymentSent: assertPdfSafeLiteral('Payment sent to you'),
-  dash: assertPdfSafeLiteral(' — '), // spaced em dash: "Payment received — Cash"
-  via: assertPdfSafeLiteral('Via'),
   chequeReceived: assertPdfSafeLiteral('Cheque received — cleared'),
   chequeSent: assertPdfSafeLiteral('Cheque sent to you — cleared'),
   chequeNo: assertPdfSafeLiteral('Cheque no.'),
@@ -54,7 +52,10 @@ const W = {
   journal: assertPdfSafeLiteral('Journal entry'),
   dealValue: assertPdfSafeLiteral('Deal value'),
   paidAtTime: assertPdfSafeLiteral('paid at the time'),
-  rate: assertPdfSafeLiteral('Rate'),
+  cash: assertPdfSafeLiteral('Cash'),
+  bankTransfer: assertPdfSafeLiteral('Bank transfer'),
+  chequeMethod: assertPdfSafeLiteral('Cheque'),
+  enDash: assertPdfSafeLiteral('\u2013'),
   opening: assertPdfSafeLiteral('Opening balance'),
   noEntries: assertPdfSafeLiteral('No transactions in this period.'),
   youOwe: assertPdfSafeLiteral('You owe'),
@@ -77,16 +78,38 @@ export const NO_ENTRIES_LABEL = W.noEntries
 
 /**
  * Codes whose meaning a customer cannot be expected to know — Toman has no ISO code, so "TMN" alone is
- * opaque. Their name is shown beside the deal; a familiar code (USD, AED) is left to speak for itself.
+ * opaque. Their name is shown in the optional currency trading summary; the ledger rows follow the approved
+ * design and show the code with its rate equation ("788 TMN = 1 PKR"), which already says what it is.
  */
 const NAME_HELPS = new Set(['TMN'])
 
+const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** '2026-09-19' -> '19 Sep 2026'. Unambiguous whichever side of the world reads it. */
 export function pdfDate(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-')
   return `${Number(d)} ${MONTHS[Number(m) - 1] ?? '?'} ${y}`
+}
+
+/** '2026-09-19' -> '19 Sep' — for rows of a statement that sits inside one calendar year. */
+export function shortDate(iso: string): string {
+  const [, m, d] = iso.slice(0, 10).split('-')
+  return `${Number(d)} ${MONTHS[Number(m) - 1] ?? '?'}`
+}
+
+/**
+ * A period as a heading, saying each part once: "19\u201325 September 2026", "28 August \u2013 3 September 2026",
+ * "28 December 2025 \u2013 3 January 2026", or "19 September 2026" for a single day.
+ */
+export function rangeTitle(fromIso: string, toIso: string): string {
+  const [fy, fm, fd] = fromIso.slice(0, 10).split('-').map(Number)
+  const [ty, tm, td] = toIso.slice(0, 10).split('-').map(Number)
+  const month = (m: number) => LONG_MONTHS[m - 1] ?? '?'
+  if (fy === ty && fm === tm && fd === td) return `${td} ${month(tm)} ${ty}`
+  if (fy === ty && fm === tm) return `${fd}${W.enDash}${td} ${month(tm)} ${ty}`
+  if (fy === ty) return `${fd} ${month(fm)} ${W.enDash} ${td} ${month(tm)} ${ty}`
+  return `${fd} ${month(fm)} ${fy} ${W.enDash} ${td} ${month(tm)} ${ty}`
 }
 
 const two = (n: number) => String(n).padStart(2, '0')
@@ -108,15 +131,15 @@ export function openingNote(net: Paisa, decimals: AmountDecimals): string {
 }
 
 /**
- * How a rate is quoted, spelled out as an equation the customer can read: "Rate: 1 AED = 79 PKR" for a currency
- * worth more than a rupee (the rate is MULTIPLIED), "Rate: 788 TMN = 1 PKR" for the Toman (the rate is DIVIDED).
+ * How a rate is quoted, spelled out as an equation the customer can read: "1 AED = 79 PKR" for a currency worth
+ * more than a rupee (the rate is MULTIPLIED), "788 TMN = 1 PKR" for the Toman (the rate is DIVIDED).
  * The stored rate is shown as the dealer typed it — this only says what the number means; it converts and rounds
  * nothing beyond the currency's own display precision.
  */
 export function rateInWords(code: string, rate: number): string {
   const meta = currencyMeta(code)
   const r = formatRate(rate, meta.rateDecimals)
-  return meta.quote === 'divide' ? `${W.rate}: ${r} ${code} = 1 PKR` : `${W.rate}: 1 ${code} = ${r} PKR`
+  return meta.quote === 'divide' ? `${r} ${code} = 1 PKR` : `1 ${code} = ${r} PKR`
 }
 
 // --- The document ---
@@ -174,7 +197,13 @@ export interface StatementCurrencyLine {
 }
 
 export interface StatementDocument {
-  business: { name: string; /** Address and phone joined on one line; '' when none is configured. */ contactLine: string }
+  business: {
+    name: string
+    /** A short line under the name ("Currency Exchange"); '' when none is configured. */
+    tagline: string
+    /** Address and phone joined on one line; '' when none is configured. */
+    contactLine: string
+  }
   title: string
   customerName: string
   /** The short account reference: the same 8-character form the Transactions page uses. */
@@ -184,6 +213,11 @@ export interface StatementDocument {
   periodTo: string
   /** "15 Sep 2026 to 21 Sep 2026", or "Up to 21 Sep 2026" when there is no start. */
   periodLabel: string
+  /** The period as a heading: "19\u201325 September 2026", "28 August \u2013 3 September 2026", "Up to 21 Sep 2026". */
+  periodTitle: string
+  /** Date labels for the opening and closing rows, in the same short-or-long form as the entries. '' when unknown. */
+  openingDateLabel: string
+  closingDateLabel: string
   /** The date the closing balance is struck at: the period end. Not necessarily today. */
   asAtLabel: string
   generatedAt: string
@@ -230,7 +264,7 @@ export interface StatementOptions {
   now?: Date
   /** Override for tests; production reads STATEMENT_CONFIG. */
   decimals?: AmountDecimals
-  business?: { name: string; addressLines?: readonly string[]; phone?: string }
+  business?: { name: string; tagline?: string; addressLines?: readonly string[]; phone?: string }
   /** Print the per-currency trading table. Off unless asked: it is noise on an ordinary account statement. */
   includeCurrencySummary?: boolean
 }
@@ -271,7 +305,6 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
         // The desk SELLING to the customer is the customer BUYING, and the other way round.
         const verb = row.type === 'sale' ? W.youBought : W.youSold
         const parts: string[] = []
-        if (NAME_HELPS.has(code) && meta.name && meta.name !== meta.code) parts.push(meta.name)
         parts.push(rateInWords(code, row.rate ?? 0))
         // A deal part-settled at the counter moves the balance by less than its value. Say so, so the figure in
         // the Debit/Credit column is not mistaken for the deal's value.
@@ -286,13 +319,16 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
       case 'pay': {
         const act = activityById.get(row.id)
         const method = act?.method
-        const base = row.type === 'receive' ? W.paymentReceived : W.paymentSent
-        const particulars = method === 'Cash' || method === 'Bank' || method === 'Cheque' ? `${base}${W.dash}${method}` : base
-        let detail = ''
-        if (method === 'Bank' && act?.settlementAccountId) {
-          const acct = accountById.get(act.settlementAccountId)
-          if (acct?.name) detail = `${W.via} ${pdfText(acct.name, 'Bank account name', warnings)}`
-        }
+        const particulars = row.type === 'receive' ? W.paymentReceived : W.paymentSent
+        // How it moved goes on the second line, after the reference: "5C55E1E4 · Cash", "07400A07 · Bank transfer".
+        const parts: string[] = []
+        if (method === 'Cash') parts.push(W.cash)
+        else if (method === 'Bank') {
+          parts.push(W.bankTransfer)
+          const acct = act?.settlementAccountId ? accountById.get(act.settlementAccountId) : undefined
+          if (acct?.name) parts.push(pdfText(acct.name, 'Bank account name', warnings))
+        } else if (method === 'Cheque') parts.push(W.chequeMethod)
+        const detail = parts.join(W.sep)
         return { particulars, detail, reference: shortRef(row.id) }
       }
       case 'cheque': {
@@ -348,7 +384,7 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
     totalCredits += credit
 
     const { particulars, detail, reference } = describe(row, Math.abs(delta))
-    entries.push({ date: row.date, dateLabel: pdfDate(row.date), particulars, detail, reference, debit, credit, balance: running })
+    entries.push({ date: row.date, dateLabel: '', particulars, detail, reference, debit, credit, balance: running })
   }
 
   // --- THE IDENTITY. opening + debits - credits = closing, and the running balance ended where the
@@ -429,10 +465,23 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
   const periodTo = to ? pdfDate(to) : pdfDate(localISO(now))
   const periodLabel = periodFrom ? `${periodFrom} ${W.to} ${periodTo}` : `${W.upTo} ${periodTo}`
 
+  // A statement inside one calendar year prints "19 Sep" on its rows, as the approved design does; one that
+  // crosses a year prints the year on every row, so no row is ambiguous.
+  const fromIso = from || firstDate || ''
+  const toIso = to || localISO(now)
+  const years = new Set([toIso.slice(0, 4), ...(fromIso ? [fromIso.slice(0, 4)] : []), ...entries.map((e) => e.date.slice(0, 4))])
+  for (const e of entries) e.dateLabel = years.size === 1 ? shortDate(e.date) : pdfDate(e.date)
+  const rowDate = (iso: string) => (iso ? (years.size === 1 ? shortDate(iso) : pdfDate(iso)) : '')
+  const periodTitle = fromIso ? rangeTitle(fromIso, toIso) : `${W.upTo} ${periodTo}`
+
   const business = opts.business ?? STATEMENT_CONFIG.business
   const contact = [...(business.addressLines ?? []).map((l) => pdfText(l, 'Business address', warnings)), pdfText(business.phone ?? '', 'Business phone', warnings) && `Tel. ${pdfText(business.phone ?? '', 'Business phone', warnings)}`].filter(Boolean)
   return {
-    business: { name: pdfText(business.name, 'Business name', warnings), contactLine: contact.join(W.sep) },
+    business: {
+      name: pdfText(business.name, 'Business name', warnings),
+      tagline: pdfText(business.tagline ?? '', 'Business tagline', warnings),
+      contactLine: contact.join(W.sep),
+    },
     title: STATEMENT_CONFIG.title,
     customerName: pdfText(cust.name, 'Customer name', warnings),
     accountRef: shortRef(cust.id),
@@ -440,6 +489,9 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
     periodFrom,
     periodTo,
     periodLabel,
+    periodTitle,
+    openingDateLabel: rowDate(fromIso),
+    closingDateLabel: rowDate(toIso),
     asAtLabel: periodTo,
     generatedAt: `${pdfDate(localISO(now))}, ${two(now.getHours())}:${two(now.getMinutes())}`,
     decimals,
