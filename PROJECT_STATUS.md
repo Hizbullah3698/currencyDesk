@@ -209,6 +209,96 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-25 (later) — the statement redesigned as a finished customer document, under the name "Currency Desk"
+
+### Done
+
+*At a glance: the customer statement now speaks to the customer — **"You owe"**, **"We owe you"** or **"Account
+settled"** in large type at the top — carries the business name **Currency Desk** in blue, and drops what was
+repeated or over-explained. **No figure changed.** It was checked in the running app through the real Print
+button, not only in tests. Nothing is pushed.*
+
+**Why.** The morning's version was correct but over-explained and repeated itself. It had four equal summary
+boxes, the currency spelled out everywhere, long sentences on the closing row, and a trading summary with a
+paragraph about profits. A customer with no accounting background needs four things: whose account, which
+period, who owes whom and how much, and which deals made that balance.
+
+**The balance convention was re-checked in the code, not assumed:** Dr still means the customer owes the
+business, and Cr still means the business owes the customer.
+
+**What the customer now sees, top to bottom.**
+- **Header:** "Currency Desk" in the app's own blue (the placeholder "DESK NAME" is gone), "Statement of
+  Account" on the right, and a thin blue line. It is written as two words so it never reads as one run-together
+  name. No address or phone is printed because none is recorded.
+- **Customer and period:** the customer's name large, the account reference small under it, the statement
+  period on the right.
+- **One summary area:** "Closing balance as at 21 Sep 2026", then "You owe" or "We owe you", then the amount at
+  20 pt, e.g. **PKR 3,807,106.60**, with no Dr/Cr beside it. The opening balance sits quietly on the right. The
+  total debits and credits are no longer repeated here; they are in the table's totals row.
+- **One line above the table:** "All amounts in PKR unless stated otherwise." and "Dr = you owe us · Cr = we owe
+  you". This is the only place either is said.
+- **Table:** Date | Particulars | Reference | Debit | Credit | Balance. Lines are short and from the customer's
+  side: "You bought TMN 3,000,000,000", "You sold AED 15", "Payment received — Cash", "Payment sent to you —
+  Bank". Each deal has a second line with its rate as an equation: **"Rate: 788 TMN = 1 PKR"** or **"Rate: 1 AED
+  = 79 PKR"**. The currency name appears only for the Toman, whose code alone is unclear. Rows without a second
+  line are one line tall. Manual entries keep the words the person wrote.
+- **End of table:** "Period totals", then a compact "Closing balance" row with just the figure and Dr/Cr.
+- **Uncleared cheques** (only when there are any): "From you" / "To you", the real status, a total for each
+  direction, and one note: "Not included in the balance above."
+- **Footer:** Currency Desk · Statement of Account · the generated time, and "Page X of Y".
+
+**Words kept apart, as asked.** There is a clear gap between Particulars and Reference, and between every
+amount and its Dr/Cr. An unused Debit or Credit cell shows a light dash in the **middle** of the cell. Placed at
+the edge, the dash sat right before the next amount and read like a minus sign ("– 1,400,900.57"), so it was
+moved. A new test fails if any two pieces of text on a line come closer than 1.5 mm, or a dash comes within
+6 mm of a figure. Putting the dash back at the edge on purpose made that test fail, so it really guards this.
+
+**The currency trading summary is now optional and off by default.** A checkbox, "Include currency trading
+summary", sits next to the date range on the customer's Ledger page and affects the PDF only. When ticked, the
+statement adds a short table (Currency | Bought from you | Sold to you | Net), in quantities only, with one note:
+"For reference only; not added to your balance."
+
+**Shorter, too.** The 61-entry test statement is **three pages** again (it had grown to four this morning),
+without smaller type. The saving comes from shorter wording and one-line rows where there is nothing to add.
+
+**Checked in the running app.** On the local system, logged in as admin, the customer "Dubai Tmn Buyer" (the
+one-deal baseline) was opened and **Print** was pressed. The PDF the app produced was opened and looked at: "You
+owe PKR 3,807,106.60", "You bought TMN 3,000,000,000", "Rate: 788 TMN = 1 PKR", debit 3,807,106.60, credit total
+0.00, closing 3,807,106.60 Dr. The customer and period were right. The checkbox was then ticked and Print pressed
+again: the trading summary appeared, confirming the option reaches the generator.
+
+**Samples, every page looked at:** in `Downloads\statement-pdf-samples-v4`: the one-deal baseline, the 61-entry
+multi-page statement ("We owe you"), a short statement where the desk owes the customer, an empty statement
+("Account settled"), one with uncleared cheques, one with the trading summary switched on, and a black-and-white
+proof.
+
+**Tests: 230 screen tests pass** (up from 220), plus 80 calculator tests. Type-check, lint and build are clean.
+The 203 server tests were not re-run; no server code changed.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| A dash marking an empty Debit/Credit cell could read as a minus sign on the next figure | Medium — could make a balance look negative | **Fixed before release**, guarded by a test |
+| The business name, address and phone still have no settings field; the name is set in configuration as "Currency Desk" | Low — correct today, but changing it needs a code change | **Open** — a settings field when branding is decided |
+| An operator's statement leaves out manual entries against Income accounts (decided 2026-09-21, not built) | Medium | **Open** — unchanged |
+
+### Not done, deliberately
+
+- No figure, rounding rule, date filter, ordering rule or cheque rule was changed.
+- No logo: there is none recorded, and none was invented.
+- "Overdue" and "payment due" are never printed: no due-date or payment-terms data exists to support them.
+- The trading summary's rupee values are still calculated but no longer printed; the table shows quantities only.
+- Export PDF (which downloads a file) was not pressed in the browser; it produces the same file as Print.
+- Nothing pushed or deployed; production not touched.
+
+### Next
+
+1. Print one statement on the desk's own printer and read it on paper.
+2. A settings field for the business name, address, phone and logo.
+3. Show an operator's statement the customer's own leg of Income entries (decided 2026-09-21).
+4. Sequential human deal numbers, which the Reference column will pick up.
+
 ## 2026-09-25 — the customer statement rewritten for the customer who reads it
 
 ### Done
