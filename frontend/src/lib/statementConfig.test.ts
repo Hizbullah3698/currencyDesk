@@ -21,15 +21,19 @@ describe('statement config', () => {
   it('has column widths that add up to the printable width', () => {
     const printable = C.page.width - C.margin.left - C.margin.right
     const cols = C.columns
-    expect(cols.date + cols.particulars + cols.voucher + cols.debit + cols.credit + cols.balance).toBeCloseTo(printable, 6)
+    expect(cols.date + cols.particulars + cols.reference + cols.debit + cols.credit + cols.balance).toBeCloseTo(printable, 6)
+  })
+
+  it('keeps a clear gap between the particulars text and the Reference column', () => {
+    expect(C.particularsGap).toBeGreaterThanOrEqual(2)
   })
 
   it('shows exact paisa by default: whole rupees is a deliberate choice for the client, not the default', () => {
     expect(C.amountDecimals).toBe(2)
   })
 
-  it('uses a placeholder business name, and no invented address or phone, until branding is real data', () => {
-    expect(C.business.name).toBe('DESK NAME')
+  it('names the business "Currency Desk" — two words, never run together — and invents no address or phone', () => {
+    expect(C.business.name).toBe('Currency Desk')
     expect(C.business.addressLines).toEqual([])
     expect(C.business.phone).toBe('')
   })
@@ -38,20 +42,27 @@ describe('statement config', () => {
     expect(C.accountCurrency).toEqual({ code: 'PKR', name: 'Pakistani Rupee' })
   })
 
-  it('sets transaction text at 10-11 pt with a second line no smaller than 8.5 pt, on A4 portrait', () => {
+  it('sets type in the ranges a printed statement needs, on A4 portrait with 12-15 mm margins', () => {
     expect(C.font.body).toBeGreaterThanOrEqual(10)
     expect(C.font.body).toBeLessThanOrEqual(11)
-    expect(C.font.detail).toBeGreaterThanOrEqual(8.5)
-    expect(C.font.date).toBeGreaterThanOrEqual(8.5)
+    expect(C.font.secondary).toBeGreaterThanOrEqual(9)
+    expect(C.font.balance).toBeGreaterThanOrEqual(18)
+    expect(C.font.balance).toBeLessThanOrEqual(22)
+    expect(C.font.business).toBeGreaterThanOrEqual(16)
+    expect(C.font.business).toBeLessThanOrEqual(20)
+    expect(C.font.footer).toBeGreaterThanOrEqual(8)
     expect(C.minFigureSize).toBeGreaterThanOrEqual(6.5)
     expect([C.page.width, C.page.height]).toEqual([210, 297])
+    expect(C.margin.left).toBeGreaterThanOrEqual(12)
+    expect(C.margin.left).toBeLessThanOrEqual(15)
   })
 })
 
 describe('statement palette', () => {
-  it('uses a restrained navy as its one accent, dark enough to read as text at any size', () => {
-    expect(PALETTE.brand).toBe('#1e3a5f')
-    expect(contrast(COLOR.brand, COLOR.white)).toBeGreaterThanOrEqual(7)
+  it("uses the app's own blue as its one accent, readable as text on white", () => {
+    // --color-accent-solid in index.css, which the in-app logo is filled with.
+    expect(PALETTE.brand).toBe('#2563eb')
+    expect(contrast(COLOR.brand, COLOR.white)).toBeGreaterThanOrEqual(4.5)
   })
 
   it('has every text colour readable on both plain white and the shaded rows', () => {
@@ -71,9 +82,9 @@ describe('statement palette', () => {
     expect(grey(COLOR.rule)).toBeGreaterThan(grey(COLOR.light) + 60)
   })
 
-  it('has a tint of about 6% of the brand over white', () => {
-    const mixed = COLOR.brand.map((v) => Math.round(v * 0.06 + 255 * 0.94))
-    expect(COLOR.tint).toEqual(mixed)
+  it('keeps the table-heading grey neutral: no colour cast', () => {
+    const [r, g, b] = COLOR.tint
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(4)
   })
 
   it('keeps the shading visible but faint in black and white: a few percent darker than paper, not more', () => {

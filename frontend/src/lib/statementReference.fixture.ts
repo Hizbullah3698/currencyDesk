@@ -121,3 +121,33 @@ export function referenceStatementSource(): StatementSource {
 
 /** The reference was printed for 15-21 Sep 2026, at 19:34 on the 21st. */
 export const REFERENCE_OPTIONS = { from: '2026-09-15', to: '2026-09-21', now: new Date(2026, 8, 21, 19, 34) }
+
+// ---------------------------------------------------------------------------
+// The one-transaction baseline: "Dubai Tmn Buyer", a single TMN sale
+// ---------------------------------------------------------------------------
+//
+// The latest PDF the owner reviewed showed one deal: 3,000,000,000 TMN at 788 TMN per PKR, which is
+// 3,807,106.60 (the client's own third ledger line). Opening 0.00, debits 3,807,106.60, credits 0.00,
+// closing 3,807,106.60 Dr. Fixture values only.
+
+const DUBAI = '5c9ab663-ea1e-4196-85db-a1c4503bd44e'
+export const DUBAI_CUSTOMER = acct({ id: DUBAI, type: 'Customer', name: 'Dubai Tmn Buyer', receivable: 3_807_106.6, payable: 0 })
+
+export function dubaiOneTransactionSource(): StatementSource {
+  const sale = {
+    id: 'a3f39cc7-0000-4000-8000-000000000002',
+    type: 'sale',
+    currency: 'TMN',
+    customerId: DUBAI,
+    customerName: DUBAI_CUSTOMER.name,
+    amount: 3_000_000_000,
+    rate: 788,
+    pkrValue: 3_807_106.6,
+    method: 'Credit',
+    txnDate: '2026-09-19',
+    createdAt: '2026-09-19T07:00:00.000Z',
+    updatedAt: '2026-09-19T07:00:00.000Z',
+    ...AUDIT,
+  } as Activity
+  return { customer: DUBAI_CUSTOMER, accounts: [DUBAI_CUSTOMER], activity: [sale], cheques: [], journalEntries: [] }
+}

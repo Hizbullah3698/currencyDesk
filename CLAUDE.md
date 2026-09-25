@@ -688,131 +688,119 @@ Other rules that are structural, not stylistic:
 ## The customer statement PDF
 
 Print opens a **generated PDF** in a new tab and Export PDF downloads the same file (it replaced a
-`window.print()` of the screen layout). The on-screen statement and the Excel export are separate and
-unchanged by the PDF work.
+`window.print()` of the screen layout). The on-screen statement and the Excel export are separate.
 
 **Four layers, so the parts that can be wrong can be tested without a browser or a PDF:**
 
 - `lib/statementDoc.ts` builds the whole document as plain data — every figure and every word. It reads
   the SAME `customerLedger` rows the screen and the Excel export read (same rows, same order, same running
   balance), and **reads only stored fields — never `cost` or `margin`**, so an operator's statement is
-  built from the same fields and carries nothing about profit (a test feeds admin-shaped rows with profit
-  populated and checks no figure or word of it appears).
+  built from the same fields and carries nothing about profit.
 - `lib/statementLayout.ts` is page-break arithmetic on measured heights (`layoutLedger`, `layoutSections`).
 - `lib/statementPdf.ts` measures and draws with jsPDF. It is the only file that imports jsPDF, and the
   button `import()`s it, so the library and the fonts are never in the main bundle.
 - `lib/statementFont.ts` + `lib/fonts/` — the embedded typeface (below).
 
 **Every amount is whole paisa, as an integer.** Floats from the ledger are converted once with the
-engine's `toPaisa` and never added in floating point again. `buildStatementDocument` **asserts**
-`opening + debits - credits = closing` (and that the running balance ends where the ledger does) and
-throws `StatementIntegrityError` rather than let a statement that does not foot be printed. Decimals are
-**one setting**, `STATEMENT_CONFIG.amountDecimals` in `lib/statementConfig.ts` (2 = exact paisa, the
-default; 0 = whole rupees, chosen deliberately since the columns then stop adding up).
+engine's `toPaisa` and never added in floating point again; totals are summed from those integers, never
+from formatted text. `buildStatementDocument` **asserts** `opening + debits - credits = closing` (and that
+the running balance ends where the ledger does) and throws `StatementIntegrityError` rather than let a
+statement that does not foot be printed. Decimals are **one setting**, `STATEMENT_CONFIG.amountDecimals`.
 
 **Sign convention, traced from `customerLedger` (runningNet = receivable − payable):** positive is **Dr —
-the customer owes the business**, negative is **Cr — the business owes the customer**. A balance prints its
-side and never a minus. The closing balance also carries its meaning in words — `balanceMeaning()`:
-"Amount receivable from customer" (Dr), "Amount payable to customer" (Cr), "Account settled — no
-outstanding balance" (nothing, including a figure that rounds to nothing at the chosen decimals) — and page
-1 states the convention once ("Dr: the customer owes the business. Cr: the business owes the customer.").
-The account currency is PKR because every customer balance in the data model is a PKR column; it is
-`STATEMENT_CONFIG.accountCurrency`, not a per-account setting, since none exists.
+the customer owes the business**, negative is **Cr — the business owes the customer**.
 
-**Wording is from the business's side and says only what the record supports.** Deals: "Sold to
-customer: AED 20" / "Bought from customer: TMN 150,000,000", with the currency's name and the rate's
-units spelled out on a second line by `rateInWords()` — "PKR 79 per AED" for a multiply quote, "788 TMN
-per PKR" for the divided Toman. It describes the stored rate; it converts nothing. The code and amount
-are joined by a no-break space so a wrap never separates them. A deal part-settled at the counter says so
-("Deal value PKR X, PKR Y settled at the time"), since the row then moves the balance by less than the
-deal's value. Payments are worded by method ("Cash received from customer", "Bank payment to customer",
-with "Via <bank account>" when recorded). Cleared cheques say which way and give number and bank. A
-transfer names the other customer exactly as the entry recorded them. **A manual journal entry keeps its
-own narration** — it is never relabelled "Service charge" or "Discount", because the record does not say
-which it is.
+**The document speaks to the customer, whoever generates it** — nothing reads the viewer's role, so admin
+and operator get identical words. The closing balance is headed **"You owe"** (Dr), **"We owe you"** (Cr) or
+**"Account settled"** (nothing, including a figure that rounds to nothing) — `balanceLabel()` — over
+"PKR <amount>" with **no Dr/Cr beside the headline**; the opening balance sits quieter beside it, with
+"you owed" / "we owed you" when non-zero. Dr/Cr stay in the ledger, explained ONCE above the table ("Dr = you
+owe us · Cr = we owe you"), next to the one statement of currency ("All amounts in PKR unless stated
+otherwise."). The customer's side also sets the verbs: the desk SELLING to them is **"You bought"**, the desk
+BUYING from them is **"You sold"**. Never write "Overdue" or "Payment due" — there is no due-date or terms data.
 
-**References:** a deal or payment shows `shortRef(id)` exactly as the Transactions page does (the first
-8 characters of its UUID); a manual journal entry its `JV-` number; the customer's account ID is the same
-8-character form. Voucher legs' own JV numbers are deliberately not surfaced (see `postVoucher`). **There is
-no sequential human deal number** (the client's old system prints `DTMS6173`) — a recorded follow-up.
+**Wording is short and says only what the record supports.** Deals: "You bought TMN 3,000,000,000" with a
+second line "Rate: 788 TMN = 1 PKR" (divided quote) or "Rate: 1 AED = 79 PKR" (multiplied) from
+`rateInWords()` — it describes the stored rate and converts nothing. The currency's name is shown only where
+the code alone is unclear (`NAME_HELPS`: TMN → "Toman"). The code and amount are joined by a no-break space so
+a wrap never separates them. A deal part-paid at the counter says so. Payments: "Payment received — Cash",
+"Payment sent to you — Bank" (+ "Via <bank account>"). Cleared cheques: "Cheque received — cleared". A transfer
+names the other customer exactly as recorded. **A manual journal entry keeps its own narration** — never
+relabelled "Service charge" or "Discount credited", because the record does not say which it is. Rows with no
+second line are one line tall.
 
-**Currency Trading Summary** shows, per currency and never added across currencies, GROSS bought and
-sold (with the PKR value of those deals at their own rates) and the net between them, labelled as a net —
-"AED 25 / Net sold to customer", never "Sold 25". It is built from the same period rows as the table and
-says it is not an additional amount payable, not profit and not today's value.
+**References:** a deal or payment shows `shortRef(id)` exactly as the Transactions page does; a manual
+journal entry its `JV-` number; the customer's "Account ref." is the same 8-character form. Voucher legs' own
+JV numbers are deliberately not surfaced (see `postVoucher`). There is no sequential human deal number.
 
-**Uncleared Cheques** lists Pending and Deposited cheques with their real status (Deposited is never shown
-as cleared), as at the moment the PDF is generated, with separate received/issued totals, and says they are
-not in the balance until cleared — which is true: `customerLedger` counts only Cleared cheques, and a
-payment whose cheque is held moves nothing and is left out of the table. The section is omitted when empty.
+**Structure:** business header (name in the app's blue `#2563eb`, "Statement of Account", a contact line only
+if configured); customer name + account ref, statement period right-aligned; the summary area; the ledger —
+Date | Particulars | Reference | Debit | Credit | Balance — with an opening row, "Period totals" and a compact
+"Closing balance" row (figure + Dr/Cr, no sentence); "Uncleared cheques" only when there are any; the footer
+("Currency Desk · Statement of Account · Generated <time>" and "Page X of Y"). An unused Debit/Credit cell shows
+a light en dash **centred** in the cell — right-aligned it sat against the next figure and read as a minus
+sign; zero totals and balances print "0.00", never a dash.
 
-**Page rules** (each pinned by a test): the table header repeats on every ledger page; a row is never
-split; a page the ledger leaves ends with **"Balance carried forward"** and the next starts with **"Balance
-brought forward"**, both printing the running balance after the last row above the break (presentation
-only — not entries, not in any total; room is reserved so the carried row always fits); the last three
-entries, **"Period totals"** and the **closing balance** (separate rows) are placed as one unit; section
-headings are kept with their first row, a long section repeats its column heads, totals stay with the last
-row; later pages get a compact header naming customer, account and period; "Page X of Y" on every page.
+**Currency trading summary is OFF by default** — `includeCurrencySummary` in `StatementOptions`, driven by the
+"Include currency trading summary" checkbox on the Ledger page (PDF only). When on: Currency | Bought from you
+| Sold to you | Net, quantities only, net labelled with its direction ("Net sold to you"), one note ("For
+reference only; not added to your balance."). The data (`currencySummary`, including PKR deal values) is always
+computed; only printing is optional.
 
-**Text never clips.** Descriptive text wraps and the row grows (rows are measured before layout); a
-figure too wide for its column is set slightly smaller, down to `minFigureSize`, and ordinary statements
-never shrink one (a test pins that). A long customer name wraps in the headers; the footer drops it
-rather than cut it.
+**Uncleared Cheques** lists Pending and Deposited cheques with their real status (Deposited is never shown as
+cleared), directions "From you" / "To you", a total per direction present, and "Not included in the balance
+above." — true: `customerLedger` counts only Cleared cheques, and a held-cheque payment moves nothing.
 
-**The look:** A4 portrait, 10 pt transaction text, dark ink on white, one navy accent (`#1e3a5f`) for
-headings and the closing figure, a faint shade for the summary, continuity and closing rows, hairlines
-between rows. **No red or green, and no meaning carried by colour** — every balance writes Dr/Cr — so a
-black-and-white copy loses nothing. Every colour and dimension is in `lib/statementConfig.ts`, and
-`statementConfig.test.ts` holds each text colour to 4.5:1 or better on white and on the shade. Render with
-`{ grayscale: true }` to see what a monochrome printer will make of it.
+**Page rules** (each pinned by a test): the table header repeats on every ledger page; a row is never split;
+a page the ledger leaves ends with "Balance carried forward" and the next starts with "Balance brought
+forward" (shaded, in the quieter grey, same figure — presentation only, in no total, never on a one-page
+statement); the last three entries, period totals and closing row travel together; section headings stay
+with their first row; later pages carry a compact header with the customer, account ref and period.
 
-**The font is embedded Noto Sans (Regular + SemiBold, SIL OFL 1.1 — `lib/fonts/OFL.txt`), subset to
-exactly Windows-1252** — the repertoire `lib/pdfText.ts` allows. The standard Helvetica is not embedded, so
-every viewer substituted its own face and widths; Noto's digits are also tabular by default, which is the
-only way to get aligned figures here since jsPDF applies no OpenType features. Because the subset matches
-pdfText's rule exactly, that rule still holds as written: characters outside it (Arabic, Urdu, arrows) are
-replaced with `?` **and reported**, and `PdfCharacterNotice` shows that before the PDF opens. No library
-here shapes right-to-left text, so a wider font would not fix Urdu. Wording the app itself writes must
-never need the warning: `assertPdfSafeLiteral` checks it at module load. If the font is ever changed,
-regenerate with fontTools' `pyftsubset` over that same set and re-run `statementPdf.test.ts`.
+**Text never clips or crowds.** Descriptive text wraps and the row grows; a figure too wide for its column is
+set slightly smaller, down to `minFigureSize` (ordinary statements never shrink one). Particulars stop
+`particularsGap` (3 mm) short of the Reference column; Dr/Cr has its own slot after the digits.
+`statementPdf.test.ts`'s `crowded()` fails if any two pieces of text on one line are under 1.5 mm apart, or
+an empty-cell dash is under 6 mm from its neighbour — the guard for words running together.
 
-**The business name is a placeholder** (`STATEMENT_CONFIG.business.name = 'DESK NAME'`) and the address
-and phone are empty, because the data model has no field for any of them (see `PrintHeader.tsx`); the
-header omits empty contact details. When branding becomes a settings row, it replaces the config.
+**The look:** A4 portrait, 12 mm margins, 10 pt transaction text, 9 pt secondary, 20 pt closing figure, 18 pt
+business name. Dark ink on white, one blue accent (business name, section titles, header rule), a very light
+grey for table heads and the summary. No red or green; every direction is written, so black-and-white loses
+nothing (`{ grayscale: true }` renders the proof). Every colour and dimension is in `lib/statementConfig.ts`,
+and `statementConfig.test.ts` holds text colours to 4.5:1 or better.
 
-**Testing it:** the embedded font writes text as glyph ids, so the bytes cannot be searched for text.
-`renderStatementPdf(d, { trace })` records every string drawn with its page, position, width and size;
-`statementPdf.test.ts` reads that — including a check that no two pieces of text overlap and nothing
-crosses a margin or the footer. `statementReference.fixture.ts` rebuilds the reference statement
-(`3-statement-test-customer-as-admin.pdf`, 15–21 Sep 2026) row for row; its four figures (0.00 /
-1,422,242.49 / 3,014,816.16 / 1,592,573.67 Cr) are held by a test for that dataset only.
+**Business identity** is `STATEMENT_CONFIG.business`: name **"Currency Desk"** (two words, as the app's own
+masthead), address and phone empty so no contact line prints. There is no settings field for it; when branding
+becomes real data it replaces that block. There is no logo in the PDF.
+
+**The font is embedded Noto Sans (Regular + SemiBold, SIL OFL 1.1 — `lib/fonts/OFL.txt`), subset to exactly
+Windows-1252** — the repertoire `lib/pdfText.ts` allows, so that rule still holds as written: characters
+outside it (Arabic, Urdu, arrows) are replaced with `?` **and reported** before the PDF opens. Its digits are
+tabular by default. Wording the app writes is checked by `assertPdfSafeLiteral` at module load.
+
+**Testing it:** the embedded font writes glyph ids, so the bytes cannot be searched for text.
+`renderStatementPdf(d, { trace })` records every string drawn with page, position, width and size; the tests
+read that. `statementReference.fixture.ts` holds two rebuilt datasets: the multipage reference (0.00 /
+1,422,242.49 / 3,014,816.16 / 1,592,573.67 Cr) and the one-transaction baseline "Dubai Tmn Buyer"
+(3,000,000,000 TMN @ 788 = 3,807,106.60 Dr). Fixture figures only — never in production code.
 
 **Things that will look like bugs and are not:**
 
-- The first Print click after a fresh `npm install` opens a blank tab: Vite's dev server re-optimises
-  `jspdf` on first sight and reloads the page under the new tab. Once per dev-server lifetime, never in a
-  production build.
-- The build emits extra chunks (`html2canvas`, `index.es`, `purify.es`). They are jsPDF's optional
-  HTML-to-PDF dependencies, never called and never downloaded.
-- Every PDF declares the 14 standard fonts even though no text is set in them — jsPDF always does. The
-  test checks which fonts the page content actually selects.
-- The reference statement is four pages where the old one was three: rows are 10 pt and two lines where a
-  deal has a rate, and long descriptions wrap rather than shrink. Readability was chosen over page count.
+- The first Print click after a fresh `npm install` can open a blank tab: Vite re-optimises `jspdf` on first
+  sight. Once per dev-server lifetime, never in a production build.
+- The build emits jsPDF's optional HTML-to-PDF chunks (`html2canvas`, `index.es`, `purify.es`), never loaded.
+- Every PDF declares the 14 standard fonts though no text is set in them — jsPDF always does.
 - Customer statements for **operators** print whatever the operator's snapshot contains. The server
-  withholds any journal entry with an Income leg from operators, so a manual entry such as a fee charged
-  to a customer moves the stored balance but does not appear on the operator's statement, and the
-  operator's closing balance then differs from the balance every role sees. Reproduced 2026-09-21
-  (admin 10,800 = stored 10,800; operator 8,300). **Decided, not yet built:** an operator's statement must show the
-  customer's own leg of any entry that moves their balance, with a neutral description and no account names, pending
-  the client's confirmation — the option of keeping the operator's document self-consistent was rejected. Building it
-  means the server sending a redacted version of such an entry (a backend change to the snapshot filtering); see
-  PROJECT_STATUS.md. Until then this is a known, recorded fault, not something to "fix" inside the PDF.
+  withholds any journal entry with an Income leg from operators, so a manual fee against a customer moves the
+  stored balance but does not appear on the operator's statement (reproduced 2026-09-21: admin 10,800 =
+  stored; operator 8,300). **Decided, not yet built:** show the customer's own leg with a neutral description
+  and no account names — a backend change to snapshot filtering; see PROJECT_STATUS.md. Not a PDF fix.
 
 ## Testing and verification
 
-503 tests: 80 engine unit (2 files), 203 backend (28 files — 26 integration with real HTTP against
+513 tests: 80 engine unit (2 files), 203 backend (28 files — 26 integration with real HTTP against
 real Postgres, no supertest, each file booting `http.createServer(createApp())` on an ephemeral
-port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 220 frontend unit
+port, plus `guardPreviewDatabase.test.ts` and `deskTime.test.ts` which are pure), 230 frontend unit
 (17 files under `src/lib/`, node environment, **no jsdom** — so a frontend test can cover pure
 logic but never a component, and anything touching `window` must be guarded at module load or it
 breaks the suite). No CI — `npm run test` is manual.

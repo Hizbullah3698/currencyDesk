@@ -49,6 +49,8 @@ export function LedgerDetail() {
   // for the person to say whether to carry on; `pdfError` is a plain-words failure to show.
   const [notice, setNotice] = useState<{ doc: StatementDocument; mode: PdfMode } | null>(null)
   const [pdfError, setPdfError] = useState('')
+  // Off by default: a per-currency trading table is noise on an ordinary account statement. PDF only.
+  const [includeCurrencySummary, setIncludeCurrencySummary] = useState(false)
 
   const ledger = useMemo(() => {
     if (!cust) return null
@@ -83,7 +85,7 @@ export function LedgerDetail() {
     try {
       doc = buildStatementDocument(
         { customer: cust!, accounts: state.accounts, activity: state.activity, cheques: state.cheques, journalEntries: state.journalEntries },
-        { from, to },
+        { from, to, includeCurrencySummary },
       )
     } catch (err) {
       // Only ever a statement that does not add up. It is NOT printed: a customer must not be handed one.
@@ -199,7 +201,16 @@ export function LedgerDetail() {
             Full history
           </Button>
         )}
-        <div className="ml-auto text-meta font-normal text-muted-60">Print and both exports use this range.</div>
+        <label className="flex h-[34px] cursor-pointer items-center gap-2 text-body">
+          <input
+            type="checkbox"
+            checked={includeCurrencySummary}
+            onChange={(e) => setIncludeCurrencySummary(e.target.checked)}
+            className="size-4 accent-[var(--color-accent-solid)]"
+          />
+          Include currency trading summary
+        </label>
+        <div className="ml-auto text-meta font-normal text-muted-60">Print and both exports use this range; the summary option is PDF only.</div>
       </Card>
 
       {pdfError && (

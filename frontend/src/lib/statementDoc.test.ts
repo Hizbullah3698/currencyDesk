@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { Account, Activity, Cheque, JournalEntry } from './engine'
-import { balanceMeaning, buildStatementDocument, pdfDate, rateInWords, StatementIntegrityError, type StatementSource } from './statementDoc'
+import { balanceLabel, buildStatementDocument, openingNote, pdfDate, rateInWords, StatementIntegrityError, type StatementSource } from './statementDoc'
 import { formatBalance, formatPaisa } from './statementMoney'
 import { shortRef } from './format'
-import { referenceStatementSource, REFERENCE_OPTIONS } from './statementReference.fixture'
+import { dubaiOneTransactionSource, referenceStatementSource, REFERENCE_OPTIONS } from './statementReference.fixture'
 
 const AUDIT = { createdBy: 'admin', updatedBy: 'admin' }
 const NOW = new Date(2026, 8, 21, 14, 5) // 21 Sep 2026, 14:05 local
@@ -180,7 +180,7 @@ describe('statement document — the reference statement', () => {
     expect(formatPaisa(d.totalDebits, 2)).toBe('1,422,242.49')
     expect(formatPaisa(d.totalCredits, 2)).toBe('3,014,816.16')
     expect(formatBalance(d.closing, 2)).toBe('1,592,573.67 Cr')
-    expect(d.closingMeaning).toBe('Amount payable to customer')
+    expect(d.closingLabel).toBe('We owe you')
     expect(d.periodLabel).toBe('15 Sep 2026 to 21 Sep 2026')
     // And the stored balance agrees: the fixture's customer carries 1,592,573.67 payable.
     expect(d.closing).toBe(-Math.round(referenceStatementSource().customer.payable! * 100))
@@ -192,21 +192,21 @@ describe('statement document — the reference statement', () => {
     expect([aed.sold, aed.bought, aed.net]).toEqual([100, 75, -25])
     expect(words(aed.soldLabel)).toBe('AED 100')
     expect(words(aed.boughtLabel)).toBe('AED 75')
-    expect(aed.netLabel).toBe('AED 25 net sold')
-    expect([aed.netQuantity, aed.netDirection]).toEqual(['AED 25', 'Net sold to customer'])
+    expect(words(aed.netLabel)).toBe('AED 25 net sold to you')
+    expect([words(aed.netQuantity), aed.netDirection]).toEqual(['AED 25', 'Net sold to you'])
     // Deal values in PKR at each deal's own rate: 5 x 20 @ 79 and 5 x 15 @ 78.
     expect([aed.soldValue, aed.boughtValue]).toEqual([790_000, 585_000])
 
     const tmn = d.currencySummary.find((c) => c.code === 'TMN')!
     expect([tmn.bought, tmn.sold]).toEqual([1_650_000_000, 875_000_000])
-    expect(tmn.netLabel).toBe('TMN 775,000,000 net bought')
+    expect(words(tmn.netLabel)).toBe('TMN 775,000,000 net bought from you')
   })
 
   it('lists the reference cheques as uncleared with their real statuses, outside the balance', () => {
     const d = buildStatementDocument(referenceStatementSource(), REFERENCE_OPTIONS)
     expect(d.pendingCheques.map((q) => [q.directionLabel, q.number, q.status])).toEqual([
-      ['Issued to customer', 'OUT-991', 'Deposited'],
-      ['Received from customer', 'IN-778', 'Pending'],
+      ['To you', 'OUT-991', 'Deposited'],
+      ['From you', 'IN-778', 'Pending'],
     ])
     expect([d.pendingIn, d.pendingOut]).toEqual([4_500_000, 3_000_000])
     // The cleared cheque IS a row; the two uncleared ones are not.
@@ -214,22 +214,48 @@ describe('statement document — the reference statement', () => {
   })
 })
 
+describe('statement document — the one-transaction baseline', () => {
+  it('keeps the baseline figures: one TMN sale, 3,807,106.60 owed by the customer', () => {
+    const d = buildStatementDocument(dubaiOneTransactionSource(), { from: '2026-09-19', to: '2026-09-21', now: NOW })
+    expect(d.customerName).toBe('Dubai Tmn Buyer')
+    expect(formatBalance(d.opening, 2)).toBe('0.00')
+    expect([formatPaisa(d.totalDebits, 2), formatPaisa(d.totalCredits, 2)]).toEqual(['3,807,106.60', '0.00'])
+    expect(formatBalance(d.closing, 2)).toBe('3,807,106.60 Dr')
+    expect(d.closingLabel).toBe('You owe')
+    expect(words(d.entries[0].particulars)).toBe('You bought TMN 3,000,000,000')
+    expect(d.entries[0].detail).toBe('Toman · Rate: 788 TMN = 1 PKR')
+  })
+})
+
 describe('statement document — what the balance means', () => {
-  it('words a Dr balance as receivable, a Cr balance as payable, and nothing as settled', () => {
-    expect(balanceMeaning(150_000, 2)).toBe('Amount receivable from customer')
-    expect(balanceMeaning(-150_000, 2)).toBe('Amount payable to customer')
-    expect(balanceMeaning(0, 2)).toBe('Account settled — no outstanding balance')
-    // A balance that rounds to nothing at the chosen decimals has no side, so it is settled — never "Cr 0".
-    expect(balanceMeaning(-40, 0)).toBe('Account settled — no outstanding balance')
+  it('words the opening balance in the past tense, and says nothing when nothing was owed', () => {
+    expect(openingNote(150_000, 2)).toBe('you owed')
+    expect(openingNote(-150_000, 2)).toBe('we owed you')
+    expect(openingNote(0, 2)).toBe('')
   })
 
-  it('follows the ledger: a sale leaves the customer owing (Dr, receivable); a purchase leaves the business owing (Cr, payable)', () => {
+  it('leaves the currency trading summary out unless asked for, and computes it either way', () => {
+    const off = buildStatementDocument(referenceStatementSource(), REFERENCE_OPTIONS)
+    const on = buildStatementDocument(referenceStatementSource(), { ...REFERENCE_OPTIONS, includeCurrencySummary: true })
+    expect(off.showCurrencySummary).toBe(false)
+    expect(on.showCurrencySummary).toBe(true)
+    expect(on.currencySummary).toEqual(off.currencySummary)
+  })
+  it('words a Dr balance as "You owe", a Cr balance as "We owe you", and nothing as "Account settled"', () => {
+    expect(balanceLabel(150_000, 2)).toBe('You owe')
+    expect(balanceLabel(-150_000, 2)).toBe('We owe you')
+    expect(balanceLabel(0, 2)).toBe('Account settled')
+    // A balance that rounds to nothing at the chosen decimals has no side, so it is settled — never "Cr 0".
+    expect(balanceLabel(-40, 0)).toBe('Account settled')
+  })
+
+  it('follows the ledger: a sale leaves the customer owing (Dr, You owe); a purchase leaves the business owing (Cr, We owe you)', () => {
     const owes = buildStatementDocument(src({ activity: [act({ type: 'sale', amount: 10, rate: 80, pkrValue: 800, txnDate: '2026-09-15' })] }), { now: NOW })
     expect(owes.closing).toBeGreaterThan(0)
-    expect(owes.closingMeaning).toBe('Amount receivable from customer')
+    expect(owes.closingLabel).toBe('You owe')
     const owed = buildStatementDocument(src({ activity: [act({ type: 'purchase', amount: 10, rate: 80, pkrValue: 800, txnDate: '2026-09-15' })] }), { now: NOW })
     expect(owed.closing).toBeLessThan(0)
-    expect(owed.closingMeaning).toBe('Amount payable to customer')
+    expect(owed.closingLabel).toBe('We owe you')
     const even = buildStatementDocument(
       src({
         activity: [
@@ -240,7 +266,7 @@ describe('statement document — what the balance means', () => {
       { now: NOW },
     )
     expect(even.closing).toBe(0)
-    expect(even.closingMeaning).toBe('Account settled — no outstanding balance')
+    expect(even.closingLabel).toBe('Account settled')
   })
 
   it("carries a non-zero opening balance from before the period and the account's own opening figure, and the identity holds", () => {
@@ -260,7 +286,7 @@ describe('statement document — what the balance means', () => {
     expect(d.periodLabel).toBe('1 Oct 2026 to 31 Oct 2026')
     const blank = buildStatementDocument(src(), { now: NOW })
     expect(blank.periodLabel).toBe('Up to 21 Sep 2026')
-    expect(blank.closingMeaning).toBe('Account settled — no outstanding balance')
+    expect(blank.closingLabel).toBe('Account settled')
     expect(blank.currencySummary).toEqual([])
   })
 })
@@ -269,28 +295,28 @@ describe('statement document — wording and references', () => {
   it("describes deals from the business's side, with the rate's units spelled out in each direction", () => {
     const d = buildStatementDocument(src({ activity: dubai() }), { now: NOW })
     expect(d.entries.map((e) => [words(e.particulars), e.detail])).toEqual([
-      ['Sold to customer: AED 500', 'UAE Dirham · Rate: PKR 80 per AED'],
-      ['Sold to customer: TMN 3,000,000,000', 'Toman · Rate: 788 TMN per PKR'],
-      ['Cash received from customer', ''],
-      ['Sold to customer: TMN 1,000,000,000', 'Toman · Rate: 788 TMN per PKR'],
-      ['Sold to customer: TMN 500,000,000', 'Toman · Rate: 789 TMN per PKR'],
+      ['You bought AED 500', 'Rate: 1 AED = 80 PKR'],
+      ['You bought TMN 3,000,000,000', 'Toman · Rate: 788 TMN = 1 PKR'],
+      ['Payment received \u2014 Cash', ''],
+      ['You bought TMN 1,000,000,000', 'Toman · Rate: 788 TMN = 1 PKR'],
+      ['You bought TMN 500,000,000', 'Toman · Rate: 789 TMN = 1 PKR'],
     ])
   })
 
   it('keeps the currency code on the same line as its amount when a description wraps', () => {
     const d = buildStatementDocument(src({ activity: dubai() }), { now: NOW })
-    expect(d.entries[1].particulars).toBe(`Sold to customer: TMN${NBSP}3,000,000,000`)
+    expect(d.entries[1].particulars).toBe(`You bought TMN${NBSP}3,000,000,000`)
   })
 
   it('says what a rate means without converting it: PKR per unit when multiplied, units per PKR when divided', () => {
     // AED 20 @ 79 is 1,580.00 (multiplied); TMN 150,000,000 @ 788 is 190,355.33 (divided). The words follow the maths.
-    expect(rateInWords('AED', 79)).toBe('PKR 79 per AED')
-    expect(rateInWords('TMN', 788)).toBe('788 TMN per PKR')
-    expect(rateInWords('USD', 282.5)).toBe('PKR 282.5 per USD')
+    expect(rateInWords('AED', 79)).toBe('Rate: 1 AED = 79 PKR')
+    expect(rateInWords('TMN', 788)).toBe('Rate: 788 TMN = 1 PKR')
+    expect(rateInWords('USD', 282.5)).toBe('Rate: 1 USD = 282.5 PKR')
     // Not forced to two places, and never rounded away when a rate carries decimals.
-    expect(rateInWords('AED', 76.25)).toBe('PKR 76.25 per AED')
+    expect(rateInWords('AED', 76.25)).toBe('Rate: 1 AED = 76.25 PKR')
     // A code the app does not know is priced as a multiply quote (currencies.ts), so it is described as one.
-    expect(rateInWords('XYZ', 3)).toBe('PKR 3 per XYZ')
+    expect(rateInWords('XYZ', 3)).toBe('Rate: 1 XYZ = 3 PKR')
   })
 
   it('describes purchases, cash and bank payments both ways, and names the bank account a bank payment went through', () => {
@@ -302,10 +328,10 @@ describe('statement document — wording and references', () => {
     ]
     const d = buildStatementDocument(src({ activity }), { now: NOW })
     expect(d.entries.map((e) => [words(e.particulars), e.detail])).toEqual([
-      ['Bought from customer: AED 500', 'UAE Dirham · Rate: PKR 80 per AED'],
-      ['Cash paid to customer', ''],
-      ['Bank payment received from customer', 'Via Meezan Bank - Current'],
-      ['Bank payment to customer', ''],
+      ['You sold AED 500', 'Rate: 1 AED = 80 PKR'],
+      ['Payment sent to you \u2014 Cash', ''],
+      ['Payment received \u2014 Bank', 'Via Meezan Bank - Current'],
+      ['Payment sent to you \u2014 Bank', ''],
     ])
   })
 
@@ -313,20 +339,20 @@ describe('statement document — wording and references', () => {
     const s = act({ type: 'sale', currency: 'AED', amount: 100, rate: 80, pkrValue: 8000, paidNow: 3000, method: 'Cash', txnDate: '2026-09-15' })
     const d = buildStatementDocument(src({ activity: [s] }), { now: NOW })
     expect(d.entries[0].debit).toBe(500_000)
-    expect(d.entries[0].detail).toBe('UAE Dirham · Rate: PKR 80 per AED · Deal value PKR 8,000.00, PKR 3,000.00 settled at the time')
+    expect(d.entries[0].detail).toBe('Rate: 1 AED = 80 PKR · Deal value 8,000.00, 3,000.00 paid at the time')
   })
 
   it('references a deal or payment exactly as the Transactions page does', () => {
     const activity = dubai()
     const d = buildStatementDocument(src({ activity }), { now: NOW })
-    const refs = d.entries.map((e) => e.voucher)
+    const refs = d.entries.map((e) => e.reference)
     expect(refs).toEqual(activity.map((a) => shortRef(a.id)))
     expect(refs[0]).toBe('CE78B16F')
   })
 
   it('shows the customer account id in the same short form', () => {
     const d = buildStatementDocument(src({ activity: dubai() }), { now: NOW })
-    expect(d.accountId).toBe('5C9AB663')
+    expect(d.accountRef).toBe('5C9AB663')
   })
 
   it('describes a cleared cheque by its direction, number and bank', () => {
@@ -334,9 +360,9 @@ describe('statement document — wording and references', () => {
     const out = chq({ direction: 'Outward', amount: 200, status: 'Cleared', bank: 'UBL', number: '009', updatedAt: '2026-09-16T10:00:00.000Z' })
     const sale = act({ type: 'sale', amount: 1, rate: 10, pkrValue: 2000, txnDate: '2026-09-15' })
     const d = buildStatementDocument(src({ activity: [sale], cheques: [q, out] }), { now: NOW })
-    expect([d.entries[1].particulars, d.entries[1].detail, d.entries[1].voucher]).toEqual(['Cheque received from customer, cleared', 'Cheque no. 001234 · HBL', shortRef(q.id)])
+    expect([d.entries[1].particulars, d.entries[1].detail, d.entries[1].reference]).toEqual(['Cheque received \u2014 cleared', 'Cheque no. 001234 · HBL', shortRef(q.id)])
     expect(d.entries[1].credit).toBe(50_000)
-    expect([d.entries[2].particulars, d.entries[2].detail]).toEqual(['Cheque issued to customer, cleared', 'Cheque no. 009 · UBL'])
+    expect([d.entries[2].particulars, d.entries[2].detail]).toEqual(['Cheque sent to you \u2014 cleared', 'Cheque no. 009 · UBL'])
     expect(d.entries[2].debit).toBe(20_000)
   })
 
@@ -344,7 +370,7 @@ describe('statement document — wording and references', () => {
     const toOther = je({ ref: 'JV-002', debitAccount: CUST, creditAccount: OTHER, debitLabel: customer.name, creditLabel: other.name, amount: 700, narration: 'Transfer from Dubai Tmn Buyer to Bilal Traders' })
     const fromOther = je({ ref: 'JV-003', debitAccount: OTHER, creditAccount: CUST, debitLabel: other.name, creditLabel: customer.name, amount: 300, narration: 'Transfer from Bilal Traders to Dubai Tmn Buyer', createdAt: '2026-09-15T11:00:00.000Z' })
     const d = buildStatementDocument(src({ journalEntries: [toOther, fromOther] }), { now: NOW })
-    expect([d.entries[0].particulars, d.entries[0].voucher, d.entries[0].debit]).toEqual(['Transfer to Bilal Traders', 'JV-002', 70_000])
+    expect([d.entries[0].particulars, d.entries[0].reference, d.entries[0].debit]).toEqual(['Transfer to Bilal Traders', 'JV-002', 70_000])
     expect([d.entries[1].particulars, d.entries[1].credit]).toEqual(['Transfer from Bilal Traders', 30_000])
   })
 
@@ -353,7 +379,7 @@ describe('statement document — wording and references', () => {
     const credit = je({ ref: 'JV-010', debitAccount: 'capital', creditAccount: CUST, debitLabel: 'Capital', creditLabel: customer.name, amount: 100, narration: 'Rebate allowed', createdAt: '2026-09-15T11:00:00.000Z' })
     const blank = je({ ref: 'JV-011', debitAccount: CUST, creditAccount: 'capital', debitLabel: customer.name, creditLabel: 'Capital', amount: 5, narration: '', createdAt: '2026-09-15T12:00:00.000Z' })
     const d = buildStatementDocument(src({ journalEntries: [fee, credit, blank] }), { now: NOW })
-    expect(d.entries.map((e) => [e.particulars, e.voucher])).toEqual([
+    expect(d.entries.map((e) => [e.particulars, e.reference])).toEqual([
       ['Opening adjustment', 'JV-009'],
       ['Rebate allowed', 'JV-010'],
       ['Journal entry', 'JV-011'],
@@ -370,12 +396,12 @@ describe('statement document — wording and references', () => {
     expect(pdfDate('2026-01-05T10:00:00.000Z')).toBe('5 Jan 2026')
   })
 
-  it('names the business from settings and leaves out contact details that do not exist', () => {
+  it('names the business from its configuration and leaves out contact details that do not exist', () => {
     const d = buildStatementDocument(src(), { now: NOW })
-    expect(d.business).toEqual({ name: 'DESK NAME', addressLines: [], phone: '' })
+    expect(d.business).toEqual({ name: 'Currency Desk', contactLine: '' })
     expect(d.accountCurrency).toEqual({ code: 'PKR', name: 'Pakistani Rupee' })
     const branded = buildStatementDocument(src(), { now: NOW, business: { name: 'Al-Noor Exchange', addressLines: ['Shop 4, Main Bazaar', ''], phone: '+92 300 0000000' } })
-    expect(branded.business).toEqual({ name: 'Al-Noor Exchange', addressLines: ['Shop 4, Main Bazaar'], phone: '+92 300 0000000' })
+    expect(branded.business).toEqual({ name: 'Al-Noor Exchange', contactLine: 'Shop 4, Main Bazaar · Tel. +92 300 0000000' })
   })
 })
 
@@ -396,7 +422,7 @@ describe('statement document — uncleared cheques and currency trading', () => 
     expect(d.closing).toBe(90_000_000)
     // Only uncleared cheques, soonest due first, each with its amount and its actual status — Deposited is not Cleared.
     expect(d.pendingCheques.map((q) => q.number)).toEqual(['445566', '778899'])
-    expect(d.pendingCheques.map((q) => q.directionLabel)).toEqual(['Issued to customer', 'Received from customer'])
+    expect(d.pendingCheques.map((q) => q.directionLabel)).toEqual(['To you', 'From you'])
     expect(d.pendingCheques.map((q) => q.status)).toEqual(['Deposited', 'Pending'])
     expect(d.pendingIn).toBe(50_000_000)
     expect(d.pendingOut).toBe(12_000_050)
@@ -406,9 +432,9 @@ describe('statement document — uncleared cheques and currency trading', () => 
     const d = buildStatementDocument(src({ activity: dubai() }), { now: NOW })
     const byCode = Object.fromEntries(d.currencySummary.map((c) => [c.code, c]))
     expect([byCode.TMN.bought, byCode.TMN.sold]).toEqual([0, 4_500_000_000])
-    expect(byCode.TMN.netLabel).toBe('TMN 4,500,000,000 net sold')
+    expect(words(byCode.TMN.netLabel)).toBe('TMN 4,500,000,000 net sold to you')
     expect(byCode.TMN.soldValue).toBe(570_985_569)
-    expect(byCode.AED.netLabel).toBe('AED 500 net sold')
+    expect(words(byCode.AED.netLabel)).toBe('AED 500 net sold to you')
     expect(d.currencySummary.map((c) => c.code)).toEqual(['AED', 'TMN'])
 
     const even = buildStatementDocument(
@@ -420,7 +446,7 @@ describe('statement document — uncleared cheques and currency trading', () => 
       }),
       { now: NOW },
     )
-    expect(even.currencySummary[0].netLabel).toBe('Even (bought = sold)')
+    expect(even.currencySummary[0].netLabel).toBe('Even')
     expect(even.currencySummary[0].netQuantity).toBe('')
   })
 

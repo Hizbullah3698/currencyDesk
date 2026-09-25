@@ -21,60 +21,65 @@ import { formatPaisa, formatRate, formatUnits, rupeesToPaisa, splitBalance, type
 // neither the figures nor the words appear anywhere in the document.
 //
 // EVERY AMOUNT IS WHOLE PAISA. Floats from the ledger are converted once (statementMoney.ts) and
-// everything after is integer arithmetic, so the columns add up on paper.
+// everything after is integer arithmetic, so the columns add up on paper. Totals are summed from those
+// integers, never from formatted text.
 //
 // THE SIGN CONVENTION, traced rather than assumed: `customerLedger`'s runningNet is receivable − payable,
 // so a POSITIVE net is Dr — the customer owes the business — and a NEGATIVE net is Cr — the business owes
 // the customer. A sale to the customer is a debit (it adds to what they owe); a purchase from them, and
-// money received from them, are credits. Every plain-language label below is derived from that one rule.
+// money received from them, are credits.
 //
-// THE WORDING is from the business's side throughout ("Sold to customer", "Cash received from customer"),
-// and says only what the record supports: a manual journal entry keeps the narration the person wrote,
-// and a transfer names the other customer exactly as the entry records them.
+// THE PERSPECTIVE IS THE CUSTOMER'S, always — the document is addressed to them, whoever generates it (an
+// admin and an operator get identical words). "You owe" / "We owe you" / "Account settled" for the balance;
+// "You bought" when the desk SOLD to them and "You sold" when the desk BOUGHT from them. Nothing here reads
+// the viewer's role. A manual journal entry keeps the narration its author wrote: the record does not say
+// whether a credit is a discount or a debit is a service charge, so the words are never guessed.
 
 // --- The words WE write. Checked at load: a character the PDF font cannot print throws right here. ---
 const W = {
-  soldToCustomer: assertPdfSafeLiteral('Sold to customer'),
-  boughtFromCustomer: assertPdfSafeLiteral('Bought from customer'),
-  rate: assertPdfSafeLiteral('Rate'),
-  per: assertPdfSafeLiteral('per'),
+  youBought: assertPdfSafeLiteral('You bought'),
+  youSold: assertPdfSafeLiteral('You sold'),
   sep: assertPdfSafeLiteral(' · '), // middle dot: in Latin-1, so the font has it
   /** No-break space: keeps a currency code on the same line as its amount when a description wraps. */
   nbsp: assertPdfSafeLiteral(' '),
-  cashReceived: assertPdfSafeLiteral('Cash received from customer'),
-  bankReceived: assertPdfSafeLiteral('Bank payment received from customer'),
-  chequeReceived: assertPdfSafeLiteral('Cheque payment received from customer'),
-  otherReceived: assertPdfSafeLiteral('Payment received from customer'),
-  cashPaid: assertPdfSafeLiteral('Cash paid to customer'),
-  bankPaid: assertPdfSafeLiteral('Bank payment to customer'),
-  chequePaid: assertPdfSafeLiteral('Cheque payment to customer'),
-  otherPaid: assertPdfSafeLiteral('Payment to customer'),
+  paymentReceived: assertPdfSafeLiteral('Payment received'),
+  paymentSent: assertPdfSafeLiteral('Payment sent to you'),
+  dash: assertPdfSafeLiteral(' — '), // spaced em dash: "Payment received — Cash"
   via: assertPdfSafeLiteral('Via'),
-  chequeInCleared: assertPdfSafeLiteral('Cheque received from customer, cleared'),
-  chequeOutCleared: assertPdfSafeLiteral('Cheque issued to customer, cleared'),
+  chequeReceived: assertPdfSafeLiteral('Cheque received — cleared'),
+  chequeSent: assertPdfSafeLiteral('Cheque sent to you — cleared'),
   chequeNo: assertPdfSafeLiteral('Cheque no.'),
   transferTo: assertPdfSafeLiteral('Transfer to'),
   transferFrom: assertPdfSafeLiteral('Transfer from'),
   journal: assertPdfSafeLiteral('Journal entry'),
   dealValue: assertPdfSafeLiteral('Deal value'),
-  settledAtTime: assertPdfSafeLiteral('settled at the time'),
+  paidAtTime: assertPdfSafeLiteral('paid at the time'),
+  rate: assertPdfSafeLiteral('Rate'),
   opening: assertPdfSafeLiteral('Opening balance'),
   noEntries: assertPdfSafeLiteral('No transactions in this period.'),
-  payable: assertPdfSafeLiteral('Amount payable to customer'),
-  receivable: assertPdfSafeLiteral('Amount receivable from customer'),
-  settled: assertPdfSafeLiteral('Account settled — no outstanding balance'),
-  chequeIn: assertPdfSafeLiteral('Received from customer'),
-  chequeOut: assertPdfSafeLiteral('Issued to customer'),
-  netBought: assertPdfSafeLiteral('net bought'),
-  netSold: assertPdfSafeLiteral('net sold'),
-  netBoughtFrom: assertPdfSafeLiteral('Net bought from customer'),
-  netSoldTo: assertPdfSafeLiteral('Net sold to customer'),
-  even: assertPdfSafeLiteral('Even (bought = sold)'),
+  youOwe: assertPdfSafeLiteral('You owe'),
+  weOweYou: assertPdfSafeLiteral('We owe you'),
+  settled: assertPdfSafeLiteral('Account settled'),
+  youOwed: assertPdfSafeLiteral('you owed'),
+  weOwedYou: assertPdfSafeLiteral('we owed you'),
+  fromYou: assertPdfSafeLiteral('From you'),
+  toYou: assertPdfSafeLiteral('To you'),
+  netBought: assertPdfSafeLiteral('Net bought from you'),
+  netSold: assertPdfSafeLiteral('Net sold to you'),
+  even: assertPdfSafeLiteral('Even'),
   to: assertPdfSafeLiteral('to'),
   upTo: assertPdfSafeLiteral('Up to'),
 } as const
 
 export const STATEMENT_WORDS = W
+export const OPENING_LABEL = W.opening
+export const NO_ENTRIES_LABEL = W.noEntries
+
+/**
+ * Codes whose meaning a customer cannot be expected to know — Toman has no ISO code, so "TMN" alone is
+ * opaque. Their name is shown beside the deal; a familiar code (USD, AED) is left to speak for itself.
+ */
+const NAME_HELPS = new Set(['TMN'])
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -88,23 +93,30 @@ const two = (n: number) => String(n).padStart(2, '0')
 const localISO = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`
 
 /**
- * What a balance MEANS, in words a customer can act on. Uses the same side rule as every printed balance
- * (splitBalance), so a figure that rounds to nothing at the chosen decimals is "settled", never "Cr 0.00".
+ * What a closing balance MEANS to the customer: "You owe" (Dr), "We owe you" (Cr), "Account settled" (nothing —
+ * including a figure that rounds to nothing at the chosen decimals, so never "We owe you 0.00").
  */
-export function balanceMeaning(net: Paisa, decimals: AmountDecimals): string {
+export function balanceLabel(net: Paisa, decimals: AmountDecimals): string {
   const { side } = splitBalance(net, decimals)
-  return side === 'Dr' ? W.receivable : side === 'Cr' ? W.payable : W.settled
+  return side === 'Dr' ? W.youOwe : side === 'Cr' ? W.weOweYou : W.settled
+}
+
+/** The same fact in the past tense, for the opening balance: "you owed", "we owed you", or '' when nothing was owed. */
+export function openingNote(net: Paisa, decimals: AmountDecimals): string {
+  const { side } = splitBalance(net, decimals)
+  return side === 'Dr' ? W.youOwed : side === 'Cr' ? W.weOwedYou : ''
 }
 
 /**
- * How a rate is quoted for this currency, spelled out: "PKR 79 per AED" for a currency worth more than a
- * rupee (the rate is MULTIPLIED), "788 TMN per PKR" for the Toman (the rate is DIVIDED). The stored rate is
- * shown exactly as the dealer typed it — this only says what the number means; it converts nothing.
+ * How a rate is quoted, spelled out as an equation the customer can read: "Rate: 1 AED = 79 PKR" for a currency
+ * worth more than a rupee (the rate is MULTIPLIED), "Rate: 788 TMN = 1 PKR" for the Toman (the rate is DIVIDED).
+ * The stored rate is shown as the dealer typed it — this only says what the number means; it converts and rounds
+ * nothing beyond the currency's own display precision.
  */
 export function rateInWords(code: string, rate: number): string {
   const meta = currencyMeta(code)
   const r = formatRate(rate, meta.rateDecimals)
-  return meta.quote === 'divide' ? `${r} ${code} ${W.per} PKR` : `PKR ${r} ${W.per} ${code}`
+  return meta.quote === 'divide' ? `${W.rate}: ${r} ${code} = 1 PKR` : `${W.rate}: 1 ${code} = ${r} PKR`
 }
 
 // --- The document ---
@@ -114,12 +126,12 @@ export interface StatementEntry {
   date: string
   /** '15 Sep 2026' — printed on every row, so a row can be read on its own. */
   dateLabel: string
-  /** The row's first line: what happened, from the business's side ("Sold to customer: AED 20"). */
+  /** The row's first line, from the customer's side ("You bought TMN 3,000,000,000"). */
   particulars: string
   /** The second line, smaller and grey: rate, bank, cheque number. May be empty. */
   detail: string
   /** The voucher number where one exists (JV-022), else the reference the Transactions page shows. */
-  voucher: string
+  reference: string
   /** Paisa. 0 means "blank cell". */
   debit: Paisa
   credit: Paisa
@@ -129,6 +141,7 @@ export interface StatementEntry {
 
 export interface StatementPendingCheque {
   direction: 'in' | 'out'
+  /** "From you" or "To you". */
   directionLabel: string
   number: string
   bank: string
@@ -141,45 +154,50 @@ export interface StatementPendingCheque {
 /** One currency's trading with this customer in the period. Quantities are never added across currencies. */
 export interface StatementCurrencyLine {
   code: string
-  /** "UAE Dirham"; empty for a code the app has no name for. */
+  /** "Toman" where the code alone would not be understood; empty otherwise. */
   name: string
+  /** Units the desk bought FROM the customer, and sold TO them. */
   bought: number
   sold: number
   boughtLabel: string
   soldLabel: string
-  /** PKR value of those deals at each deal's own rate, paisa. Not profit, not today's value. */
+  /** PKR value of those deals at each deal's own rate, paisa. Not profit, not today's value. Kept for callers that want it. */
   boughtValue: Paisa
   soldValue: Paisa
   /** Bought less sold, in units: positive = net bought from the customer. */
   net: number
-  /** The whole net on one line: "AED 25 net sold" — always labelled as a net, never as a sale of 25. */
+  /** The net on one line: "AED 25 net sold to you" — always labelled as a net, never as a sale of 25. */
   netLabel: string
-  /** The same, as the two lines the PDF prints: "AED 25" over "Net sold to customer". Quantity is '' when even. */
+  /** The net as the two lines the PDF prints: "AED 25" over "Net sold to you". Quantity is '' when even. */
   netQuantity: string
   netDirection: string
 }
 
 export interface StatementDocument {
-  business: { name: string; addressLines: string[]; phone: string }
+  business: { name: string; /** Address and phone joined on one line; '' when none is configured. */ contactLine: string }
   title: string
   customerName: string
-  /** The short account id: the same 8-character form the Transactions page uses for references. */
-  accountId: string
+  /** The short account reference: the same 8-character form the Transactions page uses. */
+  accountRef: string
   accountCurrency: { code: string; name: string }
   periodFrom: string
   periodTo: string
   /** "15 Sep 2026 to 21 Sep 2026", or "Up to 21 Sep 2026" when there is no start. */
   periodLabel: string
+  /** The date the closing balance is struck at: the period end. Not necessarily today. */
+  asAtLabel: string
   generatedAt: string
   decimals: AmountDecimals
 
   /** Signed net, paisa: positive Dr, negative Cr. */
   opening: Paisa
+  /** "you owed" / "we owed you" / '' — the opening balance's direction in words. */
+  openingNote: string
   totalDebits: Paisa
   totalCredits: Paisa
   closing: Paisa
-  /** "Amount payable to customer" etc. — what the closing balance means. */
-  closingMeaning: string
+  /** "You owe" / "We owe you" / "Account settled". */
+  closingLabel: string
 
   entries: StatementEntry[]
   entryCount: number
@@ -188,7 +206,9 @@ export interface StatementDocument {
   pendingIn: Paisa
   pendingOut: Paisa
 
+  /** Always computed; only printed when `showCurrencySummary` is on. */
   currencySummary: StatementCurrencyLine[]
+  showCurrencySummary: boolean
 
   /** Text that had to be changed to print. Empty when nothing was. */
   warnings: TextWarning[]
@@ -211,6 +231,8 @@ export interface StatementOptions {
   /** Override for tests; production reads STATEMENT_CONFIG. */
   decimals?: AmountDecimals
   business?: { name: string; addressLines?: readonly string[]; phone?: string }
+  /** Print the per-currency trading table. Off unless asked: it is noise on an ordinary account statement. */
+  includeCurrencySummary?: boolean
 }
 
 /** The statement did not add up. Never printed — a customer must not be handed a statement that does not foot. */
@@ -238,56 +260,52 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
 
   const money = (p: Paisa) => formatPaisa(p, decimals)
 
-  // --- describe one ledger row: words + voucher, from stored fields only ---
-  function describe(row: LedgerRow, amountOnRow: Paisa): { particulars: string; detail: string; voucher: string } {
+  // --- describe one ledger row: words + reference, from stored fields only ---
+  function describe(row: LedgerRow, amountOnRow: Paisa): { particulars: string; detail: string; reference: string } {
     switch (row.type) {
       case 'sale':
       case 'purchase': {
         const code = pdfText(row.currency ?? 'AED', 'Currency code', warnings)
         const meta = currencyMeta(row.currency)
         const units = formatUnits(row.amount ?? 0, meta.amountDecimals)
-        const verb = row.type === 'sale' ? W.soldToCustomer : W.boughtFromCustomer
+        // The desk SELLING to the customer is the customer BUYING, and the other way round.
+        const verb = row.type === 'sale' ? W.youBought : W.youSold
         const parts: string[] = []
-        if (meta.name && meta.name !== meta.code) parts.push(meta.name)
-        parts.push(`${W.rate}: ${rateInWords(code, row.rate ?? 0)}`)
-        // A deal part-settled at the counter moves the balance by less than its value. Say so, so the
-        // figure in the Debit/Credit column is not mistaken for the deal's value.
+        if (NAME_HELPS.has(code) && meta.name && meta.name !== meta.code) parts.push(meta.name)
+        parts.push(rateInWords(code, row.rate ?? 0))
+        // A deal part-settled at the counter moves the balance by less than its value. Say so, so the figure in
+        // the Debit/Credit column is not mistaken for the deal's value.
         const act = activityById.get(row.id)
         const dealValue = rupeesToPaisa(row.pkrValue)
         if (act && !act.chequeHeld && (act.paidNow || 0) > 0 && dealValue !== amountOnRow) {
-          parts.push(`${W.dealValue} PKR ${money(dealValue)}, PKR ${money(rupeesToPaisa(act.paidNow || 0))} ${W.settledAtTime}`)
+          parts.push(`${W.dealValue} ${money(dealValue)}, ${money(rupeesToPaisa(act.paidNow || 0))} ${W.paidAtTime}`)
         }
-        return { particulars: `${verb}: ${code}${W.nbsp}${units}`, detail: parts.join(W.sep), voucher: shortRef(row.id) }
+        return { particulars: `${verb} ${code}${W.nbsp}${units}`, detail: parts.join(W.sep), reference: shortRef(row.id) }
       }
       case 'receive':
       case 'pay': {
         const act = activityById.get(row.id)
         const method = act?.method
-        const inward = row.type === 'receive'
-        const particulars =
-          method === 'Cash' ? (inward ? W.cashReceived : W.cashPaid)
-          : method === 'Bank' ? (inward ? W.bankReceived : W.bankPaid)
-          : method === 'Cheque' ? (inward ? W.chequeReceived : W.chequePaid)
-          : inward ? W.otherReceived : W.otherPaid
+        const base = row.type === 'receive' ? W.paymentReceived : W.paymentSent
+        const particulars = method === 'Cash' || method === 'Bank' || method === 'Cheque' ? `${base}${W.dash}${method}` : base
         let detail = ''
         if (method === 'Bank' && act?.settlementAccountId) {
           const acct = accountById.get(act.settlementAccountId)
           if (acct?.name) detail = `${W.via} ${pdfText(acct.name, 'Bank account name', warnings)}`
         }
-        return { particulars, detail, voucher: shortRef(row.id) }
+        return { particulars, detail, reference: shortRef(row.id) }
       }
       case 'cheque': {
         const q = chequeById.get(row.id)
         const number = pdfText(q?.number ?? '', `Cheque number (${shortRef(row.id)})`, warnings)
         const bank = pdfText(q?.bank ?? '', `Cheque bank (cheque ${number || shortRef(row.id)})`, warnings)
         const detail = [number ? `${W.chequeNo} ${number}` : '', bank].filter(Boolean).join(W.sep)
-        const particulars = q?.direction === 'Outward' ? W.chequeOutCleared : W.chequeInCleared
-        return { particulars, detail, voucher: shortRef(row.id) }
+        return { particulars: q?.direction === 'Outward' ? W.chequeSent : W.chequeReceived, detail, reference: shortRef(row.id) }
       }
       default: {
         // 'journal': a manual entry or a customer-to-customer transfer.
         const e = entryById.get(row.id)
-        if (!e) return { particulars: W.journal, detail: '', voucher: shortRef(row.id) }
+        if (!e) return { particulars: W.journal, detail: '', reference: shortRef(row.id) }
         const ref = pdfText(e.ref, 'Journal reference', warnings)
         const debitAcct = accountById.get(e.debitAccount)
         const creditAcct = accountById.get(e.creditAccount)
@@ -297,12 +315,10 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
           // The other customer is named exactly as the entry recorded them — nothing is inferred.
           const thisIsDebit = e.debitAccount === cust.id
           const other = pdfText(thisIsDebit ? e.creditLabel : e.debitLabel, `Customer name on transfer ${ref}`, warnings)
-          return { particulars: `${thisIsDebit ? W.transferTo : W.transferFrom} ${other}`, detail: '', voucher: ref }
+          return { particulars: `${thisIsDebit ? W.transferTo : W.transferFrom} ${other}`, detail: '', reference: ref }
         }
-        // A manual entry says what the person who wrote it said. It is NOT relabelled ("Service charge",
-        // "Discount") — the record does not say which it is, only its narration does.
         const narration = pdfText(e.narration, `Entry narration ${ref}`, warnings)
-        return { particulars: narration || W.journal, detail: '', voucher: ref }
+        return { particulars: narration || W.journal, detail: '', reference: ref }
       }
     }
   }
@@ -331,8 +347,8 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
     totalDebits += debit
     totalCredits += credit
 
-    const { particulars, detail, voucher } = describe(row, Math.abs(delta))
-    entries.push({ date: row.date, dateLabel: pdfDate(row.date), particulars, detail, voucher, debit, credit, balance: running })
+    const { particulars, detail, reference } = describe(row, Math.abs(delta))
+    entries.push({ date: row.date, dateLabel: pdfDate(row.date), particulars, detail, reference, debit, credit, balance: running })
   }
 
   // --- THE IDENTITY. opening + debits - credits = closing, and the running balance ended where the
@@ -355,7 +371,7 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
       const number = pdfText(q.number, `Cheque number (${shortRef(q.id)})`, warnings)
       return {
         direction: q.direction === 'Inward' ? ('in' as const) : ('out' as const),
-        directionLabel: q.direction === 'Inward' ? W.chequeIn : W.chequeOut,
+        directionLabel: q.direction === 'Inward' ? W.fromYou : W.toYou,
         number,
         bank: pdfText(q.bank, `Cheque bank (cheque ${number || shortRef(q.id)})`, warnings),
         dueLabel: q.due ? pdfDate(q.due) : '-',
@@ -367,7 +383,7 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
   const pendingOut = pendingCheques.filter((q) => q.direction === 'out').reduce((s, q) => s + q.amount, 0)
 
   // --- currency trading summary: GROSS bought and sold per currency, from the very same period rows as
-  // the table above, and the net between them. A net figure is labelled as a net — "25 AED net sold" —
+  // the table, and the net between them. A net figure is labelled as a net — "AED 25 / Net sold to you" —
   // never as though it were a sale of 25. ---
   const byCode = new Map<string, { bought: number; sold: number; boughtValue: Paisa; soldValue: Paisa }>()
   for (const row of ledger.rows) {
@@ -387,12 +403,13 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
     .map(([rawCode, c]) => {
       const meta = currencyMeta(rawCode)
       const code = pdfText(rawCode, 'Currency code', warnings)
-      const fmtU = (u: number) => `${code} ${formatUnits(u, meta.amountDecimals)}`
+      const fmtU = (u: number) => `${code}${W.nbsp}${formatUnits(u, meta.amountDecimals)}`
       const net = c.bought - c.sold
       const netRounded = Number(Math.abs(net).toFixed(meta.amountDecimals))
+      const direction = netRounded === 0 ? W.even : net > 0 ? W.netBought : W.netSold
       return {
         code,
-        name: meta.name && meta.name !== meta.code ? meta.name : '',
+        name: NAME_HELPS.has(code) && meta.name && meta.name !== meta.code ? meta.name : '',
         bought: c.bought,
         sold: c.sold,
         boughtLabel: fmtU(c.bought),
@@ -400,9 +417,9 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
         boughtValue: c.boughtValue,
         soldValue: c.soldValue,
         net,
-        netLabel: netRounded === 0 ? W.even : `${fmtU(net)} ${net > 0 ? W.netBought : W.netSold}`,
+        netLabel: netRounded === 0 ? W.even : `${fmtU(net)} ${direction.charAt(0).toLowerCase()}${direction.slice(1)}`,
         netQuantity: netRounded === 0 ? '' : fmtU(net),
-        netDirection: netRounded === 0 ? W.even : net > 0 ? W.netBoughtFrom : W.netSoldTo,
+        netDirection: direction,
       }
     })
 
@@ -413,35 +430,32 @@ export function buildStatementDocument(src: StatementSource, opts: StatementOpti
   const periodLabel = periodFrom ? `${periodFrom} ${W.to} ${periodTo}` : `${W.upTo} ${periodTo}`
 
   const business = opts.business ?? STATEMENT_CONFIG.business
+  const contact = [...(business.addressLines ?? []).map((l) => pdfText(l, 'Business address', warnings)), pdfText(business.phone ?? '', 'Business phone', warnings) && `Tel. ${pdfText(business.phone ?? '', 'Business phone', warnings)}`].filter(Boolean)
   return {
-    business: {
-      name: pdfText(business.name, 'Business name', warnings),
-      addressLines: (business.addressLines ?? []).map((l) => pdfText(l, 'Business address', warnings)).filter(Boolean),
-      phone: pdfText(business.phone ?? '', 'Business phone', warnings),
-    },
+    business: { name: pdfText(business.name, 'Business name', warnings), contactLine: contact.join(W.sep) },
     title: STATEMENT_CONFIG.title,
     customerName: pdfText(cust.name, 'Customer name', warnings),
-    accountId: shortRef(cust.id),
+    accountRef: shortRef(cust.id),
     accountCurrency: { ...STATEMENT_CONFIG.accountCurrency },
     periodFrom,
     periodTo,
     periodLabel,
+    asAtLabel: periodTo,
     generatedAt: `${pdfDate(localISO(now))}, ${two(now.getHours())}:${two(now.getMinutes())}`,
     decimals,
     opening,
+    openingNote: openingNote(opening, decimals),
     totalDebits,
     totalCredits,
     closing,
-    closingMeaning: balanceMeaning(closing, decimals),
+    closingLabel: balanceLabel(closing, decimals),
     entries,
     entryCount: entries.length,
     pendingCheques,
     pendingIn,
     pendingOut,
     currencySummary,
+    showCurrencySummary: opts.includeCurrencySummary === true,
     warnings,
   }
 }
-
-export const OPENING_LABEL = W.opening
-export const NO_ENTRIES_LABEL = W.noEntries

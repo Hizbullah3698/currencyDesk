@@ -24,24 +24,27 @@ export type RGB = [number, number, number]
 const rgb = (hex: string): RGB => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as RGB
 
 /**
- * THE PALETTE. A restrained bank-statement look: dark ink on white, one navy accent for headings and the
- * closing figure, and a faint navy-grey shade for the summary and the continuity rows. Every
- * text-on-background pair is at least 4.5:1 (WCAG AA) — statementConfig.test.ts computes and holds them to
- * it, so a later tweak cannot quietly make the small print unreadable.
+ * THE PALETTE. A restrained printable-document look: dark ink on white, ONE blue accent for the business
+ * name, section titles and the thin rule under the header, and a very light grey for table headings and the
+ * summary area. Every text-on-background pair is at least 4.5:1 (WCAG AA) — statementConfig.test.ts computes
+ * and holds them to it, so a later tweak cannot quietly make the small print unreadable.
  *
- * Nothing on the page is red or green, and no meaning is carried by colour alone: a balance's side is
- * always written ("Dr"/"Cr"), so a black-and-white copy loses nothing.
+ * The blue is the app's own accent, `--color-accent-solid` in index.css — what the in-app logo is filled with —
+ * so the statement and the app agree. It is 5.17:1 on white.
+ *
+ * Nothing on the page is red or green, and no meaning is carried by colour alone: a balance's direction is
+ * always written ("You owe", "We owe you", "Dr", "Cr"), so a black-and-white copy loses nothing.
  */
 export const PALETTE = {
-  /** Navy: headings, the rule under the header, the closing figure. */
-  brand: '#1e3a5f',
-  /** Brand at 6% over white: the summary box, continuity rows, the closing row. */
-  tint: '#f2f3f5',
+  /** Blue: the business name, section titles and the header rule. Never carries meaning. */
+  brand: '#2563eb',
+  /** Very light grey: table headings, the summary area, continuity rows. */
+  tint: '#f4f5f7',
   /** Figures and primary text. */
   ink: '#111827',
-  /** The second line of a row (exchange details, bank, cheque number). */
+  /** The second line of a row (rate, bank, cheque number) and other supporting text. */
   detail: '#4b5563',
-  /** Labels, voucher numbers, notes — lighter than the detail line, still AA on the tint. */
+  /** Labels, references and notes — lighter than the detail line, still AA on the tint. */
   light: '#5b6472',
   /** Hairlines between rows and under headings. */
   rule: '#d3d8de',
@@ -60,13 +63,14 @@ export const COLOR = {
 
 export const STATEMENT_CONFIG = {
   /**
-   * The business the statement is from. There is no business-name, address or phone field anywhere in
-   * the data model yet (see PrintHeader.tsx), so the name is an obvious PLACEHOLDER rather than an
-   * invented company name on a document handed to customers, and the address and phone are empty —
-   * which the header omits cleanly. When branding becomes real data (a settings row), it replaces these.
+   * The business the statement is from. There is no business-name, address or phone field anywhere in the
+   * data model yet (see PrintHeader.tsx), so identity is configured HERE: the name the desk trades under,
+   * and address and phone left empty — the header omits empty contact details rather than inventing any.
+   * When branding becomes real data (a settings row), it replaces this block and nothing else changes.
+   * "Currency Desk" is written as two words on purpose, matching the app's own masthead.
    */
   business: {
-    name: 'DESK NAME',
+    name: 'Currency Desk',
     addressLines: [] as readonly string[],
     phone: '',
   },
@@ -82,25 +86,28 @@ export const STATEMENT_CONFIG = {
   margin: { left: 12, right: 12, top: 12, bottom: 16 },
 
   // Column widths add up to the printable width (210 - 12 - 12 = 186).
-  columns: { date: 22, particulars: 65, voucher: 19, debit: 24, credit: 24, balance: 32 },
+  columns: { date: 22, particulars: 61, reference: 21, debit: 26, credit: 26, balance: 30 },
   /** Horizontal padding inside a cell. */
   cellPad: 1.5,
+  /** Extra clear space kept between the end of the particulars text and the Reference column. */
+  particularsGap: 3,
 
-  // Type sizes, pt. Transaction text is 10 pt; the second line of a row is a little smaller and grey.
+  // Type sizes, pt. Transaction text is 10 pt; secondary lines 9 pt; the main balance 20 pt.
   font: {
+    business: 18,
+    title: 16,
+    customer: 16,
     body: 10,
-    detail: 8.6,
-    date: 9,
-    voucher: 8.6,
-    side: 8,
-    tableHead: 8,
-    label: 8,
-    value: 11,
-    closingValue: 14,
-    title: 14,
-    section: 11,
-    note: 8.3,
-    footer: 7.5,
+    secondary: 9,
+    reference: 9,
+    side: 8.5,
+    tableHead: 9,
+    label: 9,
+    note: 9,
+    section: 12,
+    direction: 12,
+    balance: 20,
+    footer: 8.5,
   },
 
   /** Line pitch as a multiple of the type size. */
@@ -108,10 +115,10 @@ export const STATEMENT_CONFIG = {
   /** Space above and below the text of a table row, mm. */
   rowPad: 1.4,
   /** Fixed heights, mm. */
-  row: { tableHead: 7, continuity: 7, totals: 7.4, sectionHead: 7 },
+  row: { tableHead: 7.4, continuity: 7, totals: 7.4, closing: 8, sectionHead: 7.5 },
 
   /**
-   * How many entry rows must sit on the same page as the closing balance. A closing balance that
+   * How many entry rows must sit on the same page as the totals and closing balance. A closing balance that
    * lands alone at the top of a fresh page, with the table it closes left behind, is a fault this
    * document was built to remove.
    */

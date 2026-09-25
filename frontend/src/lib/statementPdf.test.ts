@@ -6,7 +6,7 @@ import { renderStatementPdf, statementPdfBytes, type TextTrace } from './stateme
 import { COLOR, STATEMENT_CONFIG as C } from './statementConfig'
 import { formatBalance, formatPaisa, splitBalance } from './statementMoney'
 import { registerStatementFont, STATEMENT_FONT } from './statementFont'
-import { referenceStatementSource, REFERENCE_OPTIONS } from './statementReference.fixture'
+import { dubaiOneTransactionSource, referenceStatementSource, REFERENCE_OPTIONS } from './statementReference.fixture'
 
 // Renders in plain Node: jsPDF needs no DOM. The embedded font writes text as glyph ids, so what was printed —
 // and exactly where — is read from the renderer's trace rather than out of the bytes.
@@ -36,7 +36,8 @@ function sale(i: number, day: number, o: Partial<Activity> = {}): Activity {
 
 const build = (n: number, days = 5) =>
   buildStatementDocument({ customer, accounts: [customer], activity: Array.from({ length: n }, (_, i) => sale(i, i % days)), cheques: [], journalEntries: [] }, { now: NOW })
-const reference = () => buildStatementDocument(referenceStatementSource(), REFERENCE_OPTIONS)
+const reference = (o: { includeCurrencySummary?: boolean } = {}) => buildStatementDocument(referenceStatementSource(), { ...REFERENCE_OPTIONS, ...o })
+const baseline = () => buildStatementDocument(dubaiOneTransactionSource(), { from: '2026-09-19', to: '2026-09-21', now: new Date(2026, 8, 21, 19, 34) })
 
 function render(d: StatementDocument, o: { grayscale?: boolean } = {}) {
   const trace: TextTrace[] = []
@@ -53,10 +54,9 @@ const L = C.margin.left
 const R = C.page.width - C.margin.right
 const BOTTOM = C.page.height - C.margin.bottom
 const colPart = L + C.columns.date
-const colVoucher = colPart + C.columns.particulars
-const colBalRight = R - C.cellPad
-const FOOTER = C.font.footer
-const isFooter = (t: TextTrace) => t.size <= FOOTER + 1e-9 && t.y > BOTTOM
+const colRef = colPart + C.columns.particulars
+const colBalance = colRef + C.columns.reference + C.columns.debit + C.columns.credit
+const isFooter = (t: TextTrace) => t.y > BOTTOM
 
 /** A line of text's box: from a little above the capitals to a little below the baseline. */
 const box = (t: TextTrace) => ({ x1: t.x, x2: t.x + t.width, y1: t.y - t.size * 0.3528 * 0.78, y2: t.y + t.size * 0.3528 * 0.2 })
@@ -74,10 +74,32 @@ function overlaps(trace: TextTrace[]): string[] {
   }
   return bad
 }
+/**
+ * Separate pieces of text sharing a line, closer than `min` mm. Two runs drawn that close read as one word
+ * ("5,000.00Cr", "–1,400,900.57"), which is exactly how a statement comes to say something it does not mean.
+ */
+function crowded(trace: TextTrace[], min = 1.5): string[] {
+  const bad: string[] = []
+  const lines = new Map<string, TextTrace[]>()
+  for (const t of trace) {
+    const k = `${t.page}:${t.y.toFixed(2)}`
+    lines.set(k, [...(lines.get(k) ?? []), t])
+  }
+  for (const line of lines.values()) {
+    const sorted = [...line].sort((a, b) => a.x - b.x)
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = sorted[i].x - (sorted[i - 1].x + sorted[i - 1].width)
+      // An empty-cell dash right before a figure reads as a minus sign, so it needs far more room than a word does.
+      const need = sorted[i - 1].text === '–' || sorted[i].text === '–' ? 6 : min
+      if (gap < need) bad.push(`p${sorted[i].page}: "${sorted[i - 1].text}" and "${sorted[i].text}" are ${gap.toFixed(2)} mm apart`)
+    }
+  }
+  return bad
+}
 
 /** The balance printed on the same line as a label (a continuity or closing row), digits and side joined. */
 function balanceOnLine(t: TextTrace[], label: TextTrace): string {
-  const same = t.filter((x) => x.page === label.page && Math.abs(x.y - label.y) < 0.01 && x.x > colVoucher + C.columns.debit + C.columns.credit - 0.01)
+  const same = t.filter((x) => x.page === label.page && Math.abs(x.y - label.y) < 0.01 && x.x > colBalance - 0.01)
   return same.sort((a, b) => a.x - b.x).map((x) => x.text).join(' ')
 }
 
@@ -110,80 +132,106 @@ describe('statement PDF — the file', () => {
     }
   })
 
-  it('prints no address, URL or browser furniture', () => {
+  it('prints no URL, placeholder name or browser furniture', () => {
     const all = render(build(60)).texts().join('\n')
-    for (const bad of ['localhost', 'http://', 'https://', 'about:blank', 'www.']) expect(all.includes(bad), bad).toBe(false)
+    for (const bad of ['localhost', 'http://', 'https://', 'about:blank', 'www.', 'DESK NAME']) expect(all.includes(bad), bad).toBe(false)
   })
 })
 
-describe('statement PDF — the reference statement', () => {
-  const r = render(reference())
+describe('statement PDF — the one-transaction baseline', () => {
+  const r = render(baseline())
+
+  it('opens with the business in blue, the title, the customer and the period', () => {
+    const name = r.trace.find((t) => t.text === 'Currency Desk' && t.page === 1)!
+    expect(name.size).toBeGreaterThanOrEqual(16)
+    expect(r.texts(1)).toContain('Statement of Account')
+    expect(r.texts(1)).toContain('Dubai Tmn Buyer')
+    expect(r.texts(1)).toContain('Account ref. 5C9AB663')
+    expect(r.texts(1)).toContain('Statement period')
+    expect(r.texts(1)).toContain('19 Sep 2026 to 21 Sep 2026')
+  })
+
+  it('says "You owe" over the amount, with no Dr/Cr beside the headline figure', () => {
+    const texts = r.texts(1)
+    expect(texts).toContain('Closing balance as at 21 Sep 2026')
+    expect(texts).toContain('You owe')
+    const headline = r.trace.find((t) => t.text === 'PKR 3,807,106.60')!
+    expect(headline.size).toBeGreaterThanOrEqual(18)
+    expect(headline.size).toBeLessThanOrEqual(22)
+    expect(r.trace.some((t) => t.page === 1 && Math.abs(t.y - headline.y) < 0.01 && (t.text === 'Dr' || t.text === 'Cr'))).toBe(false)
+    // Opening balance is there, quieter.
+    const opening = r.trace.find((t) => t.text === 'PKR 0.00')!
+    expect(opening.size).toBeLessThan(headline.size)
+  })
+
+  it('keeps the figures: debit 3,807,106.60, credit total 0.00, closing 3,807,106.60 Dr', () => {
+    const totals = r.trace.find((t) => t.text === 'Period totals')!
+    expect(r.trace.filter((t) => Math.abs(t.y - totals.y) < 0.01).map((t) => t.text)).toEqual(['Period totals', '3,807,106.60', '0.00'])
+    expect(balanceOnLine(r.trace, r.trace.find((t) => t.text === 'Closing balance')!)).toBe('3,807,106.60 Dr')
+    expect(r.texts()).toContain('Rate: 788 TMN = 1 PKR'.replace(/^/, 'Toman · '))
+  })
+
+  it('does not print the currency summary unless asked', () => {
+    expect(r.texts()).not.toContain('Currency trading summary')
+  })
+})
+
+describe('statement PDF — the multipage reference statement', () => {
   const d = reference()
+  const r = render(d)
 
-  it('shows opening, both totals and the closing balance — with its meaning — at the top of page 1', () => {
-    const p1 = r.texts(1)
-    for (const label of ['Opening balance (PKR)', 'Total debits (PKR)', 'Total credits (PKR)', 'Closing balance (PKR)']) expect(p1).toContain(label)
-    for (const figure of ['0.00', '1,422,242.49', '3,014,816.16', '1,592,573.67']) expect(p1).toContain(figure)
-    expect(p1).toContain('Amount payable to customer')
-    // The closing figure is the largest on the page, and its side is written, not coloured.
-    const closing = r.onPage(1).find((t) => t.text === '1,592,573.67')!
-    expect(closing.size).toBe(Math.max(...r.onPage(1).filter((t) => /\d/.test(t.text)).map((t) => t.size)))
-    expect(r.onPage(1).some((t) => t.text === 'Cr' && Math.abs(t.y - closing.y) < 0.01)).toBe(true)
+  it('says "We owe you" for a credit balance, and does not repeat the totals in the summary', () => {
+    expect(r.texts(1)).toContain('We owe you')
+    expect(r.texts(1)).toContain('PKR 1,592,573.67')
+    for (const gone of ['Total debits (PKR)', 'Total credits (PKR)', 'Amount payable to customer']) expect(r.texts()).not.toContain(gone)
   })
 
-  it('explains Dr and Cr once, in words, and names the account currency', () => {
-    const p1 = r.texts(1).join(' ')
-    expect(p1).toContain('Dr: the customer owes the business. Cr: the business owes the customer.')
-    expect(p1).toContain('PKR (Pakistani Rupee)')
-    for (const h of ['Debit (PKR)', 'Credit (PKR)', 'Balance (PKR)']) expect(r.texts(1)).toContain(h)
-  })
-
-  it('labels the header facts and omits contact details that do not exist', () => {
-    const p1 = r.texts(1)
-    for (const label of ['Customer', 'Account ID', 'Statement period', 'Account currency', 'Generated']) expect(p1).toContain(label)
-    expect(p1).toContain('Statement Test Customer')
-    expect(p1).toContain('15 Sep 2026 to 21 Sep 2026')
-    expect(p1).toContain('21 Sep 2026, 19:34')
-    expect(p1.some((t) => t.startsWith('Tel.'))).toBe(false)
-  })
-
-  it('spells out both rate directions exactly as each currency is priced', () => {
+  it('states the currency once and explains Dr/Cr once, just above the table', () => {
     const all = r.texts()
-    expect(all).toContain('UAE Dirham · Rate: PKR 79 per AED')
-    expect(all).toContain('Toman · Rate: 788 TMN per PKR')
+    expect(all.filter((t) => t === 'All amounts in PKR unless stated otherwise.')).toHaveLength(1)
+    expect(all.filter((t) => t.includes('Dr = you owe us') && t.includes('Cr = we owe you'))).toHaveLength(1)
+    expect(all.some((t) => t.includes('Pakistani Rupee'))).toBe(false)
+    for (const h of ['Date', 'Particulars', 'Reference', 'Debit', 'Credit', 'Balance']) expect(r.texts(1)).toContain(h)
+  })
+
+  it('puts the generated time in the footer of every page', () => {
+    for (let p = 1; p <= r.pages; p++) {
+      const footer = r.onPage(p).filter(isFooter).map((t) => t.text).join(' ')
+      expect(footer, `page ${p}`).toContain('Generated 21 Sep 2026, 19:34')
+      expect(footer).toContain(`Page ${p} of ${r.pages}`)
+    }
+  })
+
+  it('writes the rate as an equation in each quote direction, never as a bare "@ 788"', () => {
+    const all = r.texts()
+    expect(all).toContain('Rate: 1 AED = 79 PKR')
+    expect(all).toContain('Toman · Rate: 788 TMN = 1 PKR')
     expect(all.some((t) => / @ \d/.test(t))).toBe(false)
   })
 
-  it('prints the period totals and the closing balance as separate rows', () => {
+  it('prints period totals and a compact closing row — the figure and its side, no sentence', () => {
     const totals = r.trace.find((t) => t.text === 'Period totals')!
     const closing = r.trace.find((t) => t.text === 'Closing balance')!
     expect(closing.y).toBeGreaterThan(totals.y)
-    const onTotals = r.trace.filter((t) => t.page === totals.page && Math.abs(t.y - totals.y) < 0.01).map((t) => t.text)
-    expect(onTotals).toEqual(['Period totals', '1,422,242.49', '3,014,816.16'])
-    expect(balanceOnLine(r.trace, closing)).toBe('1,592,573.67 Cr')
-    expect(r.trace.some((t) => t.page === closing.page && t.text === 'Amount payable to customer' && t.y > closing.y)).toBe(true)
+    expect(r.trace.filter((t) => t.page === totals.page && Math.abs(t.y - totals.y) < 0.01).map((t) => t.text)).toEqual(['Period totals', '1,422,242.49', '3,014,816.16'])
+    expect(r.trace.filter((t) => t.page === closing.page && Math.abs(t.y - closing.y) < 0.01).map((t) => t.text)).toEqual(['Closing balance', '1,592,573.67', 'Cr'])
   })
 
-  it('titles the currency section as a trading summary and says it is not an amount payable', () => {
+  it('lists uncleared cheques with their real statuses, outside the balance, with a total for each direction', () => {
     const all = r.texts()
-    expect(all).toContain('Currency Trading Summary')
-    expect(all.join(' ')).toContain('Trading summary only. These figures are not an additional amount payable.')
-    expect(all).toContain('Net sold to customer')
-    expect(all).not.toContain('Currency Position')
-  })
-
-  it('lists uncleared cheques under their own title, saying they are outside the balance, with both totals', () => {
-    const all = r.texts()
-    expect(all).toContain('Uncleared Cheques')
-    expect(all.join(' ')).toContain('These cheques are not included in the account balance until cleared.')
+    expect(all).toContain('Uncleared cheques')
+    expect(all).toContain('Not included in the balance above.')
     expect(all).toContain('Deposited')
-    expect(all).toContain('Total received from customer (uncleared)')
-    expect(all).toContain('Total issued to customer (uncleared)')
+    expect(all).toContain('From you')
+    expect(all).toContain('To you')
+    expect(all).toContain('Total from you')
+    expect(all).toContain('Total to you')
     expect(all).not.toContain('Cleared')
   })
 
-  it('draws no text on top of other text, and none outside the margins or into the footer', () => {
+  it('draws no text on top of other text, none too close to its neighbour, and none outside the margins', () => {
     expect(overlaps(r.trace)).toEqual([])
+    expect(crowded(r.trace)).toEqual([])
     for (const t of r.trace) {
       expect(t.x, t.text).toBeGreaterThanOrEqual(L - 1e-6)
       expect(t.x + t.width, t.text).toBeLessThanOrEqual(R + 1e-6)
@@ -191,32 +239,54 @@ describe('statement PDF — the reference statement', () => {
     }
   })
 
+  it('keeps every particulars line a clear gap short of the Reference column', () => {
+    const lines = r.trace.filter((t) => Math.abs(t.x - (colPart + C.cellPad)) < 0.01 && !isFooter(t))
+    expect(lines.length).toBeGreaterThan(60)
+    for (const t of lines) expect(t.x + t.width, t.text).toBeLessThanOrEqual(colRef - C.particularsGap + 1e-6)
+  })
+
   it('never shrinks a figure on an ordinary statement', () => {
-    const money = r.trace.filter((t) => /^[\d,]+\.\d\d$/.test(t.text) && t.x > colVoucher)
+    const money = r.trace.filter((t) => /^[\d,]+\.\d\d$/.test(t.text) && t.x > colRef)
     expect(money.length).toBeGreaterThan(100)
     for (const t of money) expect(t.size, t.text).toBeGreaterThanOrEqual(C.font.body)
   })
 
-  it('keeps the whole ledger on the pages it needs and uses the space after it for the sections', () => {
-    expect(r.pages).toBeLessThanOrEqual(4)
-    const lastLedger = r.trace.find((t) => t.text === 'Closing balance')!.page
-    const firstSection = r.trace.find((t) => t.text === 'Currency Trading Summary')!.page
-    expect(firstSection - lastLedger).toBeLessThanOrEqual(1)
-    // Rows printed = entries in the document: one date per row, in the date column.
-    const dates = r.trace.filter((t) => t.x < colPart && /^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(t.text))
+  it('prints one date per row and fits the reference on three pages', () => {
+    expect(r.pages).toBeLessThanOrEqual(3)
+    const dates = r.trace.filter((t) => t.x < colPart && /^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(t.text) && !isFooter(t))
     expect(dates.length).toBe(d.entryCount + 1) // + the opening row, dated the period start
+  })
+
+  it('shows the currency trading summary only when asked, briefly, with quantities and no valuation', () => {
+    const on = render(reference({ includeCurrencySummary: true }))
+    const all = on.texts()
+    expect(all).toContain('Currency trading summary')
+    expect(all).toContain('For reference only; not added to your balance.')
+    for (const h of ['Currency', 'Bought from you', 'Sold to you', 'Net']) expect(all).toContain(h)
+    expect(all).toContain('Net sold to you')
+    expect(all.some((t) => /profit|today's value/i.test(t))).toBe(false)
+    expect(crowded(on.trace)).toEqual([])
   })
 })
 
 describe('statement PDF — pagination', () => {
-  it('numbers every page "Page X of Y" and repeats the table header on every ledger page', () => {
+  it('numbers every page and repeats the table header and the customer on each', () => {
     const r = render(build(120))
     expect(r.pages).toBeGreaterThan(2)
     for (let p = 1; p <= r.pages; p++) {
       expect(r.texts(p), `page ${p}`).toContain(`Page ${p} of ${r.pages}`)
       expect(r.texts(p).filter((t) => t === 'Particulars').length, `table header on page ${p}`).toBe(1)
-      if (p > 1) expect(r.texts(p).join(' '), `continuation header on page ${p}`).toContain('Account ID 5C9AB663')
+      if (p > 1) {
+        expect(r.texts(p)).toContain('Dubai Tmn Buyer')
+        expect(r.texts(p).join(' ')).toContain('Account ref. 5C9AB663')
+      }
     }
+  })
+
+  it('adds no continuation rows to a single-page statement', () => {
+    const r = render(build(5))
+    expect(r.texts()).not.toContain('Balance carried forward')
+    expect(r.texts()).not.toContain('Balance brought forward')
   })
 
   it('carries the running balance across every break: carried forward = brought forward = the last row above the break', () => {
@@ -232,11 +302,8 @@ describe('statement PDF — pagination', () => {
       expect(b.page).toBe(c.page + 1)
       const carriedFigure = balanceOnLine(r.trace, c)
       expect(balanceOnLine(r.trace, b)).toBe(carriedFigure)
-      // The last entry balance printed above the carried row, on that page.
-      const above = r.trace
-        .filter((t) => t.page === c.page && t.y < c.y - 0.01 && t.x + t.width > colBalRight - C.columns.balance && t.x > colVoucher + C.columns.debit + C.columns.credit)
-        .reduce((a, t) => (t.y > a ? t.y : a), 0)
-      const lastRow = r.trace.filter((t) => t.page === c.page && Math.abs(t.y - above) < 0.01 && t.x > colVoucher + C.columns.debit + C.columns.credit)
+      const above = r.trace.filter((t) => t.page === c.page && t.y < c.y - 0.01 && t.x > colBalance).reduce((a, t) => (t.y > a ? t.y : a), 0)
+      const lastRow = r.trace.filter((t) => t.page === c.page && Math.abs(t.y - above) < 0.01 && t.x > colBalance)
       expect(lastRow.sort((a, b) => a.x - b.x).map((t) => t.text).join(' ')).toBe(carriedFigure)
       expect(balances).toContain(carriedFigure)
     })
@@ -262,10 +329,11 @@ describe('statement PDF — pagination', () => {
     }
   })
 
-  it('keeps every row inside the page at every length, with no overlap', () => {
+  it('keeps every row inside the page at every length, with no overlap and no crowding', () => {
     for (const n of [1, 27, 55, 83]) {
       const r = render(build(n))
       expect(overlaps(r.trace), `n=${n}`).toEqual([])
+      expect(crowded(r.trace), `n=${n}`).toEqual([])
       for (const t of r.trace) if (!isFooter(t)) expect(t.y, `n=${n} "${t.text}"`).toBeLessThanOrEqual(BOTTOM + 1e-6)
     }
   })
@@ -295,16 +363,12 @@ describe('statement PDF — hard content', () => {
   it('wraps long names and descriptions instead of cutting them, and prints every word', () => {
     const r = render(hard())
     expect(overlaps(r.trace)).toEqual([])
-    // The narration, reassembled from its wrapped lines in the particulars column, is complete.
-    const lines = r.trace.filter((t) => Math.abs(t.x - (colPart + C.cellPad)) < 0.01 && narration.includes(t.text.trim().split(' ')[0]) && t.y > 60)
-    const joined = lines.map((t) => t.text).join(' ').replace(/\s+/g, ' ')
-    for (const word of narration.split(' ')) expect(joined.replace(/ /g, ''), word).toContain(word)
+    expect(crowded(r.trace)).toEqual([])
+    const lines = r.trace.filter((t) => Math.abs(t.x - (colPart + C.cellPad)) < 0.01 && !isFooter(t))
+    const joined = lines.map((t) => t.text).join(' ').replace(/ /g, '')
+    for (const word of narration.split(' ')) expect(joined, word).toContain(word)
     expect(r.trace.some((t) => t.text.includes('...'))).toBe(false)
-    // Every particulars line stays inside its column.
-    for (const t of r.trace.filter((x) => Math.abs(x.x - (colPart + C.cellPad)) < 0.01 && x.y > 60 && !isFooter(x))) {
-      expect(t.x + t.width, t.text).toBeLessThanOrEqual(colVoucher + 1e-6)
-    }
-    // The full customer name is on page 1.
+    for (const t of lines) expect(t.x + t.width, t.text).toBeLessThanOrEqual(colRef - C.particularsGap + 1e-6)
     expect(r.texts(1).join(' ')).toContain('Karachi Branch')
   })
 
@@ -319,18 +383,15 @@ describe('statement PDF — hard content', () => {
       expect(t.x, t.text).toBeGreaterThanOrEqual(L - 1e-6)
       expect(t.x + t.width, t.text).toBeLessThanOrEqual(R + 1e-6)
     }
-    expect(r.texts()).toContain(splitBalance(d.closing, 2).amount)
+    expect(r.texts()).toContain(`PKR ${splitBalance(d.closing, 2).amount}`)
   })
 
   it('runs a long cheque list over a page break with its column heads repeated, totals kept with the last row', () => {
     const r = render(hard())
-    const heads = r.trace.filter((t) => t.text === 'Cheque No.')
-    expect(heads.length).toBeGreaterThan(1)
-    // Each cheque row starts with its direction; the last one printed must share a page with the totals.
-    const lastCheque = r.trace.filter((t) => t.text === 'Received from customer' || t.text === 'Issued to customer').at(-1)!
-    const totals = r.trace.find((t) => t.text === 'Total received from customer (uncleared)')!
+    expect(r.trace.filter((t) => t.text === 'Cheque No.').length).toBeGreaterThan(1)
+    const lastCheque = r.trace.filter((t) => t.text === 'From you' || t.text === 'To you').at(-1)!
+    const totals = r.trace.find((t) => t.text === 'Total from you')!
     expect(totals.page).toBe(lastCheque.page)
-    // A cheque number too long for its column wraps; every one is printed whole.
     const numberX = Math.min(...r.trace.filter((t) => t.text === 'Cheque No.').map((t) => t.x))
     const numberText = r.trace.filter((t) => Math.abs(t.x - numberX) < 0.01 && t.text !== 'Cheque No.').map((t) => t.text).join('')
     for (let i = 0; i < 40; i++) expect(numberText).toContain(`LONG-CHEQUE-NUMBER-${1000 + i}`)
@@ -342,17 +403,20 @@ describe('statement PDF — an empty statement', () => {
   const d = buildStatementDocument({ customer, accounts: [customer], activity: [], cheques: [], journalEntries: [] }, { now: NOW })
   const r = render(d)
 
-  it('is one page that says there is nothing in the period and shows a settled account', () => {
+  it('is one page that says there is nothing in the period and the account is settled', () => {
     expect(r.pages).toBe(1)
     expect(r.texts()).toContain('No transactions in this period.')
-    expect(r.texts()).toContain('Period totals')
-    expect(r.texts().filter((t) => t === 'Account settled — no outstanding balance').length).toBeGreaterThanOrEqual(2)
+    expect(r.texts()).toContain('Account settled')
+    expect(r.texts()).toContain('PKR 0.00')
+    const totals = r.trace.find((t) => t.text === 'Period totals')!
+    // Zero totals print as 0.00, never as a dash.
+    expect(r.trace.filter((t) => Math.abs(t.y - totals.y) < 0.01).map((t) => t.text)).toEqual(['Period totals', '0.00', '0.00'])
     expect(r.texts()).toContain('Up to 21 Sep 2026')
   })
 
   it('leaves out the sections it has nothing for', () => {
-    expect(r.texts()).not.toContain('Currency Trading Summary')
-    expect(r.texts()).not.toContain('Uncleared Cheques')
+    expect(r.texts()).not.toContain('Currency trading summary')
+    expect(r.texts()).not.toContain('Uncleared cheques')
   })
 })
 
@@ -361,7 +425,7 @@ describe('statement PDF — black and white', () => {
   /** Every colour the page sets, as [r, g, b] in 0-1: jsPDF writes `r g b rg` (fill and text) and `r g b RG` (stroke). */
   const colours = (text: string) => [...text.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) (?:rg|RG)/g)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3])])
 
-  it('uses the navy accent, and no red or green anywhere on the page', () => {
+  it('uses the blue accent, and no red or green anywhere on the page', () => {
     const cs = colours(stream())
     const [r0, g0, b0] = COLOR.brand.map((v) => v / 255)
     expect(cs.some(([x, y, z]) => Math.abs(x - r0) < 0.003 && Math.abs(y - g0) < 0.003 && Math.abs(z - b0) < 0.003)).toBe(true)
@@ -372,20 +436,16 @@ describe('statement PDF — black and white', () => {
   })
 
   it('renders in pure greys when asked, for a black-and-white proof', () => {
-    // jsPDF writes an all-equal colour as a single-value grey operator (`0.4 g` / `0.4 G`) and only a genuine
-    // colour as three components (`r g b rg`). So a grayscale render must have many grey operators and no
-    // three-component colour at all.
     const gray = stream({ grayscale: true })
     expect([...gray.matchAll(/(?:^|\s)([\d.]+) (?:g|G)(?=\s)/g)].length).toBeGreaterThan(20)
     expect(colours(gray)).toEqual([])
   })
 
-  it('writes the side of every balance, so none depends on colour', () => {
+  it('writes the side of every ledger balance, so none depends on colour', () => {
     const r = render(reference())
-    // Every figure in the Balance column of the ledger — which ends where the first section begins.
-    const end = r.trace.find((t) => t.text === 'Currency Trading Summary')!
+    const end = r.trace.find((t) => t.text === 'Uncleared cheques')!
     const inLedger = (t: TextTrace) => t.page < end.page || (t.page === end.page && t.y < end.y)
-    const balances = r.trace.filter((t) => inLedger(t) && t.y > 80 && /^[\d,]+\.\d\d$/.test(t.text) && t.x > colVoucher + C.columns.debit + C.columns.credit)
+    const balances = r.trace.filter((t) => inLedger(t) && /^[\d,]+\.\d\d$/.test(t.text) && t.x > colBalance)
     expect(balances.length).toBeGreaterThan(60)
     for (const b of balances) {
       if (b.text === '0.00') continue
