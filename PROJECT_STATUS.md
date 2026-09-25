@@ -209,6 +209,102 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-25 — the customer statement rewritten for the customer who reads it
+
+### Done
+
+*At a glance: the statement PDF was reworked so a customer with no accounting background can read it — what they
+owe or are owed, in words; what each line was; what each rate means. **No figure changed**: the same rows, in the
+same order, with the same running balance, totals and closing balance as before. Nothing is pushed.*
+
+**Checked against the reference statement first.** The reference (`3-statement-test-customer-as-admin.pdf`,
+"Statement Test Customer", 15–21 Sep 2026) was printed before the dev database was cleared, so its data no longer
+exists anywhere else. It was rebuilt line for line as a test fixture, and the new statement reproduces its four
+figures exactly: **opening 0.00, total debits 1,422,242.49, total credits 3,014,816.16, closing 1,592,573.67 Cr.**
+
+**What Dr and Cr mean, confirmed in the calculation rather than assumed.** The statement's balance is "what the
+customer owes the desk, less what the desk owes the customer". So **Dr means the customer owes the business and Cr
+means the business owes the customer.** The closing balance now says so in words — *Amount payable to customer* (Cr),
+*Amount receivable from customer* (Dr) or *Account settled — no outstanding balance* — and page 1 explains Dr and Cr
+once. The reference closing balance reads "1,592,573.67 Cr — Amount payable to customer".
+
+**What changed on the page.**
+- **Header:** business name and "Statement of Account", then labelled facts — customer, account ID, statement
+  period, account currency (PKR), generated date and time. No address or phone is printed because none is recorded
+  anywhere; nothing was invented.
+- **Summary:** opening balance, total debits, total credits and — largest — the closing balance with its meaning.
+  Every heading says PKR.
+- **Table:** Date | Particulars | Voucher No. | Debit (PKR) | Credit (PKR) | Balance (PKR), with the **date on every
+  row**. Lines read from the desk's side: "Sold to customer: AED 20", "Bought from customer: TMN 150,000,000", "Cash
+  received from customer", "Bank payment to customer", "Cheque received from customer, cleared". Each deal has a second
+  line saying what the rate means — **"Rate: PKR 79 per AED"** (multiplied) and **"Rate: 788 TMN per PKR"** (divided) —
+  never a bare "@ 788". Manual entries keep the words the person wrote (a credit is not relabelled "discount"), with
+  their JV number.
+- **End of the table:** "Period totals" and "Closing balance" are now two separate rows.
+- **Page breaks:** each page the table leaves ends with "Balance carried forward" and the next starts with "Balance
+  brought forward", showing the same figure — the running balance at that point. They are not transactions and are in
+  no total. Later pages have a compact header naming the customer, account and period.
+- **Currency Trading Summary** (was "Currency Position"): per currency, how much was bought from the customer, how
+  much sold to them, and the net — so the reference's AED now reads *bought 75, sold 100, net 25 sold to customer*
+  instead of "Sold to customer 25 AED", which read like a single sale of 25. It says it is a trading summary only and
+  not an additional amount payable.
+- **Uncleared Cheques** (was "Pending cheques"): direction, number, bank, due date, the cheque's **real status**
+  ("Deposited" is not shown as cleared), and separate totals for received and issued. Confirmed in the calculation
+  that uncleared cheques are not in the balance. The section disappears when there are none.
+- **Type and print:** 10 pt text (was 8.7), an embedded font with evenly spaced digits, dark ink on white, one navy
+  accent, grey shading, thin lines between rows. No red or green and no meaning carried by colour, checked on a
+  black-and-white proof. Long names and descriptions wrap instead of being cut; no amount is cut.
+
+**The font is now embedded.** The previous entry recorded "no font embedded, as instructed". This brief asked for a
+properly embedded font, so one was added: Noto Sans, a free open-licence face, cut down to exactly the characters the
+statement already allowed (about 18 KB per weight, loaded only when a PDF is made). Before, each viewer and printer
+swapped in its own lookalike of Helvetica, so spacing could differ from machine to machine. **Arabic and Urdu still
+cannot be printed** — no tool here arranges right-to-left text — and the app still warns before the PDF opens.
+
+**The trade-off, stated plainly.** Larger type and a second line for each deal's rate take room: the reference
+statement is **four pages where the old one was three**. Page 3 ends with the closing balance and page 4 holds the
+currency summary and the two uncleared cheques. Smaller type or narrower amount columns would have saved a page but
+shrunk multi-million amounts, and the brief put readability first.
+
+**Tests: 220 screen tests pass** (up from 194), plus 80 calculator tests; the 203 server tests were not re-run
+because no server code changed. New tests cover: the reference's four figures; the Dr, Cr and settled wording;
+a non-zero opening balance; both rate directions; gross against net currency figures; uncleared cheques kept out of the
+balance; carried- and brought-forward figures matching the running balance at every page break; long names and
+descriptions, very large amounts and a 40-cheque list running over a page; an empty statement; no text overlapping
+other text or crossing a margin. Three faults were introduced on purpose (the rate direction flipped, the brought-forward
+figure off by one row, payable and receivable swapped) and each was caught.
+
+**Every page was looked at**, not just built: the reference statement, its black-and-white proof, a stress statement
+and an empty one. Copies are in `Downloads\statement-pdf-samples-v3`.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| The old statement printed a net currency figure as if it were a sale or purchase ("Sold to customer 25 AED" for 100 sold and 75 bought) | Medium — misleading to a customer | **Fixed** (presentation only; the figures were right) |
+| Bold totals were being shrunk to fit their columns (found by a test during this work) | Low | **Fixed before release** |
+| There is still nowhere to record the business's real name, address, phone or logo, so the header says "DESK NAME" | Medium for a customer-facing document | **Open** — needs a settings field (a server change) |
+| An operator's statement still leaves out manual entries against Income accounts (decided 2026-09-21, not built) | Medium | **Open** — unchanged by this work |
+
+### Not done, deliberately
+
+- Nothing about how any figure is calculated was changed.
+- No sequential human deal number was invented; deals still show the same 8-character reference as the Transactions page.
+- The generated time is the computer's local clock, as before, not a fixed Pakistan time zone. The browser pages
+  already work this way.
+- Not yet pressed through the Print button in the running app. The button runs the same code the samples were made
+  with, and the type-check and build pass.
+- Nothing pushed or deployed; production not touched.
+
+### Next
+
+1. Open the statement through the Print button once in the running app (admin and operator) and print one page on the
+   desk's printer.
+2. A settings field for the business name, address, phone and logo — the header already has room.
+3. Show the operator's statement the customer's leg of Income entries (decided 2026-09-21).
+4. Sequential human deal numbers, which the Voucher No. column will pick up.
+5. Everything listed under the earlier statement-PDF entries still stands.
+
 ## 2026-09-21 — the statement PDF gets a designed look
 
 ### Done
