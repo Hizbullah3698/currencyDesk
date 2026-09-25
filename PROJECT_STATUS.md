@@ -209,6 +209,82 @@ Worth noting because it represents real completed work, whether or not it maps t
 
 *Most recent first. Never delete an entry.*
 
+## 2026-09-25 (evening) — the statement built to the owner's approved design
+
+### Done
+
+*At a glance: the owner supplied a one-page design reference PDF and approved it. The customer statement now
+follows it: its typeface, deep-teal balance panel, spacing, table proportions, alternating row shading,
+references beneath descriptions, totals and footer, filled with real data. **No figure changed.** Checked
+through the app's own Print flow and against the reference, page by page. Nothing is pushed.*
+
+**What now matches the reference.** The business name in deep teal at the top left, with "Statement of Account"
+and the period ("19–25 September 2026") opposite. "ACCOUNT HOLDER", the customer's name, and "Account <ref>". A
+deep-teal panel with rounded corners reading "CLOSING BALANCE · 25 SEP 2026", then **"You owe PKR 3,807,106.60"**,
+with the opening balance on the right. "Account activity" with "All amounts in PKR". A table of Date |
+Transaction / Reference | Debit | Credit | Balance, with each deal's reference and rate on a small line under its
+description ("A3F39CC7 · 788 TMN = 1 PKR"). Alternate rows are shaded, unused cells show a dash, and the table
+ends with "Period totals", a shaded closing row, and "Dr = you owe us · Cr = we owe you". The footer shows the
+generated time and "Page X of Y".
+
+**What was deliberately NOT copied from the reference, because it was sample data:** its business details and
+"Currency Exchange" tagline, the customer "Dubai Trading Company", the account number, the statement number
+"ST-2026-0098", the dates, the transactions and the amounts, and the footer text "Sample data · Design
+reference". A test fails if any of those appear. There is no statement number in our data, so that corner of the
+header is left empty rather than filled with an invented number.
+
+**The typeface is now Inter, the one the reference uses** (a free, open-licence font), embedded in every PDF.
+One fault was found and fixed while doing this. Making Inter's digits all the same width, so amounts line up,
+at first also widened the hyphen and narrowed the space: references printed as "JV - 022" and words sat closer
+together. The font was rebuilt so that only the ten digits changed, and a test now measures the hyphen and space
+widths.
+
+**Longer statements continue naturally** rather than squeezing onto one page. Every later page repeats the
+customer, account and period, and the table headings. Each page break carries the balance forward (the
+61-transaction test statement's carried-forward figures all match the next page's brought-forward figures).
+Text is never shrunk to save pages: that statement is six pages at the reference's spacing, where it was three
+at the previous, tighter design. Two layout improvements came out of checking the pages. A short "Uncleared
+cheques" section now moves to the next page whole instead of being split one row per page. And three very long,
+wrapped rows no longer have to travel together with the closing balance, which had stranded half a page empty.
+
+**Checked with our real, awkward data.** The client's actual deal sizes stay on one line at full size:
+TMN 3,000,000,000, 5,000,000,000 and 12,000,000,000, and PKR amounts in the tens of millions such as
+15,228,426.40 and 18,847,686.24. Also checked: a 100-character customer name, a long bank-account name, a long
+hand-written narration, a credit balance ("We owe you"), an empty statement ("Account settled"), a statement
+crossing a year (the dates then carry the year), and a black-and-white proof.
+
+**Through the real application.** On the local system the Print button was used for two live customers. "Dubai
+Tmn Buyer" (**You owe PKR 3,807,106.60**) was compared with the reference: layout, spacing and hierarchy match.
+"Dubai Tmn Supplier" (**We owe you PKR 10,117,355.58**, the client's own 3-billion and 5-billion TMN deals) was
+also printed. One slip, recorded honestly: the first Print was triggered by a script, which the browser treats
+as not a real click. It blocked the new tab, and the app's fallback downloaded
+`statement-Dubai-Tmn-Buyer-2026-09-25.pdf` into the Downloads folder. That file is the app's genuine output and
+was used for the comparison. It can be deleted.
+
+**Samples, every page inspected:** `Downloads\statement-pdf-samples-v5`: the one-deal statement, the 6-page
+mixed statement, a credit balance, an empty statement, uncleared cheques, the trading-summary option, a
+black-and-white proof, and long names with large amounts.
+
+**Tests: 242 screen tests pass** (up from 230), plus 80 calculator tests. The type-check, lint and build are
+clean. The server tests were not re-run; no server code changed.
+
+### Found
+
+| Finding | Severity | Status |
+|---|---|---|
+| Making Inter's digits tabular with a general tool also changed the hyphen and space widths ("JV - 022", words pushed together) | Medium — exactly the readability fault the owner had asked to avoid | **Fixed before release**, pinned by a test |
+| A short cheque section could be split across two pages, one row on each | Low | **Fixed** |
+| Three long wrapped rows kept with the closing balance could leave half a page empty | Low | **Fixed** |
+| No statement number exists in the data model; the reference shows one | Low | **Open** — only if the owner wants numbered statements (a data change) |
+| The business name, tagline, address and phone still have no settings field | Low | **Open** — unchanged |
+
+### Next
+
+1. Print one statement on the desk's own printer; the teal panel uses a lot of toner, so check it prints cleanly.
+2. Decide whether statements should carry a statement number, as the reference does.
+3. A settings field for the business name, tagline, address, phone and logo.
+4. Unchanged: the operator's view of Income entries; sequential deal numbers.
+
 ## 2026-09-25 (later) — the statement redesigned as a finished customer document, under the name "Currency Desk"
 
 ### Done
